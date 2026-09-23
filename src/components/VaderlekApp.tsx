@@ -247,10 +247,11 @@ export function VaderlekApp() {
                   <div className="legend" aria-hidden>
                     <span className="lg lg-obs">Observerat</span>
                     <span className="lg lg-fc">Prognos</span>
-                    <span className="lg lg-cloud">Moln (tätare = mer)</span>
+                    <span className="lg lg-temp">Temperatur</span>
+                    <span className="lg lg-cloud">Moln (kraftigare = tätare)</span>
                     <span className="lg lg-regn">Regn</span>
                     <span className="lg lg-sno">Snö</span>
-                    <span className="lg lg-fog">Dimma / låg sikt</span>
+                    <span className="lg lg-fog">Dimma</span>
                   </div>
                   <button
                     type="button"
@@ -278,7 +279,6 @@ export function VaderlekApp() {
       )}
 
       <footer className="foot">
-        <span>DÅ ← NU → SEN</span>
         <span className="muted">
           {bundle ? `Hämtat ${new Date(bundle.generatedAt).toLocaleTimeString("sv-SE", { hour: "2-digit", minute: "2-digit" })}` : ""}
           {bundle && Math.abs(now - Date.parse(bundle.generatedAt)) > 2 * HOUR ? " · data kan vara inaktuell" : ""}

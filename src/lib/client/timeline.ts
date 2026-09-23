@@ -73,7 +73,8 @@ function forecastWindow(bundle: WeatherBundle, now: number): ForecastPoint[] {
 // ---------------------------------------------------------------------------
 
 export type PrecipKind = "regn" | "snö";
-export type CloudBlock = Span & { baseM: number; cover: CloudLayer["cover"] | "MODEL"; opacity: number };
+/** density 0–1: hur stor del av himlen som täcks (FEW → OVC, eller oktas/8). */
+export type CloudBlock = Span & { baseM: number; cover: CloudLayer["cover"] | "MODEL"; density: number };
 /** Nederbörd som faller från molnbasen. mm saknas när bara väderkoden säger att det regnar. */
 export type Precip = Span & { kind: PrecipKind; mm?: number; fromM?: number; label: string };
 export type Arrow = { t: number; deg?: number; variable?: boolean; speed: number; gust?: number; forecast: boolean };
@@ -118,7 +119,8 @@ function niceTicks([lo, hi]: [number, number], count = 4): number[] {
 
 const OBS_GAP = 100 * 60 * 1000;
 const FCST_GAP = 3 * HOUR + 1;
-const COVER_OPACITY: Record<string, number> = { FEW: 0.25, SCT: 0.45, BKN: 0.7, OVC: 0.9, VV: 0.9 };
+// Täckningsgrad enligt METAR: FEW 1–2, SCT 3–4, BKN 5–7, OVC 8 oktas.
+const COVER_DENSITY: Record<string, number> = { FEW: 0.2, SCT: 0.45, BKN: 0.75, OVC: 1, VV: 1 };
 
 const precipKindOf = (p: Phenomenon | undefined): PrecipKind | null => {
   if (!p) return null;
@@ -154,9 +156,9 @@ export function buildChart(bundle: WeatherBundle, now: number): ChartData {
     const t = ts(x);
     const span = { t0: t - cloudStep / 2, t1: t + cloudStep / 2 };
     if (x.cloudLayers?.length) {
-      for (const l of x.cloudLayers) cloudsObserved.push({ ...span, baseM: l.baseM, cover: l.cover, opacity: COVER_OPACITY[l.cover] });
+      for (const l of x.cloudLayers) cloudsObserved.push({ ...span, baseM: l.baseM, cover: l.cover, density: COVER_DENSITY[l.cover] });
     } else if (x.cloudBaseM !== undefined) {
-      cloudsObserved.push({ ...span, baseM: x.cloudBaseM, cover: "MODEL", opacity: 0.6 });
+      cloudsObserved.push({ ...span, baseM: x.cloudBaseM, cover: "MODEL", density: 0.6 });
     }
   }
   if (!cloudObs.length) missing.clouds = "Ingen molnobservation i närheten";
@@ -164,7 +166,7 @@ export function buildChart(bundle: WeatherBundle, now: number): ChartData {
     if (p.cloudBaseM === undefined) return [];
     const t = ts(p);
     const oktas = Math.max(p.lowCloudCoverOktas ?? 0, p.cloudCoverOktas ?? 4);
-    return [{ t0: t - HOUR / 2, t1: t + HOUR / 2, baseM: p.cloudBaseM, cover: "MODEL" as const, opacity: 0.2 + (oktas / 8) * 0.6 }];
+    return [{ t0: t - HOUR / 2, t1: t + HOUR / 2, baseM: p.cloudBaseM, cover: "MODEL" as const, density: Math.max(0.15, oktas / 8) }];
   });
 
   // Väderfenomen (observerat) – nederbördstyp, dimma, åska

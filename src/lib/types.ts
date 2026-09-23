@@ -170,6 +170,8 @@ export type SourceStatus = {
   id: "metar" | "taf" | "smhi-obs" | "smhi-forecast";
   label: string;
   ok: boolean;
+  /** Tjänsten svarade inte (till skillnad från "ingen station i närheten") */
+  failed?: boolean;
   message?: string;
 };
 

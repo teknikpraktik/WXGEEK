@@ -205,14 +205,12 @@ function PrimarySrc({ o, now, mode }: { o: Origin; now: number; mode: Snapshot["
   const stale = mode === "now" && age > STALE_MS;
   return (
     <span className={`src src-primary${stale ? " stale" : ""}`}>
-      <span className={`src-id src-${o.kind.toLowerCase()}`}>{o.kind === "METAR" ? o.stationId : "SMHI"}</span>
-      <span>{o.stationName}</span>
-      {o.distanceKm !== undefined && <span>{fmtDistance(o.distanceKm)} bort</span>}
-      <span>
-        {o.kind === "METAR" ? "flygplatsobservation" : "stationsmätning"}{" "}
-        {mode === "now" ? fmtAge(age) : fmtTime(o.timestamp)}
+      <span className={`src-id src-${o.kind.toLowerCase()}`} title={o.stationName}>
+        {o.kind === "METAR" ? o.stationId : "SMHI"}
       </span>
-      {stale && <span className="stale-flag">äldre observation</span>}
+      {o.distanceKm !== undefined && <span>{fmtDistance(o.distanceKm)}</span>}
+      <span>{mode === "now" ? fmtAge(age) : fmtTime(o.timestamp)}</span>
+      {stale && <span className="stale-flag">äldre</span>}
     </span>
   );
 }

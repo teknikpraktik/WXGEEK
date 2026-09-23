@@ -11,7 +11,7 @@ const MIN_OFFSET_H = -PAST_HOURS;
 // Layout (px)
 const TOP = 26; // NU / OBSERVERAT / PROGNOS
 const CHART_H = 210; // molnbas (vänster axel) + temperatur (höger axel) + nederbörd
-const GROUND_PAD = 10; // band under marklinjen för dimma/låg sikt
+const GROUND_PAD = 6; // luft under marklinjen
 const WIND_H = 44;
 const TAF_H = 18;
 const AXIS_H = 28;
@@ -243,6 +243,16 @@ export const Timeline = memo(function Timeline({ now, until, data, taf, onCursor
             aria-label="Diagram: molnbas i meter (vänster axel), temperatur i grader (höger axel), nederbörd från molnbasen, vind under. Heldraget är observerat, streckat är prognos."
           >
             <defs>
+              {/* Temperatur: blått under noll, rött över – intensivare ju längre från noll */}
+              <linearGradient id="tempgrad" gradientUnits="userSpaceOnUse" x1={0} x2={0} y1={yTemp(t0)} y2={yTemp(t1)}>
+                {tempStops(t0, t1).map((s) => (
+                  <stop key={s.offset} offset={s.offset} stopColor={s.color} />
+                ))}
+              </linearGradient>
+              <linearGradient id="fog" x1={0} x2={0} y1={0} y2={1}>
+                <stop offset={0} className="fog-top" />
+                <stop offset={1} className="fog-bottom" />
+              </linearGradient>
               <pattern id="hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
                 <line x1="0" y1="0" x2="0" y2="6" className="tl-hatch" />
               </pattern>
@@ -269,18 +279,22 @@ export const Timeline = memo(function Timeline({ now, until, data, taf, onCursor
                 <line key={h.t} x1={x(h.t)} x2={x(h.t)} y1={chartTop} y2={axisTop + 14} className="tl-midnight" />
               ))}
 
-            {/* Låg sikt / dimma vid marken */}
-            {data.lowVis.map((v, i) => (
-              <rect
-                key={`lv${i}`}
-                {...span(v.t0, v.t1, 0.5)}
-                y={groundY + 1}
-                height={GROUND_PAD - 2}
-                className={`tl-lowvis${v.severe ? " severe" : ""}${v.forecast ? " fc" : ""}`}
-              >
-                <title>{`${v.label}${v.forecast ? " (prognos)" : ""}`}</title>
-              </rect>
-            ))}
+            {/* Dimma / dis: ljusgrått marknära lager (dimma högre och tätare än dis) */}
+            {data.lowVis.map((v, i) => {
+              const top = yCloud(v.severe ? 150 : 60);
+              return (
+                <rect
+                  key={`lv${i}`}
+                  {...span(v.t0, v.t1)}
+                  y={top}
+                  height={groundY - top}
+                  fill="url(#fog)"
+                  className={`tl-fog${v.severe ? " severe" : ""}${v.forecast ? " fc" : ""}`}
+                >
+                  <title>{`${v.label}${v.forecast ? " (prognos)" : ""}`}</title>
+                </rect>
+              );
+            })}
 
             {/* Nederbörd – faller från molnbasen */}
             {[...data.precipObserved, ...data.precipForecast.map((p) => ({ ...p, fc: true }))].map((p, i) => (
@@ -304,13 +318,13 @@ export const Timeline = memo(function Timeline({ now, until, data, taf, onCursor
                 height={7}
                 rx={1.5}
                 className={c.cover === "VV" ? "tl-cloud vv" : "tl-cloud"}
-                style={{ opacity: c.cover === "VV" ? 1 : c.opacity }}
+                style={c.cover === "VV" ? undefined : { fill: cloudFill(c.density) }}
               >
                 <title>{`${c.cover === "MODEL" ? "Molnbas" : c.cover} ${Math.round(c.baseM)} m`}</title>
               </rect>
             ))}
             {data.cloudsForecast.map((c, i) => (
-              <rect key={`cf${i}`} {...span(c.t0, c.t1, 1)} y={yCloud(c.baseM) - 3.5} height={7} rx={1.5} className="tl-cloud fc" style={{ opacity: c.opacity }}>
+              <rect key={`cf${i}`} {...span(c.t0, c.t1, 1)} y={yCloud(c.baseM) - 3.5} height={7} rx={1.5} className="tl-cloud fc" style={{ fill: cloudFill(c.density) }}>
                 <title>{`Molnbas ${Math.round(c.baseM)} m (prognos)`}</title>
               </rect>
             ))}
@@ -322,13 +336,13 @@ export const Timeline = memo(function Timeline({ now, until, data, taf, onCursor
 
             {/* Temperatur – överst */}
             {data.temp.forecast.map((s, i) => (
-              <path key={`tf${i}`} d={pathOf(s)} className="tl-line fc" />
+              <path key={`tf${i}`} d={pathOf(s)} className="tl-line fc" style={{ stroke: "url(#tempgrad)" }} />
             ))}
             {data.temp.observed.map((s, i) =>
               s.length === 1 ? (
-                <circle key={`to${i}`} cx={x(s[0].t)} cy={yTemp(s[0].v)} r={2.5} className="tl-dot" />
+                <circle key={`to${i}`} cx={x(s[0].t)} cy={yTemp(s[0].v)} r={2.5} style={{ fill: tempColor(s[0].v) }} />
               ) : (
-                <path key={`to${i}`} d={pathOf(s)} className="tl-line obs" />
+                <path key={`to${i}`} d={pathOf(s)} className="tl-line obs" style={{ stroke: "url(#tempgrad)" }} />
               ),
             )}
 
@@ -397,6 +411,40 @@ export const Timeline = memo(function Timeline({ now, until, data, taf, onCursor
     </div>
   );
 });
+
+/** Temperaturfärg: blått vid kyla, rött vid värme, tydligt skifte vid 0 °C. */
+export function tempColor(v: number): string {
+  const lerp = (a: number[], b: number[], f: number) => a.map((x, i) => Math.round(x + (b[i] - x) * f));
+  const rgb = (c: number[]) => `rgb(${c[0]},${c[1]},${c[2]})`;
+  if (v <= 0) {
+    // 0 → −20: ljusblått → djupblått
+    const f = Math.min(1, -v / 20);
+    return rgb(lerp([96, 165, 250], [30, 58, 138], f));
+  }
+  // 0 → +25: orange → rött → mörkrött
+  const f = Math.min(1, v / 25);
+  return f < 0.5 ? rgb(lerp([245, 158, 11], [220, 38, 38], f * 2)) : rgb(lerp([220, 38, 38], [127, 29, 29], (f - 0.5) * 2));
+}
+
+function tempStops(lo: number, hi: number) {
+  const out: Array<{ offset: number; color: string }> = [];
+  const n = Math.max(2, Math.ceil(hi - lo) * 2);
+  for (let i = 0; i <= n; i++) {
+    const v = lo + ((hi - lo) * i) / n;
+    out.push({ offset: i / n, color: tempColor(v) });
+    // Skarp övergång vid noll
+    const next = lo + ((hi - lo) * (i + 1)) / n;
+    if (i < n && v <= 0 && next > 0) {
+      const z = (0 - lo) / (hi - lo);
+      out.push({ offset: z, color: tempColor(0) }, { offset: z + 1e-4, color: tempColor(0.01) });
+    }
+  }
+  return out;
+}
+
+/** Molnfärg: ljust för få moln, mörkare grått ju mer av himlen som täcks. */
+const cloudFill = (density: number) =>
+  `color-mix(in srgb, var(--cloud-dense) ${Math.round(15 + density * 85)}%, var(--cloud-thin))`;
 
 /** Nederbördsstreck från molnbasen till marken. Fler streck = mer nederbörd. */
 function PrecipStreaks({

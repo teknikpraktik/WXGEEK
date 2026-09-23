@@ -11,16 +11,19 @@
   --rule-2: #e7e5de;
   --obs: #121418;
   --obs-bg: rgba(18, 20, 24, 0.035);
-  --fc: #2a58d6;
-  --fc-soft: rgba(42, 88, 214, 0.13);
-  --now: #e0452b;
+  --fc: #6b7079;
+  --fc-soft: rgba(107, 112, 121, 0.14);
+  --now: #16a34a;
   --warn: #b35c00;
   --ev-regn: #2f7fd1;
   --ev-sno: #a48fe0;
   --ev-dimma: #9a9a92;
   --ev-aska: #d4a200;
-  --taf: #0e7f73;
+  --taf: #5c6068;
   --cloud: #5f6672;
+  --cloud-thin: #e2e1dc;
+  --cloud-dense: #4f535a;
+  --fog: #cfd2d6;
   --font-ui: var(--font-sans), system-ui, -apple-system, "Segoe UI", sans-serif;
   --font-num: var(--font-mono), ui-monospace, "SF Mono", Menlo, monospace;
   color-scheme: light;
@@ -37,16 +40,19 @@
     --rule-2: #1e2228;
     --obs: #eef0f2;
     --obs-bg: rgba(255, 255, 255, 0.035);
-    --fc: #7ea3ff;
-    --fc-soft: rgba(126, 163, 255, 0.18);
-    --now: #ff6a4d;
+    --fc: #8d939c;
+    --fc-soft: rgba(141, 147, 156, 0.18);
+    --now: #3fd07f;
     --warn: #f0a24a;
     --ev-regn: #4d9be6;
     --ev-sno: #c3b3ff;
     --ev-dimma: #7d7f84;
     --ev-aska: #f0c330;
-    --taf: #4fc6b6;
-  --cloud: #aab2bf;
+    --taf: #a3a8b0;
+    --cloud: #aab2bf;
+    --cloud-thin: #2b2f36;
+    --cloud-dense: #c9ced6;
+    --fog: #6d727a;
     color-scheme: dark;
   }
 }
@@ -192,7 +198,7 @@ main {
 }
 
 :focus-visible {
-  outline: 2px solid var(--fc);
+  outline: 2px solid var(--now);
   outline-offset: 2px;
 }
 
@@ -359,7 +365,7 @@ main {
 }
 .readout-forecast .big,
 .readout-forecast .big-unit {
-  color: var(--fc);
+  color: var(--ink);
 }
 .readout-headline {
   font-size: 17px;
@@ -394,7 +400,7 @@ main {
   font-size: 18px;
 }
 .readout-forecast .cell dd b {
-  color: var(--fc);
+  color: var(--ink);
 }
 .cell .sub {
   flex-basis: 100%;
@@ -726,18 +732,25 @@ main {
   stroke: var(--rule);
   stroke-width: 1;
 }
-.tl-lowvis {
-  fill: var(--ev-dimma);
-  opacity: 0.45;
+.fog-top {
+  stop-color: var(--fog);
+  stop-opacity: 0;
 }
-.tl-lowvis.severe {
-  opacity: 0.9;
+.fog-bottom {
+  stop-color: var(--fog);
+  stop-opacity: 0.95;
 }
-.tl-lowvis.fc {
-  opacity: 0.3;
+.tl-fog {
+  opacity: 0.7;
 }
-.tl-lowvis.fc.severe {
-  opacity: 0.55;
+.tl-fog.severe {
+  opacity: 1;
+}
+.tl-fog.fc {
+  opacity: 0.5;
+}
+.tl-fog.fc.severe {
+  opacity: 0.75;
 }
 .tl-thunder {
   font-size: 13px;
@@ -762,7 +775,14 @@ main {
   background: var(--ev-sno);
 }
 .lg-fog::before {
-  background: var(--ev-dimma);
+  background: linear-gradient(to top, var(--fog), color-mix(in srgb, var(--fog) 30%, transparent));
+}
+.lg-temp::before {
+  width: 18px;
+  height: 3px;
+  border: 0;
+  border-radius: 2px;
+  background: linear-gradient(to right, #1e3a8a, #60a5fa 45%, #f59e0b 55%, #dc2626);
 }
 .small-b {
   font-size: 13px !important;
@@ -869,7 +889,7 @@ main {
   stroke-width: 1.5;
 }
 .tl-cloud.fc {
-  fill: var(--fc);
+  opacity: 0.8;
 }
 
 .tl-precip line {
@@ -898,7 +918,7 @@ main {
   height: 7px;
   border: 0;
   border-radius: 1.5px;
-  background: linear-gradient(to right, color-mix(in srgb, var(--cloud) 30%, transparent), var(--cloud));
+  background: linear-gradient(to right, var(--cloud-thin), var(--cloud-dense));
 }
 
 /* ------------------------------------------------------------------------- */

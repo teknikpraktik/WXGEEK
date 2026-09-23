@@ -121,7 +121,7 @@ Tre nivåer:
 ```
 VaderlekApp            – plats, datahämtning, auto-uppdatering (5 min när fliken syns), klocka
 ├─ PlacePicker         – "Använd min position" + ortsökning (sök vid submit, inte per tangent)
-├─ DataInfo            – överst, liten stil: rå METAR, rå TAF, stationer per parameter, prognosfönster, källfel
+├─ DataInfo            – överst, liten stil: rå METAR, rå TAF; källfel bara när en tjänst inte svarar
 ├─ Readout             – avläsning vid markörens tidpunkt: NU / OBSERVERAT / PROGNOS
 │  ├─ huvudvärde (temperatur) + primär källa (station, avstånd, ålder)
 │  ├─ Timeline         – kärnan: horisontellt scrollbart diagram −12 h … prognosfönstrets slut
@@ -136,18 +136,21 @@ VaderlekApp            – plats, datahämtning, auto-uppdatering (5 min när fl
   på touch (momentum), musdrag och klick på desktop, piltangenter (±1 h, Shift ±6 h)
   och `N` för NU.
 - Öppnar på NU och följer med NU så länge användaren står kvar där.
-- **Observerat**: heldragen bläckfärgad linje på tonad bakgrund.
-  **Prognos**: streckad blå linje på svagt skrafferad bakgrund. Röd NU-linje.
+- **Färger**: observerat och prognos har samma diskreta grå/svarta toner – skillnaden
+  bärs av stil (heldraget vs streckat) och bakgrund (tonad vs skrafferad). **Grön**
+  linje markerar NU. Färg används bara för vädret självt: temperatur (blått vid
+  minusgrader, rött vid plusgrader, gradient), regn (blått), snö (lila), moln i
+  gråskala efter täckningsgrad och dimma som ljusgrått marknära lager.
   Linjer dras aldrig över luckor i data.
 - **Ett diagram med två y-axlar**:
   - **Vänster axel – molnbas (m)**, kvadratrotsskala 0–3 km så att låga moln får
     mest utrymme. Molnlager ritas som block; täthet = täckningsgrad (FEW → OVC).
-    Observerade moln i neutral grå, prognosmoln i blått.
-  - **Höger axel – temperatur (°C)**, heldragen (observerat) / streckad (prognos) kurva.
+    Gråare ju större del av himlen som täcks; prognosmoln något ljusare.
+  - **Höger axel – temperatur (°C)**, heldragen (observerat) / streckad (prognos) kurva, färgad efter temperaturen.
   - **Nederbörd faller från molnbasen**: streck från lägsta molnlagret (BKN/SCT/OVC)
     ned till marken. Antal streck efter mängd; regn streckat, snö prickat. Saknas
     molnbas börjar strecken uppifrån och tonas ned.
-  - Vid marklinjen: grått band vid dimma eller sikt under 5 km. Åska markeras med ϟ.
+  - Dimma/dis: ljusgrått lager från marken (dimma ~150 m, dis/sikt under 5 km ~60 m). Åska markeras med ϟ.
 - **Vind under diagrammet**: en pil per timme (varifrån det blåser) med m/s under;
   byar visas under när de är minst 3 m/s högre.
 - Lufttryck och luftfuktighet visas inte (och hämtas inte).
@@ -160,5 +163,5 @@ VaderlekApp            – plats, datahämtning, auto-uppdatering (5 min när fl
 - **NU**: senaste observation per parameter. Äldre än 90 min markeras "äldre";
   äldre än maxåldern visas som saknad ("Ingen aktuell siktobservation").
 - **OBSERVERAT**: närmaste observation inom ±35 min (METAR) / ±40 min (SMHI).
-- **PROGNOS**: närmaste prognostimme; värden i blått, med text om att det är en modellberäkning.
+- **PROGNOS**: närmaste prognostimme, med text om att det är en modellberäkning.
 - Varje värde har källa. Källa visas en gång (primär) och per cell endast när den avviker.

@@ -286,6 +286,7 @@ export async function buildWeatherBundle(lat: number, lon: number): Promise<Weat
     id: "metar",
     label: "METAR",
     ok: metarLatestRes.status === "fulfilled" && !!metarStation,
+    failed: metarLatestRes.status === "rejected" || metarHistoryError,
     message:
       metarLatestRes.status === "rejected"
         ? "Flygvädertjänsten (NOAA AWC) svarar inte just nu"
@@ -300,17 +301,25 @@ export async function buildWeatherBundle(lat: number, lon: number): Promise<Weat
     label: "SMHI observationer",
     // Att ingen SMHI-station valts är inget fel – en närmare flygplats kan ha vunnit alla parametrar.
     ok: smhiListsOk && smhiDataErrors === 0,
+    failed: !smhiListsOk || smhiDataErrors > 0,
     message: !smhiListsOk
       ? "SMHI:s observationstjänst svarar inte just nu"
       : smhiDataErrors > 0
         ? "Vissa SMHI-mätningar kunde inte hämtas"
         : undefined,
   });
-  sources.push({ id: "smhi-forecast", label: "SMHI prognos", ok: !!forecast, message: forecastMessage });
+  sources.push({
+    id: "smhi-forecast",
+    label: "SMHI prognos",
+    ok: !!forecast,
+    failed: forecastRes.status === "rejected",
+    message: forecastMessage,
+  });
   sources.push({
     id: "taf",
     label: "TAF",
     ok: !!taf,
+    failed: tafRes.status === "rejected",
     message:
       tafRes.status === "rejected"
         ? "TAF kunde inte hämtas"
