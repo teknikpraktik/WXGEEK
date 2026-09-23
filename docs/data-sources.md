@@ -97,7 +97,7 @@ AWC returnerar både rå TAF (`rawTAF`) och avkodade perioder i `fcsts[]`:
 | `visib` | Sikt i statute miles (`"6+"` = ≥ 10 km) |
 | `wxString`, `clouds[]` | Väderfenomen, molnlager (fot) |
 
-Vi visar perioderna som **intervall** i avläsningen (den period som gäller vid vald tidpunkt) – aldrig som timvärden. Prognosfönstret är alltid NU + 12 h.
+Vi visar perioderna som **intervall** i avläsningen (den period som gäller vid vald tidpunkt) – aldrig som timvärden. Prognosfönstret är alltid NU + 24 h.
 TAF finns bara för flygplatser med TAF-tjänst och gäller i princip flygplatsens
 närområde (≈ 8 km radie). Vi visar endast TAF för flygplats inom 50 km.
 
@@ -206,7 +206,7 @@ Endpoint: `https://opendata-download-warnings.smhi.se/ibww/api/version/1/warning
   `ORANGE`, `RED`), `approximateStart`/`approximateEnd`, beskrivningar på `sv`/`en` och
   ett GeoJSON-område (Polygon/MultiPolygon).
 - Vi visar varningar vars område innehåller platsen (point-in-polygon) och som överlappar
-  fönstret −12 h … +12 h. Rubrik = `eventDescription.en`.
+  fönstret −12 h … +24 h. Rubrik = `eventDescription.en`.
 - Hämtas med `revalidate: 300`. Licens CC BY 4.0.
 
 ---

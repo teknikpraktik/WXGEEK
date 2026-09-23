@@ -198,8 +198,11 @@ export type ChartData = {
   precipForecast: Precip[];
   precipHours: PrecipHour[];
   wind: Arrow[];
-  /** Dimma / sikt under 5 km */
-  lowVis: Array<Mark & { severe: boolean }>;
+  /**
+   * Dimma, dis eller sikt under 5 km. `severe`: dimma (sikt under 1 km).
+   * `phenomenon`: dimma/dis rapporterad som väder – annars bara härledd ur sikten.
+   */
+  lowVis: Array<Mark & { severe: boolean; phenomenon: boolean }>;
   thunder: Mark[];
   missing: { temp?: string; wind?: string; clouds?: string; forecast?: string };
   /** Tidpunkt då TAF slutar inom fönstret – därefter fortsätter SMHI */
@@ -558,7 +561,7 @@ export function buildChart(bundle: WeatherBundle, now: number, prevTempDomain?: 
   for (const o of visObs) {
     if (o.visibilityM !== undefined && o.visibilityM < 5000) {
       const t = ts(o);
-      lowVis.push({ t0: t - visStep / 2, t1: t + visStep / 2, forecast: false, severe: o.visibilityM < 1000, label: `Visibility ${o.visibilityM} m` });
+      lowVis.push({ t0: t - visStep / 2, t1: t + visStep / 2, forecast: false, severe: o.visibilityM < 1000, phenomenon: false, label: `Visibility ${o.visibilityM} m` });
     }
   }
   for (const o of phenObs) {
@@ -566,7 +569,7 @@ export function buildChart(bundle: WeatherBundle, now: number, prevTempDomain?: 
     const t = ts(o);
     const span = { t0: t - phenStep / 2, t1: t + phenStep / 2 };
     if (p && PHENOMENON_GROUP[p.kind] === "dimma" && !lowVis.some((v) => v.t0 < span.t1 && v.t1 > span.t0)) {
-      lowVis.push({ ...span, forecast: false, severe: p.kind === "dimma", label: p.label });
+      lowVis.push({ ...span, forecast: false, severe: p.kind === "dimma", phenomenon: true, label: p.label });
     }
     if (p?.kind === "åska") thunder.push({ ...span, forecast: false, label: p.label });
   }
@@ -580,6 +583,7 @@ export function buildChart(bundle: WeatherBundle, now: number, prevTempDomain?: 
         ...span,
         forecast: true,
         severe: (vis ?? 5000) < 1000 || fog?.kind === "dimma",
+        phenomenon: !!fog,
         label: fog?.label ?? `Visibility ${vis} m`,
       });
     }

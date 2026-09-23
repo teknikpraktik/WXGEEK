@@ -4,32 +4,36 @@
 
 WXGEEK is a mobile-first weather app for Sweden that shows the weather as one
 continuous timeline: what was actually **observed** over the past 12 hours, the
-situation **now**, and the **forecast** for the next 12 hours, all on the same axis.
+situation **now**, and the **forecast** for the next 24 hours, all on the same axis.
 
 ```
-−12 h ←──────── NOW ────────→ +12 h
-     observed            forecast
+−12 h ←──────── NOW ────────────────→ +24 h
+     observed             forecast
 ```
 
 - The header shows temperature, wind (m/s, direction in whole tens of degrees),
   visibility and **cloud cover** (symbol, description and code, e.g. "Broken · BKN · 5–7/8").
-  A detail line lists every cloud layer with its base, source and validity. Precipitation
-  appears only when data exists for the selected time.
-- Temperature chart (left axis): normally a 20 °C span with limits on multiples of 5 °C and
-  at least 2 °C margin. The scale stays put while you select times and across small data
-  updates; it moves in 5 °C steps when needed and is recomputed for a new place.
-- **Cloud cover row** under the chart: one symbol every 2 hours (every 3 on narrow screens) –
-  sun, sun with a small cloud (FEW), sun partly behind cloud (SCT), mostly cloud (BKN), full
-  cloud (OVC); moon instead of sun at night for the place and time. The symbol is a
-  simplification: the largest category among simultaneous layers (oktas are never summed).
-  CAVOK, NSC and missing data are never shown as clear sky; CAVOK in the TAF uses SMHI's
-  cloud amount when available, otherwise a neutral CAVOK marker.
+  Precipitation appears only when data exists for the selected time.
+- Temperature chart (left axis): an adaptive scale chosen from all temperatures in the
+  window – the smallest range on multiples of 5 °C with margin and at least a 20 °C span,
+  preferring one that also shows 0 and −5 °C when that costs at most 5 °C extra. The scale
+  stays put while you select times and across small data updates, never shrinks while in
+  use, and is recomputed for a new place. The settings are collected in `TEMP_AXIS`.
+- **Cloud cover symbols** sit on the temperature curve: one every 2 hours (every 3 on narrow
+  screens) and every hour with precipitation – sun, sun with a small cloud (FEW), sun partly
+  behind cloud (SCT), mostly cloud (BKN), full cloud (OVC); moon instead of sun at night. The
+  symbol is a simplification: the largest category among simultaneous layers (oktas are never
+  summed). CAVOK, NSC and missing data are never shown as clear sky. **Fog** (three lines,
+  below 1 km) and **mist** (two lines) replace the cloud symbol when fog or mist is reported,
+  when visibility is below 1 km, or when it is below 5 km without precipitation.
 - **Precipitation, mm per hour**: one series of bars from a zero line (dark = measured or
-  likely, light = possible). Hours without data have no zero line, so missing is not 0 mm.
-  Drops in the chart show when it rains; forecast drops are shaded by probability.
-- Wind arrows run below the time axis, which labels every hour and marks midnight clearly
-  with the dates on either side.
-- Drag the chart, or use −1 h / Now / +1 h, to select a time within the fixed ±12 h window.
+  expected, light = possible; "≤0.3" = most likely dry, but up to 0.3 mm possible). Hours
+  without data have no zero line, so missing is not 0 mm. Drops fall from the cloud symbols;
+  forecast drops are shaded by probability.
+- Wind arrows run below the time axis, which labels every hour. Midnight is marked by a line
+  through the time axis with the new day's name, and the new day has a subtle background.
+- Drag the chart (or use the arrow keys) to select a time within the fixed −12 h … +24 h
+  window; **Now** returns to the current time.
 - The forecast uses **TAF first** for wind, visibility, cloud and weather at the airport
   while the TAF is valid. **SMHI** covers temperature, precipitation, missing values and
   the rest of the window.

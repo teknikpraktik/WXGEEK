@@ -41,7 +41,6 @@ datakälla påverkar bara en adapter och `sources.ts`.
 | `src/lib/weather/phenomena.ts` | METAR-väderkoder, SMHI "rådande väder", SMHI-symboler → svenska fenomen |
 | `src/lib/client/forecast.ts` | Prognosens källor: TAF-huvudprognos, BECMG, TEMPO/PROB, SMHI-komplettering, källa per variabel |
 | `src/lib/client/alerts.ts` | Betydande väder ur senaste METAR och TAF (åska, CB/TCU, underkylt, dimma, sikt < 1 500 m, vind/byar ≥ 13 m/s, tak < 150 m) |
-| `src/lib/client/explain.ts` | Populärvetenskaplig text om vädret vid NU: molntyp/höjd, daggpunkt (ur rå-METAR) och fuktighet, Beaufort, nederbörd, temperaturtrend |
 | `src/lib/client/timeline.ts` | Klientlogik: diagramdata, avläsning vid en tidpunkt |
 | `*.test.ts` | Tester för tids-, TAF- och datalogik (`npm test`) |
 | `src/lib/format.ts` | Engelsk formatering (en-GB, Europe/Stockholm), avrundning mot falsk precision |
@@ -65,7 +64,7 @@ datakälla påverkar bara en adapter och `sources.ts`.
 5. **Normalisering** till `StationSeries[]`. SMHI-parametrar från samma station
    slås ihop per tidpunkt till `WeatherObservation`.
 6. **TAF**: närmaste giltiga TAF inom 50 km.
-   **Prognosfönster** (`forecastUntil`): alltid NU + 12 h (fast fönster).
+   **Prognosfönster** (`forecastUntil`): alltid NU + 24 h (fast fönster).
 7. **Varningar**: SMHI IBWW och SIGMET hämtas parallellt; fel där stoppar inget.
 8. **Källstatus** per källa med felmeddelande (engelska).
 
@@ -129,9 +128,8 @@ Tre nivåer:
 WxgeekApp              – plats, datahämtning, auto-uppdatering (5 min när fliken syns), klocka
 ├─ PlacePicker         – "Use my location" + ortsökning (sök vid submit, inte per tangent)
 ├─ Readout             – temperatur, vind, sikt, molnbas (+ nederbörd när data finns) vid markörens tid
-│  └─ Timeline         – diagrammet −12 h … +12 h
+│  └─ Timeline         – diagrammet −12 h … +24 h
 ├─ Warnings            – SMHI-varningar, SIGMET, betydande väder ur METAR/TAF
-├─ story               – populärvetenskaplig beskrivning av vädret vid NU (src/lib/client/explain.ts, regelbaserad)
 ├─ DataInfo            – rå METAR och TAF; källfel bara när en tjänst inte svarar
 └─ sidfot              – källor, © år Per Björkman · Teknikpraktik
 ```
@@ -155,11 +153,10 @@ WxgeekApp              – plats, datahämtning, auto-uppdatering (5 min när fl
 
 ### Tidslinjen
 
-- **Fast fönster**: 12 h bakåt och 12 h framåt, NU i mitten vid start.
+- **Fast fönster**: 12 h bakåt och 24 h framåt, NU i mitten vid start.
 - Tid väljs genom att dra grafen under en **fast markör i mitten** (native scroll på
-  touch, musdrag på desktop). Klick flyttar inte grafen. Knapparna **−1 h / Now / +1 h** stegar en
-  timme, begränsat till fönstret; "Nu" behåller alltid sin plats. Tangentbord: pilar
-  (±1 h, Shift ±6 h) och `N`.
+  touch, musdrag på desktop). Klick flyttar inte grafen. Knappen **Now** återgår till NU
+  och behåller alltid sin plats. Tangentbord: pilar (±1 h, Shift ±6 h) och `N`.
 - **Vald tid** och **NU** har olika markörer som fungerar utan färgseende: NU är en
   heldragen linje med etiketten "NOW 17:12"; vald tid är en fetare streckad grön linje med romb och
   etiketten "18:00". Vald tid avrundas till 5 min.

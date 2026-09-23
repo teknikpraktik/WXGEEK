@@ -10,7 +10,7 @@ import {
   type Pt,
 } from "@/lib/client/timeline";
 import { fmtDateTime, localHour, fmtTime } from "@/lib/format";
-import { SkyIcon, skyTitle } from "./SkyIcon";
+import { FogIcon, SkyIcon, skyTitle } from "./SkyIcon";
 
 const PX_PER_HOUR = 34;
 const MIN_OFFSET_H = -PAST_HOURS;
@@ -38,11 +38,9 @@ type Props = {
   onCursor: (t: number) => void;
   /** Ökas för att be tidslinjen återgå till NU */
   recenterSignal: number;
-  /** Steg en timme bakåt (-1) eller framåt (+1); `n` ökas vid varje tryck */
-  stepSignal: { dir: -1 | 1; n: number };
 };
 
-export const Timeline = memo(function Timeline({ now, until, data, onCursor, recenterSignal, stepSignal }: Props) {
+export const Timeline = memo(function Timeline({ now, until, data, onCursor, recenterSignal }: Props) {
   const scroller = useRef<HTMLDivElement>(null);
   const [viewW, setViewW] = useState(0);
   const followNow = useRef(true);
@@ -118,23 +116,6 @@ export const Timeline = memo(function Timeline({ now, until, data, onCursor, rec
   useLayoutEffect(() => {
     if (viewW && followNow.current && !interacting.current) scrollToTime(now);
   }, [viewW, now, scrollToTime]);
-
-  // Steg till föregående/nästa hela timme, begränsat till fönstret.
-  const firstStep = useRef(true);
-  useEffect(() => {
-    if (firstStep.current) {
-      firstStep.current = false;
-      return;
-    }
-    const el = scroller.current;
-    if (!el) return;
-    const t = tAt(el.scrollLeft);
-    const target =
-      stepSignal.dir > 0 ? Math.floor(t / HOUR + 1e-6) * HOUR + HOUR : Math.ceil(t / HOUR - 1e-6) * HOUR - HOUR;
-    followNow.current = false;
-    scrollToTime(Math.min(end, Math.max(start, target)), true);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [stepSignal]);
 
   const firstRecenter = useRef(true);
   useEffect(() => {
@@ -214,6 +195,11 @@ export const Timeline = memo(function Timeline({ now, until, data, onCursor, rec
     for (let t = start; t <= end; t += HOUR) out.push({ t, h: localHour(t) });
     return out;
   }, [start, end]);
+  // Kalenderdygn i fönstret (gränser vid 00) – varannat dygn får en diskret bakgrund i tidsaxeln.
+  const days = useMemo(() => {
+    const cuts = [start, ...hours.filter((h) => h.h === 0 && h.t > start).map((h) => h.t), end];
+    return cuts.slice(1).map((t1, i) => ({ t0: cuts[i], t1, alt: i % 2 === 1 }));
+  }, [hours, start, end]);
 
   // Temperatur vid tiden t (linjärt mellan punkter) – molnen ligger på kurvan.
   const tempPts = useMemo(
@@ -234,225 +220,246 @@ export const Timeline = memo(function Timeline({ now, until, data, onCursor, rec
     const all = [...data.precipObserved, ...data.precipForecast];
     return (t: number) => all.some((p) => p.drawT1 > t - HOUR / 2 && p.drawT0 < t + HOUR / 2);
   }, [data.precipObserved, data.precipForecast]);
+  // Dimma/dis kring timmen t: rapporterad dimma/dis, sikt under 1 km, eller sikt under 5 km
+  // utan nederbörd (annars är det nederbörden som skymmer). Dimma går före dis.
+  const fogAt = useMemo(() => {
+    return (t: number) =>
+      data.lowVis
+        .filter((v) => v.t1 > t - HOUR / 2 && v.t0 < t + HOUR / 2 && (v.phenomenon || v.severe || !wet(t)))
+        .sort((a, b) => Number(b.severe) - Number(a.severe))[0];
+  }, [data.lowVis, wet]);
+  // Symboler: jämna klockslag, timmar med nederbörd, och minst en per dimperiod.
+  const skyShown = useMemo(() => {
+    const regular = (t: number) => localHour(t) % skyEvery === 0 || wet(t);
+    const out = new Set<number>();
+    let run: number[] = [];
+    const flush = () => {
+      if (run.length && !run.some(regular)) out.add(run[Math.floor(run.length / 2)]);
+      run = [];
+    };
+    for (const k of data.sky) {
+      if (regular(k.t)) out.add(k.t);
+      if (fogAt(k.t)) run.push(k.t);
+      else flush();
+    }
+    flush();
+    return data.sky.filter((k) => out.has(k.t));
+  }, [data.sky, skyEvery, wet, fogAt]);
 
   const pathOf = (pts: Pt[]) => pts.map((p, i) => `${i ? "L" : "M"}${x(p.t).toFixed(1)},${yTemp(p.v).toFixed(1)}`).join("");
   const nowX = x(now);
   // Aktuell temperatur (senaste observation, annars första prognospunkten) färgar °C-rubriken.
   const nowTemp = data.temp.observed.at(-1)?.at(-1)?.v ?? data.temp.forecast[0]?.[0]?.v;
-  const span = (a: number, b: number, inset = 0) => ({ x: x(a) + inset, width: Math.max(1, x(b) - x(a) - inset * 2) });
 
   return (
     <div className="tl" style={{ height: H }}>
-    {/* Vänster axel: temperatur (°C) */}
-    <div className="tl-yaxis" aria-hidden>
-      <span className={`tl-axtitle temp ${tempSign(nowTemp)}`} style={{ top: 4 }}>
-        °C
-      </span>
-      {t1 > 0 && <i className="tl-taxis warm" style={{ top: yTemp(t1), height: yTemp(Math.max(0, t0)) - yTemp(t1) }} />}
-      {t0 < 0 && <i className="tl-taxis cold" style={{ top: yTemp(Math.min(0, t1)), height: yTemp(t0) - yTemp(Math.min(0, t1)) }} />}
-      {data.temp.ticks.map((v) => (
-        <span key={v} className={`tl-ttick ${tempSign(v)}`} style={{ top: yTemp(v) }}>
-          {`${v}°`.replace("-", "−")}
+      {/* Vänster axel: temperatur (°C) */}
+      <div className="tl-yaxis" aria-hidden>
+        <span className={`tl-axtitle temp ${tempSign(nowTemp)}`} style={{ top: 4 }}>
+          °C
         </span>
-      ))}
-      {data.precipHours.length > 0 && (
-        <span className="tl-lane tl-lane-2" style={{ top: precipTop + 2 }}>
-          Precip
+        {t1 > 0 && <i className="tl-taxis warm" style={{ top: yTemp(t1), height: yTemp(Math.max(0, t0)) - yTemp(t1) }} />}
+        {t0 < 0 && <i className="tl-taxis cold" style={{ top: yTemp(Math.min(0, t1)), height: yTemp(t0) - yTemp(Math.min(0, t1)) }} />}
+        {data.temp.ticks.map((v) => (
+          <span key={v} className={`tl-ttick ${tempSign(v)}`} style={{ top: yTemp(v) }}>
+            {`${v}°`.replace("-", "−")}
+          </span>
+        ))}
+        {data.precipHours.length > 0 && (
+          <span className="tl-lane tl-lane-2" style={{ top: precipTop + 2 }}>
+            Precip
+            <br />
+            mm/h
+          </span>
+        )}
+        {/* Två rader, så att etiketten ryms i axelkolumnen och inte krockar med pilarna */}
+        <span className="tl-lane tl-lane-2" style={{ top: windTop + 2 }}>
+          Wind
           <br />
-          mm/h
+          m/s
         </span>
-      )}
-      <span className="tl-lane" style={{ top: windTop + 2 }}>
-        Wind m/s
-      </span>
-    </div>
-    <div
-      ref={scroller}
-      className="tl-scroller"
-      onScroll={onScroll}
-      onPointerDown={onPointerDown}
-      onPointerMove={onPointerMove}
-      onPointerUp={onPointerUp}
-      onPointerCancel={() => (drag.current = null)}
-      onKeyDown={onKeyDown}
-      tabIndex={0}
-      role="slider"
-      aria-label="Timeline. Left and right arrows move one hour, N returns to now."
-      aria-valuemin={MIN_OFFSET_H}
-      aria-valuemax={maxOffsetH}
-      aria-valuenow={0}
-    >
-      <div style={{ width: W + pad * 2, height: H, position: "relative" }}>
-        <svg
-          width={W}
-          height={H}
-          style={{ position: "absolute", left: pad, top: 0 }}
-          role="img"
-          aria-label="Chart: cloud base in metres (left axis), temperature in °C (right axis), precipitation from the cloud base, wind below. Solid is observed, dashed is forecast."
-        >
-          <defs>
-            {/* Temperatur: blått under noll, rött över – intensivare ju längre från noll */}
-            <linearGradient id="tempgrad" gradientUnits="userSpaceOnUse" x1={0} x2={0} y1={yTemp(t0)} y2={yTemp(t1)}>
-              {tempStops(t0, t1).map((s, i) => (
-                <stop key={i} offset={s.offset} stopColor={s.color} />
-              ))}
-            </linearGradient>
-            <linearGradient id="fog" x1={0} x2={0} y1={0} y2={1}>
-              <stop offset={0} className="fog-top" />
-              <stop offset={1} className="fog-bottom" />
-            </linearGradient>
-            <pattern id="hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
-              <line x1="0" y1="0" x2="0" y2="6" className="tl-hatch" />
-            </pattern>
-            <pattern id="vv" width="4" height="4" patternUnits="userSpaceOnUse" patternTransform="rotate(-45)">
-              <line x1="0" y1="0" x2="0" y2="4" className="tl-vv" />
-            </pattern>
-          </defs>
+      </div>
+      <div
+        ref={scroller}
+        className="tl-scroller"
+        onScroll={onScroll}
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={onPointerUp}
+        onPointerCancel={() => (drag.current = null)}
+        onKeyDown={onKeyDown}
+        tabIndex={0}
+        role="slider"
+        aria-label="Timeline. Left and right arrows move one hour, N returns to now."
+        aria-valuemin={MIN_OFFSET_H}
+        aria-valuemax={maxOffsetH}
+        aria-valuenow={0}
+      >
+        <div style={{ width: W + pad * 2, height: H, position: "relative" }}>
+          <svg
+            width={W}
+            height={H}
+            style={{ position: "absolute", left: pad, top: 0 }}
+            role="img"
+            aria-label="Chart: cloud base in metres (left axis), temperature in °C (right axis), precipitation from the cloud base, wind below. Solid is observed, dashed is forecast."
+          >
+            <defs>
+              {/* Temperatur: blått under noll, rött över – intensivare ju längre från noll */}
+              <linearGradient id="tempgrad" gradientUnits="userSpaceOnUse" x1={0} x2={0} y1={yTemp(t0)} y2={yTemp(t1)}>
+                {tempStops(t0, t1).map((s, i) => (
+                  <stop key={i} offset={s.offset} stopColor={s.color} />
+                ))}
+              </linearGradient>
+              <pattern id="hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+                <line x1="0" y1="0" x2="0" y2="6" className="tl-hatch" />
+              </pattern>
+              <pattern id="vv" width="4" height="4" patternUnits="userSpaceOnUse" patternTransform="rotate(-45)">
+                <line x1="0" y1="0" x2="0" y2="4" className="tl-vv" />
+              </pattern>
+            </defs>
 
-          {/* Bakgrund: observerat vs prognos */}
-          <rect x={0} y={chartTop} width={nowX} height={H - chartTop} className="tl-bg-obs" />
-          <rect x={nowX} y={chartTop} width={Math.max(0, W - nowX)} height={H - chartTop} fill="url(#hatch)" />
+            {/* Bakgrund: observerat vs prognos */}
+            <rect x={0} y={chartTop} width={nowX} height={H - chartTop} className="tl-bg-obs" />
+            <rect x={nowX} y={chartTop} width={Math.max(0, W - nowX)} height={H - chartTop} fill="url(#hatch)" />
 
-          {/* Rutnät: molnbasens nivåer, marklinje, fältgränser, dygnsgränser */}
-          {/* Diskreta stödlinjer per 5 °C; 0 °C något tydligare */}
-          {data.temp.ticks.map((v) => (
-            <line key={`tg${v}`} x1={0} x2={W} y1={yTemp(v)} y2={yTemp(v)} className={v === 0 ? "tl-grid zero" : "tl-grid"} />
-          ))}
-          <line x1={0} x2={W} y1={groundY} y2={groundY} className="tl-ground" />
-          <line x1={0} x2={W} y1={precipTop} y2={precipTop} className="tl-lanesep" />
-          <line x1={0} x2={W} y1={windTop - 1} y2={windTop - 1} className="tl-lanesep" />
+            {/* Rutnät: molnbasens nivåer, marklinje, fältgränser, dygnsgränser */}
+            {/* Diskreta stödlinjer per 5 °C; 0 °C något tydligare */}
+            {data.temp.ticks.map((v) => (
+              <line key={`tg${v}`} x1={0} x2={W} y1={yTemp(v)} y2={yTemp(v)} className={v === 0 ? "tl-grid zero" : "tl-grid"} />
+            ))}
+            <line x1={0} x2={W} y1={groundY} y2={groundY} className="tl-ground" />
+            <line x1={0} x2={W} y1={precipTop} y2={precipTop} className="tl-lanesep" />
+            <line x1={0} x2={W} y1={windTop - 1} y2={windTop - 1} className="tl-lanesep" />
 
-          {/* Dimma / dis: ljusgrått marknära lager (dimma högre och tätare än dis) */}
-          {data.lowVis.map((v, i) => {
-            const top = groundY - (v.severe ? 30 : 14);
-            return (
-              <rect
-                key={`lv${i}`}
-                {...span(v.t0, v.t1)}
-                y={top}
-                height={groundY - top}
-                fill="url(#fog)"
-                className={`tl-fog${v.severe ? " severe" : ""}${v.forecast ? " fc" : ""}`}
-              >
-                <title>{`${v.label}${v.forecast ? " (forecast)" : ""}`}</title>
-              </rect>
-            );
-          })}
+            {/* Nederbörd – droppar från molnbasen över hela tiden det regnar */}
+            {[...data.precipObserved, ...data.precipForecast.map((p) => ({ ...p, fc: true }))].map((p, i) => (
+              <PrecipStreaks
+                key={`pr${i}`}
+                p={p}
+                forecast={"fc" in p}
+                x={x}
+                tAtX={(px) => start + (px / PX_PER_HOUR) * HOUR}
+                fromY={skyY}
+                toY={groundY - 1}
+                unknownBase={false}
+              />
+            ))}
 
+            {data.thunder.map((m, i) => (
+              <text key={`th${i}`} x={(x(m.t0) + x(m.t1)) / 2} y={chartTop + 30} textAnchor="middle" className={`tl-thunder${m.forecast ? " fc" : ""}`}>
+                ϟ<title>{m.label}</title>
+              </text>
+            ))}
 
-          {/* Nederbörd – droppar från molnbasen över hela tiden det regnar */}
-          {[...data.precipObserved, ...data.precipForecast.map((p) => ({ ...p, fc: true }))].map((p, i) => (
-            <PrecipStreaks
-              key={`pr${i}`}
-              p={p}
-              forecast={"fc" in p}
-              x={x}
-              tAtX={(px) => start + (px / PX_PER_HOUR) * HOUR}
-              fromY={skyY}
-              toY={groundY - 1}
-              unknownBase={false}
-            />
-          ))}
+            {/* Temperatur – överst */}
+            {data.temp.forecast.map((s, i) => (
+              <path key={`tf${i}`} d={pathOf(s)} className="tl-line fc" style={{ stroke: "url(#tempgrad)" }} />
+            ))}
+            {data.temp.observed.map((s, i) =>
+              s.length === 1 ? (
+                <circle key={`to${i}`} cx={x(s[0].t)} cy={yTemp(s[0].v)} r={2.5} style={{ fill: tempColor(s[0].v) }} />
+              ) : (
+                <path key={`to${i}`} d={pathOf(s)} className="tl-line obs" style={{ stroke: "url(#tempgrad)" }} />
+              ),
+            )}
 
-          {data.thunder.map((m, i) => (
-            <text key={`th${i}`} x={(x(m.t0) + x(m.t1)) / 2} y={chartTop + 30} textAnchor="middle" className={`tl-thunder${m.forecast ? " fc" : ""}`}>
-              ϟ<title>{m.label}</title>
-            </text>
-          ))}
+            {/* Nederbörd per timme direkt under marklinjen: trolig mängd mörk, möjlig ljus */}
+            {data.precipHours.map((p) => (
+              <PrecipHourBar key={`ph${p.t0}`} p={p} x={x} base={precipTop + PRECIP_H - 3} max={precipMax} />
+            ))}
 
-          {/* Temperatur – överst */}
-          {data.temp.forecast.map((s, i) => (
-            <path key={`tf${i}`} d={pathOf(s)} className="tl-line fc" style={{ stroke: "url(#tempgrad)" }} />
-          ))}
-          {data.temp.observed.map((s, i) =>
-            s.length === 1 ? (
-              <circle key={`to${i}`} cx={x(s[0].t)} cy={yTemp(s[0].v)} r={2.5} style={{ fill: tempColor(s[0].v) }} />
-            ) : (
-              <path key={`to${i}`} d={pathOf(s)} className="tl-line obs" style={{ stroke: "url(#tempgrad)" }} />
-            ),
-          )}
+            {/* Molnighet på temperaturkurvan; dimma/dis ersätter molnsymbolen */}
+            {skyShown.map((k) => {
+              const fog = fogAt(k.t);
+              const what = fog ? fog.label : skyTitle(k);
+              return (
+                <g key={`sky${k.t}`} transform={`translate(${x(k.t)},${skyY(k.t)})`} className={`tl-skyicon${k.forecast ? " fc" : ""}`}>
+                  {fog ? <FogIcon severe={fog.severe} /> : <SkyIcon sky={k} day={k.day} />}
+                  <title>{`${fmtTime(k.t)}: ${what}${k.forecast ? " (forecast)" : ""}`}</title>
+                </g>
+              );
+            })}
 
-          {/* Nederbörd per timme direkt under marklinjen: trolig mängd mörk, möjlig ljus */}
-          {data.precipHours.map((p) => (
-            <PrecipHourBar key={`ph${p.t0}`} p={p} x={x} base={precipTop + PRECIP_H - 3} max={precipMax} />
-          ))}
-
-          {/* Molnighet: symbol på temperaturkurvan vid jämna klockslag och där det regnar */}
-          {data.sky
-            .filter((k) => localHour(k.t) % skyEvery === 0 || wet(k.t))
-            .map((k) => (
-              <g key={`sky${k.t}`} transform={`translate(${x(k.t)},${skyY(k.t)})`} className={`tl-skyicon${k.forecast ? " fc" : ""}`}>
-                <SkyIcon sky={k} day={k.day} />
-                <title>{`${fmtTime(k.t)}: ${skyTitle(k)}${k.forecast ? " (forecast)" : ""}`}</title>
+            {/* Vind under diagrammet: pil + m/s (+ byar) */}
+            {data.wind.map((a) => (
+              <g key={a.t} transform={`translate(${x(a.t)},0)`} className={a.forecast ? "tl-wind fc" : "tl-wind"}>
+                {a.deg !== undefined && !a.variable ? (
+                  <g transform={`translate(0,${windTop + 11}) rotate(${a.deg})`}>
+                    <path d="M0,-7 L0,6 M-3.5,2.5 L0,7 L3.5,2.5" />
+                  </g>
+                ) : (
+                  <circle cy={windTop + 11} r={2.5} className="tl-wind-vrb" />
+                )}
+                <text y={windTop + 34} textAnchor="middle" className="tl-wind-speed">
+                  {Math.round(a.speed)}
+                </text>
+                {a.gust !== undefined && a.gust >= a.speed + 3 && (
+                  <text y={windTop + 45} textAnchor="middle" className="tl-wind-gust">
+                    {Math.round(a.gust)}
+                  </text>
+                )}
+                <title>{`${Math.round(a.speed)} m/s${a.gust ? `, gusts ${Math.round(a.gust)} m/s` : ""}${a.forecast ? " (forecast)" : ""}`}</title>
               </g>
             ))}
 
-          {/* Vind under diagrammet: pil + m/s (+ byar) */}
-          {data.wind.map((a) => (
-            <g key={a.t} transform={`translate(${x(a.t)},0)`} className={a.forecast ? "tl-wind fc" : "tl-wind"}>
-              {a.deg !== undefined && !a.variable ? (
-                <g transform={`translate(0,${windTop + 11}) rotate(${a.deg})`}>
-                  <path d="M0,-7 L0,6 M-3.5,2.5 L0,7 L3.5,2.5" />
-                </g>
-              ) : (
-                <circle cy={windTop + 11} r={2.5} className="tl-wind-vrb" />
-              )}
-              <text y={windTop + 34} textAnchor="middle" className="tl-wind-speed">
-                {Math.round(a.speed)}
-              </text>
-              {a.gust !== undefined && a.gust >= a.speed + 3 && (
-                <text y={windTop + 45} textAnchor="middle" className="tl-wind-gust">
-                  {Math.round(a.gust)}
+            {/* Tidsaxel direkt under diagrammet */}
+            <rect x={0} y={axisTop} width={W} height={AXIS_H} className="tl-axisband" />
+            {days
+              .filter((d) => d.alt && d.t1 > d.t0)
+              .map((d) => (
+                <rect key={`day${d.t0}`} x={x(d.t0)} y={axisTop} width={x(d.t1) - x(d.t0)} height={AXIS_H} className="tl-axisband newday" />
+              ))}
+            <line x1={0} x2={W} y1={axisTop} y2={axisTop} className="tl-axisline" />
+            {hours.map((h) => (
+              <g key={h.t}>
+                <line x1={x(h.t)} x2={x(h.t)} y1={axisTop} y2={axisTop + 4} className="tl-tick" />
+                <text x={x(h.t)} y={axisTop + 13} className="tl-hour" textAnchor="middle">
+                  {String(h.h).padStart(2, "0")}
                 </text>
-              )}
-              <title>{`${Math.round(a.speed)} m/s${a.gust ? `, gusts ${Math.round(a.gust)} m/s` : ""}${a.forecast ? " (forecast)" : ""}`}</title>
-            </g>
-          ))}
+              </g>
+            ))}
+            {/* Dygnsskifte: streck genom tidsaxeln vid 00 (delar "00" på mitten) */}
+            {hours
+              .filter((h) => h.h === 0)
+              .map((h) => (
+                <line key={`mid${h.t}`} x1={x(h.t)} x2={x(h.t)} y1={axisTop} y2={windTop - 1} className="tl-dayline" />
+              ))}
 
-          {/* Tidsaxel direkt under diagrammet */}
-          <rect x={0} y={axisTop} width={W} height={AXIS_H} className="tl-axisband" />
-          <line x1={0} x2={W} y1={axisTop} y2={axisTop} className="tl-axisline" />
-          {hours.map((h) => (
-            <g key={h.t}>
-              <line x1={x(h.t)} x2={x(h.t)} y1={axisTop} y2={axisTop + 4} className="tl-tick" />
-              <text x={x(h.t)} y={axisTop + 13} className="tl-hour" textAnchor="middle">
-                {String(h.h).padStart(2, "0")}
-              </text>
-              {/* Dygnsskifte: bara nya dygnets namn, under 00 */}
-              {h.h === 0 && (
-                <text x={x(h.t)} y={axisTop + 25} className="tl-daylabel" textAnchor="middle">
+            {/* NU */}
+            <line x1={nowX} x2={nowX} y1={TOP - 6} y2={H} className="tl-now" />
+            <text x={nowX} y={TOP - 11} className="tl-nowlabel" textAnchor="middle">
+              NOW {fmtTime(now)}
+            </text>
+            <text x={nowX - 8} y={chartTop + 12} className="tl-side obs" textAnchor="end">
+              ← OBSERVED
+            </text>
+            <text x={nowX + 8} y={chartTop + 12} className="tl-side fc" textAnchor="start">
+              FORECAST →
+            </text>
+
+            {/* Nya dygnets namn till vänster om strecket – ovanpå NU-linjen, med kontur */}
+            {hours
+              .filter((h) => h.h === 0)
+              .map((h) => (
+                <text key={`day${h.t}`} x={x(h.t) - 4} y={axisTop + 25} className="tl-daylabel" textAnchor="end">
                   {dayDate(h.t)}
                 </text>
-              )}
-            </g>
-          ))}
+              ))}
 
-          {/* NU */}
-          <line x1={nowX} x2={nowX} y1={TOP - 6} y2={H} className="tl-now" />
-          <text x={nowX} y={TOP - 11} className="tl-nowlabel" textAnchor="middle">
-            NOW {fmtTime(now)}
-          </text>
-          <text x={nowX - 8} y={chartTop + 12} className="tl-side obs" textAnchor="end">
-            ← OBSERVED
-          </text>
-          <text x={nowX + 8} y={chartTop + 12} className="tl-side fc" textAnchor="start">
-            FORECAST →
-          </text>
-
-          {/* Saknade data */}
-          <Missing x={nowX - 20} y={chartTop + CHART_H / 2} text={data.missing.temp} anchor="end" />
-          <Missing x={nowX - 20} y={windTop + 24} text={data.missing.wind} anchor="end" />
-          <Missing x={nowX + 20} y={chartTop + CHART_H / 2} text={data.missing.forecast} anchor="start" />
-        </svg>
+            {/* Saknade data */}
+            <Missing x={nowX - 20} y={chartTop + CHART_H / 2} text={data.missing.temp} anchor="end" />
+            <Missing x={nowX - 20} y={windTop + 24} text={data.missing.wind} anchor="end" />
+            <Missing x={nowX + 20} y={chartTop + CHART_H / 2} text={data.missing.forecast} anchor="start" />
+          </svg>
+        </div>
       </div>
-    </div>
 
-    {/* Fast markör i mitten */}
-    <div ref={cursorEl} className="tl-cursor at-now" style={{ top: TOP - 4, height: H - TOP + 4 }} aria-hidden>
-      <span ref={cursorLabel} className="tl-cursor-label">
-        {fmtTime(now)}
-      </span>
-    </div>
+      {/* Fast markör i mitten */}
+      <div ref={cursorEl} className="tl-cursor at-now" style={{ top: TOP - 4, height: H - TOP + 4 }} aria-hidden>
+        <span ref={cursorLabel} className="tl-cursor-label">
+          {fmtTime(now)}
+        </span>
+      </div>
     </div>
   );
 });

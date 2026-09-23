@@ -4,7 +4,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Place, WeatherBundle } from "@/lib/types";
 import { buildChart, HOUR, snapshotAt } from "@/lib/client/timeline";
 import { aviationAlerts } from "@/lib/client/alerts";
-import { explainWeather } from "@/lib/client/explain";
 import { Timeline } from "./Timeline";
 import { Readout } from "./Readout";
 import { PlacePicker } from "./PlacePicker";
@@ -47,7 +46,6 @@ export function WxgeekApp() {
   const [now, setNow] = useState(() => Date.now());
   const [cursor, setCursor] = useState<number | null>(null);
   const [recenter, setRecenter] = useState(0);
-  const [step, setStep] = useState<{ dir: -1 | 1; n: number }>({ dir: 1, n: 0 });
 
   // ---------------------------------------------------------------------------
   // Location
@@ -188,20 +186,10 @@ export function WxgeekApp() {
     () => (bundle ? aviationAlerts(bundle, now, Date.parse(bundle.forecastUntil)) : []),
     [bundle, now],
   );
-  // Plain-language description of the weather at NOW (independent of the cursor)
-  const story = useMemo(
-    () => (bundle && chart ? explainWeather(snapshotAt(bundle, now, now), chart, now) : ""),
-    [bundle, chart, now],
-  );
   const t = cursor ?? now;
   const snap = useMemo(() => (bundle ? snapshotAt(bundle, t, now) : null), [bundle, t, now]);
   const onCursor = useCallback((tt: number) => setCursor(tt), []);
   const awayFromNow = cursor !== null && Math.abs(cursor - now) > 10 * 60 * 1000;
-  // Step buttons are limited to the fixed window (12 h back and forward).
-  const winStart = Math.floor(now / HOUR) * HOUR - 12 * HOUR;
-  const winEnd = bundle ? Date.parse(bundle.forecastUntil) : now + 12 * HOUR;
-  const canBack = t - HOUR >= winStart - 1;
-  const canFwd = t + HOUR <= winEnd + 1;
 
   // ---------------------------------------------------------------------------
   // Render
@@ -262,16 +250,7 @@ export function WxgeekApp() {
               <Readout snap={snap} now={now}>
                 <section className="timeline-wrap" aria-label="Timeline">
                   <div className="tl-controls">
-                    <div className="tl-buttons" role="group" aria-label="Select time">
-                      <button
-                        type="button"
-                        className="btn btn-step"
-                        onClick={() => setStep((st) => ({ dir: -1, n: st.n + 1 }))}
-                        disabled={!canBack}
-                        aria-label="Previous hour"
-                      >
-                        −1 h
-                      </button>
+                    <div className="tl-buttons">
                       {/* "Now" always keeps its place, even when now is selected */}
                       <button
                         type="button"
@@ -282,15 +261,6 @@ export function WxgeekApp() {
                       >
                         Now
                       </button>
-                      <button
-                        type="button"
-                        className="btn btn-step"
-                        onClick={() => setStep((st) => ({ dir: 1, n: st.n + 1 }))}
-                        disabled={!canFwd}
-                        aria-label="Next hour"
-                      >
-                        +1 h
-                      </button>
                     </div>
                   </div>
                   <Timeline
@@ -299,16 +269,9 @@ export function WxgeekApp() {
                     data={chart}
                     onCursor={onCursor}
                     recenterSignal={recenter}
-                    stepSignal={step}
                   />
                 </section>
               </Readout>
-
-              {story.length > 0 && (
-                <section className="story" aria-label="The weather explained">
-                  <p>{story}</p>
-                </section>
-              )}
 
               {error && <p className="inline-error">Update failed: {error}</p>}
               {loading && <p className="muted small">Updating…</p>}

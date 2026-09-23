@@ -217,7 +217,7 @@ export type WeatherBundle = {
   /** Vilken station som används för respektive parameter. */
   selections: Record<ParamKey, ParamSelection>;
   forecast: Forecast | null;
-  /** Slutet på det fasta prognosfönstret (NU + 12 h). */
+  /** Slutet på det fasta prognosfönstret (NU + 24 h). */
   forecastUntil: string;
   taf: Taf | null;
   /** SMHI warnings and SIGMETs for the location within the window */

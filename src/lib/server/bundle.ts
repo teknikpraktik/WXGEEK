@@ -25,8 +25,8 @@ import type {
 } from "../types";
 
 const HISTORY_MS = 13 * 60 * 60 * 1000;
-/** Fast tidsfönster: 12 h bakåt (observationer) och 12 h framåt (prognos). */
-const FORECAST_WINDOW_MS = 12 * 60 * 60 * 1000;
+/** Fast tidsfönster: 12 h bakåt (observationer) och 24 h framåt (prognos). */
+const FORECAST_WINDOW_MS = 24 * 60 * 60 * 1000;
 const METAR_RADIUS_KM = 110;
 const TAF_MAX_KM = 50;
 
@@ -268,7 +268,7 @@ export async function buildWeatherBundle(lat: number, lon: number): Promise<Weat
   // Prognos
   // -------------------------------------------------------------------------
 
-  // Prognosen visas alltid 12 h framåt. TAF används där den gäller, SMHI kompletterar
+  // Prognosen visas alltid 24 h framåt. TAF används där den gäller, SMHI kompletterar
   // och tar över efter TAF:s giltighetstid (se src/lib/client/forecast.ts).
   const forecastUntil = now + FORECAST_WINDOW_MS;
   let forecast: Forecast | null = null;

@@ -110,6 +110,27 @@ export function SkyIcon({ sky, day }: { sky: Sky; day: boolean }) {
   }
 }
 
+/** Dimma: tre streck (≡), dis: två (=) – ersätter molnsymbolen när sikten är nedsatt av dimma. */
+export function FogIcon({ severe }: { severe: boolean }) {
+  const rows = severe
+    ? [
+        [-9, 7, -5],
+        [-7, 9, 0],
+        [-9, 7, 5],
+      ]
+    : [
+        [-9, 7, -2.5],
+        [-7, 9, 2.5],
+      ];
+  return (
+    <g className={severe ? "si-fog severe" : "si-fog"}>
+      {rows.map(([x1, x2, y], i) => (
+        <line key={i} x1={x1} x2={x2} y1={y} y2={y} />
+      ))}
+    </g>
+  );
+}
+
 /** Text for tooltips and screen readers. */
 export function skyTitle(sky: Sky): string {
   switch (sky.kind) {

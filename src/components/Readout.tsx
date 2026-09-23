@@ -28,7 +28,6 @@ const STALE_MS = 90 * 60 * 1000;
 export function Readout({ snap, now, children }: Props) {
   const w = snap.wind?.value;
   const gust = snap.gust?.value;
-  const cloud = snap.cloud?.value;
   const pr = snap.precipitation?.value;
   const stale = (r: Reading<unknown>) =>
     snap.mode === "now" && !!r && (r.origin.kind === "METAR" || r.origin.kind === "SMHI") && now - r.origin.timestamp > STALE_MS;
@@ -48,7 +47,7 @@ export function Readout({ snap, now, children }: Props) {
             />
           )}
         </Cell>
-        <Cell label="Visibility" r={snap.visibility} old={stale(snap.visibility)} sub={cloud?.cavok ? "CAVOK" : undefined}>
+        <Cell label="Visibility" r={snap.visibility} old={stale(snap.visibility)}>
           {snap.visibility && <Val {...splitUnit(fmtVisibility(snap.visibility.value.m, snap.visibility.value.atLeast))} />}
         </Cell>
         <Cell label="Cloud cover" r={snap.sky.kind === "MISSING" ? null : snap.cloud} old={stale(snap.cloud)} sub={skySub(snap)}>
@@ -176,7 +175,9 @@ function Cell<T>({
       <dd>
         {r ? children : <span className="val missing-val">–</span>}
         {/* The sub line always reserves its height so the grid never jumps */}
-        <span className="sub">{sub || " "}</span>
+        <span className="sub" title={sub || undefined}>
+          {sub || " "}
+        </span>
       </dd>
     </div>
   );
