@@ -209,37 +209,34 @@ export type ChartData = {
 /** Molnbasaxeln (höger): linjär 0–3 000 m. */
 export const CLOUD_TOP_M = 3000;
 export const CLOUD_TICKS = [0, 500, 1000, 1500, 2000, 2500, 3000];
-// Temperaturaxeln: normalt 20 °C spann, gränser på multiplar av 5 °C.
-const TEMP_SPAN = 20;
+// Temperaturaxeln: fast skala per årstid, gränser på multiplar av 5 °C.
 const TEMP_MARGIN = 2;
-const TEMP_KEEP = 1;
 const floor5 = (v: number) => Math.floor(v / 5) * 5;
 const ceil5 = (v: number) => Math.ceil(v / 5) * 5;
 
+/** Årstidens grundskala: vinter (dec–feb) −20…+10, sommar (jun–aug) 0…30, vår/höst −5…+20. */
+export function seasonTempScale(month: number): [number, number] {
+  if (month === 11 || month <= 1) return [-20, 10];
+  if (month >= 5 && month <= 7) return [0, 30];
+  return [-5, 20];
+}
+
 /**
  * Temperaturskalans intervall för värdena i fönstret (observationer + prognos).
- * - Ny skala: minst 2 °C marginal, gränser på 5 °C, spann 20 °C (utökas i steg om 5 vid behov).
- * - Med tidigare skala: behålls så länge alla värden ligger minst 1 °C innanför gränserna;
- *   annars flyttas den i steg om 5 °C. Ett utökat spann krymps aldrig. Värden klipps aldrig.
+ * Utgår från årstidens fasta skala (`month` 0–11) och utökas i steg om 5 °C så att alla värden
+ * får minst 2 °C marginal. En tidigare skala krymps aldrig. Värden klipps aldrig.
  */
-export function tempScale(values: number[], prev?: [number, number]): [number, number] {
-  if (!values.length) return prev ?? [0, TEMP_SPAN];
-  const lo = Math.min(...values);
-  const hi = Math.max(...values);
-  const need = Math.max(TEMP_SPAN, ceil5(hi + TEMP_MARGIN) - floor5(lo - TEMP_MARGIN));
-  if (prev) {
-    const [pl, pu] = prev;
-    if (lo >= pl + TEMP_KEEP && hi <= pu - TEMP_KEEP) return prev;
-    const span = Math.max(pu - pl, need);
-    let l = pl;
-    if (lo - TEMP_MARGIN < l) l = floor5(lo - TEMP_MARGIN);
-    if (hi + TEMP_MARGIN > l + span) l = ceil5(hi + TEMP_MARGIN) - span;
-    return [l, l + span];
+export function tempScale(values: number[], month: number, prev?: [number, number]): [number, number] {
+  let [l, u] = seasonTempScale(month);
+  if (values.length) {
+    l = Math.min(l, floor5(Math.min(...values) - TEMP_MARGIN));
+    u = Math.max(u, ceil5(Math.max(...values) + TEMP_MARGIN));
   }
-  // Centrera värdena i spannet, avrundat till 5 °C.
-  const extra = need - (ceil5(hi + TEMP_MARGIN) - floor5(lo - TEMP_MARGIN));
-  const l = floor5(lo - TEMP_MARGIN) - Math.floor(extra / 10) * 5;
-  return [l, l + need];
+  if (prev) {
+    l = Math.min(l, prev[0]);
+    u = Math.max(u, prev[1]);
+  }
+  return [l, u];
 }
 export const tempTicks = ([lo, hi]: [number, number]) => Array.from({ length: (hi - lo) / 5 + 1 }, (_, i) => lo + i * 5);
 
@@ -328,7 +325,11 @@ export function buildChart(bundle: WeatherBundle, now: number, prevTempDomain?: 
     ),
   ];
 
-  const tDomain = tempScale([...tObs.filter((p) => p.t >= now - PAST_HOURS * HOUR), ...tFc].map((p) => p.v), prevTempDomain);
+  const tDomain = tempScale(
+    [...tObs.filter((p) => p.t >= now - PAST_HOURS * HOUR), ...tFc].map((p) => p.v),
+    new Date(now).getMonth(),
+    prevTempDomain,
+  );
 
   // Prognos per timme med källa per variabel: TAF där den gäller, annars SMHI.
   const merged: MergedForecast[] = fc.filter((p) => ts(p) >= now - 30 * 60 * 1000).map((p) => mergedForecastAt(bundle, ts(p), adjust));

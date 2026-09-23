@@ -1,13 +1,11 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { modelLayer, type Reading, type Snapshot } from "@/lib/client/timeline";
+import type { Reading, Snapshot } from "@/lib/client/timeline";
 import {
   COVER_LABEL,
   COVER_OKTAS,
-  fmtCloudLayer,
   fmtTime,
-  oktasCover,
   fmtPrecip,
   fmtTemp,
   fmtVisibility,
@@ -31,8 +29,6 @@ export function Readout({ snap, now, children }: Props) {
   const w = snap.wind?.value;
   const gust = snap.gust?.value;
   const cloud = snap.cloud?.value;
-  // SMHI (station or model): base with the low-cloud amount that belongs to it – never the total.
-  const model = cloud && !cloud.layers?.length ? modelLayer(cloud) : null;
   const pr = snap.precipitation?.value;
   const stale = (r: Reading<unknown>) =>
     snap.mode === "now" && !!r && (r.origin.kind === "METAR" || r.origin.kind === "SMHI") && now - r.origin.timestamp > STALE_MS;
@@ -75,7 +71,6 @@ export function Readout({ snap, now, children }: Props) {
       </dl>
 
       <p className="readout-summary">{weatherSummary(snap)}</p>
-      <p className="readout-clouds">{cloudDetail(snap, cloud, model)}</p>
 
       {children}
     </section>
@@ -90,10 +85,6 @@ function windSub(w: { deg?: number; variable?: boolean; speed?: number }, gust: 
   const g = gust !== undefined && gust >= (w.speed ?? 0) + 1 ? `gusts ${fmtWindSpeed(gust)} m/s` : "";
   return [dir, g].filter(Boolean).join(" · ");
 }
-
-type CloudVal = NonNullable<Snapshot["cloud"]>["value"];
-
-type Model = ReturnType<typeof modelLayer>;
 
 const skyCode = (k: Snapshot["sky"]["kind"]) => (k === "UNKNOWN" ? "?" : k === "MISSING" ? "–" : k);
 
@@ -114,36 +105,6 @@ function skySub(snap: Snapshot): string {
     default:
       return `${COVER_LABEL[k.kind]} · ${COVER_OKTAS[k.kind]}${k.fromSmhi ? " · SMHI model (CAVOK)" : ""}`;
   }
-}
-
-/** Source and validity of the cloud reading. */
-function cloudSource(snap: Snapshot): string {
-  const o = snap.cloud?.origin;
-  if (!o) return "";
-  if (o.kind === "METAR") return `METAR ${o.stationId} ${fmtTime(o.timestamp)}`;
-  if (o.kind === "SMHI") return `SMHI ${o.stationName ?? o.stationId} ${fmtTime(o.timestamp)}`;
-  if (o.kind === "TAF") return `TAF ${o.stationId}${o.validFrom && o.validTo ? ` ${fmtTime(o.validFrom)}–${fmtTime(o.validTo)}` : ""}`;
-  return `SMHI forecast ${fmtTime(o.timestamp)}`;
-}
-
-/** Detail line for the selected time: every layer with base, source and validity. */
-function cloudDetail(snap: Snapshot, c: CloudVal | undefined, model: Model): string {
-  if (!c) return "Clouds: no data for this time";
-  const lines = cloudLines(c, model);
-  const many = (c.layers?.length ?? 0) > 1 ? " (symbol = largest layer, a simplification)" : "";
-  const smhi = snap.sky.fromSmhi ? " · cover from SMHI model" : "";
-  return `Clouds${many}: ${lines.join(" / ") || "no layers"} · ${cloudSource(snap)}${smhi}`;
-}
-
-/** Every layer in full: "Broken · BKN · 5–7/8 · base 480 m". */
-function cloudLines(c: CloudVal, model: Model): string[] {
-  if (c.cavok) return ["CAVOK · no cloud below 1,500 m"];
-  if (c.layers?.length) return c.layers.map((l) => fmtCloudLayer(l.cover, l.baseM, l.type));
-  if (model) return [fmtCloudLayer(model.cover === "UNKNOWN" ? undefined : model.cover, model.baseM)];
-  if (c.clear || c.oktas === 0) return ["Clear sky"];
-  if (c.nsc) return ["No significant cloud"];
-  const total = oktasCover(c.oktas);
-  return total ? [fmtCloudLayer(total, undefined)] : [];
 }
 
 function precipSub(snap: Snapshot): string {

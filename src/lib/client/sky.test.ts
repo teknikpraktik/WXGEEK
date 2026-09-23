@@ -20,19 +20,16 @@ test("CAVOK, NSC and missing data are never shown as clear sky", () => {
   assert.equal(skyOf({ oktas: 6 }).kind, "BKN");
 });
 
-test("temperature scale: 20 °C span on multiples of 5 with 2 °C margin", () => {
-  assert.deepEqual(tempScale([12, 16]), [5, 25]);
-  assert.deepEqual(tempScale([-3, 1]), [-10, 10]);
-  assert.deepEqual(tempTicks([-10, 10]), [-10, -5, 0, 5, 10]);
-  // Larger variation than 20 °C expands in steps of 5 and never clips.
-  const [lo, hi] = tempScale([-8, 21]);
-  assert.ok(lo <= -10 && hi >= 23 && (hi - lo) % 5 === 0);
+test("temperature scale is fixed per season", () => {
+  assert.deepEqual(tempScale([12, 16], 8), [-5, 20], "autumn");
+  assert.deepEqual(tempScale([12, 16], 3), [-5, 20], "spring");
+  assert.deepEqual(tempScale([12, 16], 6), [0, 30], "summer");
+  assert.deepEqual(tempScale([-3, 1], 0), [-20, 10], "winter");
+  assert.deepEqual(tempTicks([-5, 20]), [-5, 0, 5, 10, 15, 20]);
 });
 
-test("temperature scale is stable for small updates and shifts in 5 °C steps", () => {
-  const prev: [number, number] = [5, 25];
-  assert.deepEqual(tempScale([7, 23], prev), prev, "within 1 °C of the limits: unchanged");
-  assert.deepEqual(tempScale([12, 24.5], prev), [10, 30], "moves up by one step");
-  // An expanded span is not shrunk automatically.
-  assert.deepEqual(tempScale([12, 14], [0, 30]), [0, 30]);
+test("temperature scale expands in 5 °C steps with 2 °C margin and never shrinks", () => {
+  assert.deepEqual(tempScale([12, 19], 8), [-5, 25], "19 °C + margin exceeds 20");
+  assert.deepEqual(tempScale([-24, 0], 1), [-30, 10]);
+  assert.deepEqual(tempScale([12, 14], 8, [-5, 25]), [-5, 25], "previous expansion is kept");
 });
