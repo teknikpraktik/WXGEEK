@@ -908,9 +908,11 @@ main {
   white-space: nowrap;
 }
 .cell .val b {
-  font-size: clamp(22px, 6.4vw, 34px);
-  font-weight: 400;
-  letter-spacing: -0.02em;
+  font-family: var(--font-ui);
+  font-variant-numeric: tabular-nums lining-nums;
+  font-size: clamp(24px, 6.8vw, 36px);
+  font-weight: 300;
+  letter-spacing: -0.01em;
   line-height: 1.1;
 }
 .cell .val .unit {

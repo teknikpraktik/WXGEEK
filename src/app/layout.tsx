@@ -5,7 +5,7 @@ import "./globals.css";
 const sans = IBM_Plex_Sans({
   variable: "--font-sans",
   subsets: ["latin"],
-  weight: ["400", "500", "600"],
+  weight: ["300", "400", "500", "600"],
 });
 
 const mono = IBM_Plex_Mono({

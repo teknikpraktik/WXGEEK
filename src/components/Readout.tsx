@@ -171,7 +171,7 @@ function Val({ v, unit, icon }: { v: string; unit: string; icon?: ReactNode }) {
   return (
     <span className="val">
       {icon}
-      <b className="mono">{v}</b>
+      <b>{v}</b>
       {unit && <span className="unit">{unit}</span>}
     </span>
   );
