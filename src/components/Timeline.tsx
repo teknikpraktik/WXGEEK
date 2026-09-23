@@ -24,6 +24,12 @@ const GROUND_PAD = 6; // luft under marklinjen
 const PRECIP_H = 30; // mm per timme
 const WIND_H = 50;
 const AXIS_H = 30;
+/** Vald tid räknas som NU inom 10 minuter (px) – då visas bara NU-linjen och dess etikett. */
+const AT_NOW_PX = (10 / 60) * PX_PER_HOUR;
+/** NOW-etiketten centreras när vald tid ligger minst så här långt bort (px), annars flyttas den
+ *  till sidan bort från vald tids etikett, och döljs när även det skulle krocka. */
+const NOW_LABEL_CLEAR_PX = 62;
+const NOW_LABEL_SIDE_PX = 24;
 /** Molnsymbolen ritas så här högt över temperaturkurvan (symbolens mitt, px). */
 const SKY_LIFT = 17;
 /** Molnsymbolens underkant relativt dess mitt – regnet börjar här. */
@@ -131,12 +137,29 @@ export const Timeline = memo(function Timeline({ now, until, data, onCursor, rec
   const cursorEl = useRef<HTMLDivElement>(null);
 
   const cursorLabel = useRef<HTMLSpanElement>(null);
+  const nowLabel = useRef<SVGTextElement>(null);
+  const nowX = x(now);
+  /** Vald tid vid NU: bara NU-linjen och dess etikett. Annars får etiketterna aldrig överlappa. */
+  const placeMarkers = useCallback(
+    (scrollLeft: number) => {
+      const dx = nowX - scrollLeft; // NU relativt vald tid (markören står på scrollLeft i SVG:n)
+      const ax = Math.abs(dx);
+      const atNow = ax < AT_NOW_PX;
+      cursorEl.current?.classList.toggle("at-now", atNow);
+      const lbl = nowLabel.current;
+      if (!lbl) return;
+      const side = atNow || ax >= NOW_LABEL_CLEAR_PX ? 0 : dx < 0 ? -1 : 1;
+      lbl.setAttribute("x", String(nowX + side * 6));
+      lbl.setAttribute("text-anchor", side < 0 ? "end" : side > 0 ? "start" : "middle");
+      lbl.style.visibility = !atNow && ax < NOW_LABEL_SIDE_PX ? "hidden" : "";
+    },
+    [nowX],
+  );
+  useLayoutEffect(() => placeMarkers(scroller.current?.scrollLeft ?? 0));
   const onScroll = () => {
-    // Markörlinjen döljs vid NU (bara romben syns ovanpå den gröna NU-linjen).
     if (scroller.current) {
       const t = tAt(scroller.current.scrollLeft);
-      const atNow = Math.abs(t - now) < 10 * 60 * 1000;
-      cursorEl.current?.classList.toggle("at-now", atNow);
+      placeMarkers(scroller.current.scrollLeft);
       if (cursorLabel.current) cursorLabel.current.textContent = fmtTime(snap5(t));
     }
     cancelAnimationFrame(raf.current);
@@ -248,21 +271,17 @@ export const Timeline = memo(function Timeline({ now, until, data, onCursor, rec
   }, [data.sky, skyEvery, wet, fogAt]);
 
   const pathOf = (pts: Pt[]) => pts.map((p, i) => `${i ? "L" : "M"}${x(p.t).toFixed(1)},${yTemp(p.v).toFixed(1)}`).join("");
-  const nowX = x(now);
-  // Aktuell temperatur (senaste observation, annars första prognospunkten) färgar °C-rubriken.
-  const nowTemp = data.temp.observed.at(-1)?.at(-1)?.v ?? data.temp.forecast[0]?.[0]?.v;
 
   return (
     <div className="tl" style={{ height: H }}>
       {/* Vänster axel: temperatur (°C) */}
       <div className="tl-yaxis" aria-hidden>
-        <span className={`tl-axtitle temp ${tempSign(nowTemp)}`} style={{ top: 4 }}>
+        <span className="tl-axtitle temp" style={{ top: 4 }}>
           °C
         </span>
-        {t1 > 0 && <i className="tl-taxis warm" style={{ top: yTemp(t1), height: yTemp(Math.max(0, t0)) - yTemp(t1) }} />}
-        {t0 < 0 && <i className="tl-taxis cold" style={{ top: yTemp(Math.min(0, t1)), height: yTemp(t0) - yTemp(Math.min(0, t1)) }} />}
+        <i className="tl-taxis" style={{ top: yTemp(t1), height: yTemp(t0) - yTemp(t1) }} />
         {data.temp.ticks.map((v) => (
-          <span key={v} className={`tl-ttick ${tempSign(v)}`} style={{ top: yTemp(v) }}>
+          <span key={v} className="tl-ttick" style={{ top: yTemp(v) }}>
             {`${v}°`.replace("-", "−")}
           </span>
         ))}
@@ -305,12 +324,6 @@ export const Timeline = memo(function Timeline({ now, until, data, onCursor, rec
             aria-label="Chart: cloud base in metres (left axis), temperature in °C (right axis), precipitation from the cloud base, wind below. Solid is observed, dashed is forecast."
           >
             <defs>
-              {/* Temperatur: blått under noll, rött över – intensivare ju längre från noll */}
-              <linearGradient id="tempgrad" gradientUnits="userSpaceOnUse" x1={0} x2={0} y1={yTemp(t0)} y2={yTemp(t1)}>
-                {tempStops(t0, t1).map((s, i) => (
-                  <stop key={i} offset={s.offset} stopColor={s.color} />
-                ))}
-              </linearGradient>
               <pattern id="hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
                 <line x1="0" y1="0" x2="0" y2="6" className="tl-hatch" />
               </pattern>
@@ -340,13 +353,13 @@ export const Timeline = memo(function Timeline({ now, until, data, onCursor, rec
 
             {/* Temperatur – överst */}
             {data.temp.forecast.map((s, i) => (
-              <path key={`tf${i}`} d={pathOf(s)} className="tl-line fc" style={{ stroke: "url(#tempgrad)" }} />
+              <path key={`tf${i}`} d={pathOf(s)} className="tl-line fc temp" />
             ))}
             {data.temp.observed.map((s, i) =>
               s.length === 1 ? (
-                <circle key={`to${i}`} cx={x(s[0].t)} cy={yTemp(s[0].v)} r={2.5} style={{ fill: tempColor(s[0].v) }} />
+                <circle key={`to${i}`} cx={x(s[0].t)} cy={yTemp(s[0].v)} r={2.5} className="tl-dot temp" />
               ) : (
-                <path key={`to${i}`} d={pathOf(s)} className="tl-line obs" style={{ stroke: "url(#tempgrad)" }} />
+                <path key={`to${i}`} d={pathOf(s)} className="tl-line obs temp" />
               ),
             )}
 
@@ -419,7 +432,7 @@ export const Timeline = memo(function Timeline({ now, until, data, onCursor, rec
 
             {/* NU */}
             <line x1={nowX} x2={nowX} y1={TOP - 6} y2={H} className="tl-now" />
-            <text x={nowX} y={TOP - 11} className="tl-nowlabel" textAnchor="middle">
+            <text ref={nowLabel} x={nowX} y={TOP - 11} className="tl-nowlabel" textAnchor="middle">
               NOW {fmtTime(now)}
             </text>
             <text x={nowX - 8} y={chartTop + 12} className="tl-side obs" textAnchor="end">
@@ -470,39 +483,6 @@ function tempAt(pts: Pt[], t: number): number | undefined {
 
 /** "Thu 24 Sep" */
 const dayDate = (t: number) => fmtDateTime(t).split(", ")[0];
-
-/** Axelfärg: rött över noll, blått under. */
-const tempSign = (v: number | undefined) => (v === undefined || v === 0 ? "zero" : v > 0 ? "warm" : "cold");
-
-/** Temperaturfärg: blått vid kyla, rött vid värme, tydligt skifte vid 0 °C. */
-export function tempColor(v: number): string {
-  const lerp = (a: number[], b: number[], f: number) => a.map((x, i) => Math.round(x + (b[i] - x) * f));
-  const rgb = (c: number[]) => `rgb(${c[0]},${c[1]},${c[2]})`;
-  if (v <= 0) {
-    // 0 → −20: ljusblått → djupblått
-    const f = Math.min(1, -v / 20);
-    return rgb(lerp([96, 165, 250], [30, 58, 138], f));
-  }
-  // 0 → +25: orange → rött → mörkrött
-  const f = Math.min(1, v / 25);
-  return f < 0.5 ? rgb(lerp([245, 158, 11], [220, 38, 38], f * 2)) : rgb(lerp([220, 38, 38], [127, 29, 29], (f - 0.5) * 2));
-}
-
-function tempStops(lo: number, hi: number) {
-  const out: Array<{ offset: number; color: string }> = [];
-  const n = Math.max(2, Math.ceil(hi - lo) * 2);
-  for (let i = 0; i <= n; i++) {
-    const v = lo + ((hi - lo) * i) / n;
-    out.push({ offset: i / n, color: tempColor(v) });
-    // Skarp övergång vid noll
-    const next = lo + ((hi - lo) * (i + 1)) / n;
-    if (i < n && v <= 0 && next > 0) {
-      const z = (0 - lo) / (hi - lo);
-      out.push({ offset: z, color: tempColor(0) }, { offset: z + 1e-4, color: tempColor(0.01) });
-    }
-  }
-  return out;
-}
 
 /** Regn under molnsymbolen: tre korta streck (snö: prickar), x och y relativt symbolens underkant. */
 const RAIN_MARKS: Array<[number, number]> = [

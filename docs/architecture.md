@@ -157,23 +157,27 @@ WxgeekApp              – plats, datahämtning, auto-uppdatering (5 min när fl
 - Tid väljs genom att dra grafen under en **fast markör i mitten** (native scroll på
   touch, musdrag på desktop). Klick flyttar inte grafen. Knappen **Now** återgår till NU
   och behåller alltid sin plats. Tangentbord: pilar (±1 h, Shift ±6 h) och `N`.
-- **Vald tid** och **NU** har olika markörer som fungerar utan färgseende: NU är en
-  heldragen linje med etiketten "NOW 17:12"; vald tid är en fetare streckad grön linje med romb och
-  etiketten "18:00". Vald tid avrundas till 5 min.
+- **Vald tid** och **NU** har olika markörer som fungerar utan färgseende: NU är en tunn
+  heldragen linje i mörk blågrå med etiketten "NOW 17:12" ovanför grafen; vald tid är en
+  streckad linje i dämpad blå med en liten cirkel och etiketten "18:00" (vit text på mörkblått).
+  Står vald tid på NU visas bara NU-linjen och dess etikett. Etiketterna krockar aldrig:
+  NOW-etiketten flyttas till sidan bort från vald tid, och döljs när även det skulle krocka.
+  Vald tid avrundas till 5 min.
 - Följer klockan när användaren står på NU, men flyttar aldrig grafen under en pågående
   interaktion.
-- **Färger**: observerat och prognos har samma diskreta grå/svarta toner – skillnaden
-  bärs av stil (heldraget vs streckat) och bakgrund (tonad vs skrafferad). **Grön**
-  linje markerar NU. Färg används bara för vädret självt: temperatur (blått vid
-  minusgrader, rött vid plusgrader, gradient), regn (blått), snö (lila), moln i
-  gråskala efter täckningsgrad och dimma som ljusgrått marknära lager.
+- **Färger** (samlade som variabler överst i `src/app/globals.css`): varm neutral bakgrund
+  (#F3F1EB) och text (#20252B, sekundärt #5E6772), NU i mörk blågrå (#334155), vald tid och
+  interaktiv accent i dämpad blå (#365F83), temperatur i tegelrött (#C64B40) och nederbörd i
+  mellanblått (#397CAF; små siffror i mörkare #2C6594). Observerat och prognos skiljs med stil
+  (heldraget vs streckat) och bakgrund (tonad vs skrafferad). Gula solar, grå moln och mörka
+  vindpilar. Text och kontroller klarar WCAG AA mot sina bakgrunder, även i mörkt läge.
   Linjer dras aldrig över luckor i data.
 - **Ett diagram med två y-axlar**:
   - **Höger axel – molnbas (m)**, linjär 0–3 000 m. Molnlager ritas som molnformer med platt underkant vid molnbasen;
     angränsande block på samma höjd slås ihop. Molnikonen fylls nerifrån med andelen åttondelar som täcks
     (FEW 2/8, SCT 4/8, BKN 6/8, OVC 8/8; SMHI-oktas direkt) via SVG-gradienter `cov0`…`cov8`.
-  - **Vänster axel – temperatur (°C)**, fast −20 … +35. Axellinje och värden röda över noll,
-    blåa under; °C-rubriken färgas efter aktuell temperatur. Molnbasaxeln (höger) sitter dikt
+  - **Vänster axel – temperatur (°C)**: adaptiv skala (`TEMP_AXIS` i
+    `src/lib/client/timeline.ts`); siffror, enhet och axellinje i neutral skiffergrå. Molnbasaxeln (höger) sitter dikt
     an mot diagrammets högerkant och stannar vid vyns kant när man scrollar bakåt.
   - **Observerat och prognos sitter ihop**: prognoskurvan (streckad) börjar i senaste
     observerade punkten. Skillnaden mellan observation och prognos där läggs på prognosen
@@ -183,11 +187,10 @@ WxgeekApp              – plats, datahämtning, auto-uppdatering (5 min när fl
     en sol på dagen och en måne på natten, i stället för moln. Dag/natt avgörs med solens
     höjd för platsen (`src/lib/sun.ts`, förenklad NOAA-algoritm).
   - Nederbörd vid minusgrader (enligt kurvan vid samma tid) visas som snö.
-  - Temperaturkurvan:, heldragen (observerat) / streckad (prognos) kurva, färgad efter temperaturen.
-  - **Nederbörd som droppar**: korta droppar (regn) eller prickar (snö) från lägsta
-    molnlagret (SCT/BKN/OVC) ned till marken, spridda över hela molnets bredd under
-    regnperioden. Tätare ju mer det regnar. Prognosdroppar tonas efter SMHI:s
-    sannolikhet för nederbörd (opacitet 0,2 + 0,8 · p).
+  - Temperaturkurvan: tegelröd, heldragen (observerat) / streckad (prognos).
+  - **Regn under molnen**: tre korta streck (snö: prickar) direkt under varje molnsymbol
+    med nederbörd, samma längd oavsett kurvans höjd. De signalerar bara nederbörd –
+    mängden visas av timstaplarna.
   - **Snö som snödjup**: nederbörd som faller som snö räknas som uppskattat nysnödjup
     (1 mm vatten ≈ 1 cm nysnö, utan smältning/sättning) och ritas som ett vitt lager
     underst; regn läggs som vatten ovanpå. Etiketten visar t.ex. "4,0 mm · ≈ 6,0 cm snö".
@@ -199,11 +202,12 @@ WxgeekApp              – plats, datahämtning, auto-uppdatering (5 min när fl
   - **Nederbörd per timme** i ett eget fält direkt under marklinjen: stapel + mm. Uppmätt
     (SMHI-mätare) heldraget; prognos som trolig mängd (mörk, SMHI-ensemblens median) och
     möjlig mängd (ljus, max av medel och max). SMHI:s min används inte.
-  - Dimma/dis: ljusgrått lager från marken (fast höjd i px: dimma 30, dis/sikt under 5 km 14). Åska markeras med ϟ.
+  - Dimma/dis: dimsymbol (tre streck) resp. dis (två streck) ersätter molnsymbolen på kurvan. Åska markeras med ϟ.
 - Ingen förklaring (legend) och inga instruktionstexter under diagrammet.
 - **Tidsaxel direkt under diagrammet** (tim-streck, "09:00" var 3:e timme, veckodag vid midnatt).
   Vänsteraxeln har solid bakgrund så att moln tonar bort innan de når etiketterna.
-- **Markören** är mörkgrön; NU-linjen mellangrön. När markören står på NU syns bara romben.
+- **Now-knappen**: neutral kontur och lugn text när NU är vald; mörk blågrå fyllning med vit
+  text när en annan tid är vald. Samma storlek och placering i båda lägena.
 - **Vind under tidsaxeln**: en pil per timme (varifrån det blåser) med m/s under;
   byar visas under när de är minst 3 m/s högre.
 - Lufttryck och luftfuktighet visas inte (och hämtas inte).

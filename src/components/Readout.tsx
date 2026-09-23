@@ -130,8 +130,7 @@ function Val({ v, unit, icon }: { v: string; unit: string; icon?: ReactNode }) {
   return (
     <span className="val">
       {icon}
-      {/* Långa ord (CAVOK m.fl.) i mindre storlek så att rutan inte sprängs */}
-      <b className={/[A-Za-z]{4,}/.test(v) ? "long" : undefined}>
+      <b>
         {v.startsWith("≥") ? (
           <>
             <span className="val-prefix">≥</span>
