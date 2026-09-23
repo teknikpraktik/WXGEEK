@@ -2,14 +2,13 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Place, WeatherBundle } from "@/lib/types";
-import { buildEvents, buildPlot, HOUR, PLOT_PARAMS, snapshotAt, type PlotParam } from "@/lib/client/timeline";
+import { buildMeteogram, HOUR, snapshotAt } from "@/lib/client/timeline";
 import { Timeline } from "./Timeline";
 import { Readout } from "./Readout";
 import { PlacePicker } from "./PlacePicker";
 import { Details } from "./Details";
 
 const PLACE_KEY = "vaderlek:place";
-const PARAM_KEY = "vaderlek:param";
 const REFRESH_MS = 5 * 60 * 1000;
 
 type StoredPlace = Place & { fromGeolocation?: boolean };
@@ -43,7 +42,6 @@ export function VaderlekApp() {
 
   const [now, setNow] = useState(() => Date.now());
   const [cursor, setCursor] = useState<number | null>(null);
-  const [param, setParam] = useState<PlotParam>("temperature");
   const [recenter, setRecenter] = useState(0);
 
   // ---------------------------------------------------------------------------
@@ -93,10 +91,8 @@ export function VaderlekApp() {
   // Första start: sparad plats → annars försök med geolocation.
   useEffect(() => {
     const stored = readStored<StoredPlace>(PLACE_KEY);
-    const storedParam = readStored<PlotParam>(PARAM_KEY);
     // Läses från localStorage efter hydrering för att undvika SSR-mismatch.
     /* eslint-disable react-hooks/set-state-in-effect */
-    if (storedParam && PLOT_PARAMS.some((p) => p.key === storedParam)) setParam(storedParam);
     if (stored) setPlace(stored);
     else locate();
     setBooted(true);
@@ -171,17 +167,12 @@ export function VaderlekApp() {
   // ---------------------------------------------------------------------------
   // Härledd data
   // ---------------------------------------------------------------------------
-  const plot = useMemo(() => (bundle ? buildPlot(bundle, param, now) : null), [bundle, param, now]);
-  const events = useMemo(() => (bundle ? buildEvents(bundle, now) : []), [bundle, now]);
+  const meteogram = useMemo(() => (bundle ? buildMeteogram(bundle, now) : null), [bundle, now]);
   const t = cursor ?? now;
   const snap = useMemo(() => (bundle ? snapshotAt(bundle, t, now) : null), [bundle, t, now]);
   const onCursor = useCallback((tt: number) => setCursor(tt), []);
   const awayFromNow = cursor !== null && Math.abs(cursor - now) > 10 * 60 * 1000;
 
-  const chooseParam = (p: PlotParam) => {
-    setParam(p);
-    writeStored(PARAM_KEY, p);
-  };
 
   // ---------------------------------------------------------------------------
   // Render
@@ -234,36 +225,22 @@ export function VaderlekApp() {
             </div>
           )}
 
-          {bundle && snap && plot && (
+          {bundle && snap && meteogram && (
             <>
               <Readout
                 snap={snap}
                 now={now}
                 forecastCreated={bundle.forecast?.createdTime}>
               <section className="timeline-wrap" aria-label="Tidslinje">
-                <div className="params" role="tablist" aria-label="Huvudparameter">
-                  {PLOT_PARAMS.map((p) => (
-                    <button
-                      key={p.key}
-                      type="button"
-                      role="tab"
-                      aria-selected={param === p.key}
-                      className={param === p.key ? "param active" : "param"}
-                      onClick={() => chooseParam(p.key)}
-                    >
-                      {p.label}
-                    </button>
-                  ))}
-                </div>
-
-                <Timeline now={now} plot={plot} events={events} taf={bundle.taf} onCursor={onCursor} recenterSignal={recenter} />
+                <Timeline now={now} data={meteogram} taf={bundle.taf} onCursor={onCursor} recenterSignal={recenter} />
 
                 <div className="tl-footer">
                   <div className="legend" aria-hidden>
                     <span className="lg lg-obs">Observerat</span>
                     <span className="lg lg-fc">Prognos</span>
-                    {param === "wind" && <span className="lg lg-gust">Byar</span>}
-                    {param === "cloudBase" && <span className="lg lg-cloud">Molnlager (tätare = mer moln)</span>}
+                    <span className="lg lg-regn">Regn</span>
+                    <span className="lg lg-sno">Snö</span>
+                    <span className="lg lg-fog">Dimma / låg sikt</span>
                   </div>
                   <button
                     type="button"
@@ -274,17 +251,8 @@ export function VaderlekApp() {
                     Till NU
                   </button>
                 </div>
-                <div className="evlegend" aria-hidden>
-                  <span className="ev ev-regn">Regn</span>
-                  <span className="ev ev-sno">Snö</span>
-                  <span className="ev ev-dimma">Dimma/dis</span>
-                  <span className="ev ev-aska">Åska</span>
-                  <span className="hint">Dra i grafen för att gå bakåt eller framåt i tiden</span>
-                </div>
               </section>
               </Readout>
-
-
 
               {error && <p className="inline-error">Uppdateringen misslyckades: {error}. Visar data från {new Date(bundle.generatedAt).toLocaleTimeString("sv-SE", { hour: "2-digit", minute: "2-digit" })}.</p>}
               {loading && <p className="muted small">Uppdaterar…</p>}

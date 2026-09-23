@@ -20,7 +20,6 @@ export type ParamRule = {
 
 export const PARAM_RULES: Record<ParamKey, ParamRule> = {
   temperature: { maxKm: 40, sources: ["SMHI", "METAR"] },
-  dewPoint: { maxKm: 40, sources: ["SMHI", "METAR"] },
   humidity: {
     maxKm: 40,
     sources: ["SMHI", "METAR"],

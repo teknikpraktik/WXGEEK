@@ -122,7 +122,6 @@ Värden är **strängar**. Kvalitet `G` = kontrollerat, `Y` = misstänkt/prelimi
 | p | Parameter | Enhet | Kommentar |
 |---|---|---|---|
 | 1 | Lufttemperatur, momentan 1 gång/tim | °C | |
-| 39 | Daggpunktstemperatur | °C | |
 | 6 | Relativ luftfuktighet | % | |
 | 3 | Vindriktning, 10-min medel | grader | |
 | 4 | Vindhastighet, 10-min medel | m/s | |

@@ -14,7 +14,7 @@ Väderlek behandlar **observerat väder som en förstklassig datatyp**.
 - Öppna appen och se direkt det **observerade** vädret nu – med station, avstånd och ålder.
 - Dra tidslinjen bakåt ~12 timmar och se hur vädret faktiskt utvecklats.
 - Dra framåt och se prognosen på **samma** tidsaxel.
-- Välj huvudparameter: temperatur, vind, lufttryck, sikt, molnbas eller nederbörd.
+- Allt på en gång, som ett meteogram: temperatur och nederbörd, vind, moln/sikt och lufttryck i smala körfält på samma tidsaxel.
 - Observation (heldraget, bläck) och prognos (streckat, blått) skiljs tydligt åt.
 
 Väderlek kombinerar **METAR** (flygplatsobservationer), **SMHI:s observationer**,

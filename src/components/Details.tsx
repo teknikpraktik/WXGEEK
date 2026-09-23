@@ -6,7 +6,6 @@ import { fmtAge, fmtDistance, fmtTime } from "@/lib/format";
 
 const PARAM_LABEL: Record<ParamKey, string> = {
   temperature: "Temperatur",
-  dewPoint: "Daggpunkt",
   humidity: "Luftfuktighet",
   wind: "Vind",
   gust: "Byar",
@@ -24,7 +23,6 @@ const ORDER: ParamKey[] = [
   "visibility",
   "cloudBase",
   "pressure",
-  "dewPoint",
   "humidity",
   "precipitation",
   "phenomena",

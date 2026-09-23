@@ -58,6 +58,7 @@ export function Readout({ snap, now, forecastCreated, children }: Props) {
 
   const phen = snap.phenomena?.value?.[0]?.label ?? (isFc ? snap.forecastSummary : undefined);
   const w = snap.wind?.value;
+  const gust = snap.gust?.value;
   const cloud = snap.cloud?.value;
   const lowest = cloud?.layers?.[0];
   // Primär källa = temperaturens. Andra celler visar bara källa när den avviker.
@@ -97,18 +98,13 @@ export function Readout({ snap, now, forecastCreated, children }: Props) {
             <>
               {w.deg !== undefined && !w.variable && <WindArrow deg={w.deg} />}
               {fmtWindDir(w.deg, w.variable)} <b className="mono">{fmtWindSpeed(w.speed)}</b> m/s
+              {gust !== undefined && gust >= (w.speed ?? 0) + 1 && (
+                <span className="sub">
+                  byar <b className="mono small-b">{fmtWindSpeed(gust)}</b> m/s
+                </span>
+              )}
             </>
           )}
-        </Cell>
-        <Cell label="Byar" r={snap.gust} {...cellProps} missing={isFc ? "–" : "Ingen bymätning i närheten"}>
-          {snap.gust &&
-            (snap.gust.value === undefined ? (
-              <span className="note">Inga kraftiga byar rapporterade</span>
-            ) : (
-              <>
-                <b className="mono">{fmtWindSpeed(snap.gust.value)}</b> m/s
-              </>
-            ))}
         </Cell>
         <Cell label="Sikt" r={snap.visibility} {...cellProps} missing={isFc ? "–" : "Ingen aktuell siktobservation"}>
           {snap.visibility && <b className="mono">{fmtVisibility(snap.visibility.value.m, snap.visibility.value.atLeast)}</b>}
@@ -131,43 +127,28 @@ export function Readout({ snap, now, forecastCreated, children }: Props) {
             ) : cloud.nsc || cloud.oktas === 0 ? (
               <span className="note">Inga betydande moln</span>
             ) : cloud.oktas !== undefined ? (
-              <span className="note">{fmtOktas(cloud.oktas)}, molnbas saknas</span>
+              <span className="note">{fmtOktas(cloud.oktas)}</span>
             ) : null)}
         </Cell>
         <Cell label="Lufttryck" r={snap.pressure} {...cellProps} missing={isFc ? "–" : "Ingen tryckmätning"}>
           {snap.pressure && (
             <>
               <b className="mono">{fmtPressure(snap.pressure.value)}</b> hPa
+              {snap.pressureTrend !== undefined && <span className="sub">{fmtTrend(snap.pressureTrend)}</span>}
             </>
           )}
         </Cell>
-        {snap.dewPoint || !isFc ? (
-          <Cell label="Daggpunkt" r={snap.dewPoint} {...cellProps} missing="Ingen daggpunktsmätning">
-            {snap.dewPoint && (
-              <>
-                <b className="mono">{fmtTemp(snap.dewPoint.value)}</b> °C
-              </>
-            )}
-          </Cell>
-        ) : null}
         <Cell label="Luftfuktighet" r={snap.humidity} {...cellProps} missing={isFc ? "–" : "Ingen fuktmätning"}>
           {snap.humidity && <b className="mono">{fmtPercent(snap.humidity.value)}</b>}
         </Cell>
-        <Cell
-          label={isFc ? "Nederbörd" : "Nederbörd, 1 h"}
-          r={snap.precipitation}
-          {...cellProps}
-          missing={isFc ? "–" : "Ingen nederbördsmätare i närheten"}
-        >
-          {snap.precipitation && (
-            <>
-              <b className="mono">{fmtPrecip(snap.precipitation.value.mm)}</b>
-              {isFc && snap.precipitation.value.probability !== undefined && (
-                <span className="sub">{Math.round(snap.precipitation.value.probability)} % risk för nederbörd</span>
-              )}
-            </>
-          )}
-        </Cell>
+        {snap.precipitation && (
+          <Cell label={isFc ? "Nederbörd" : "Nederbörd, 1 h"} r={snap.precipitation} {...cellProps} missing="–">
+            <b className="mono">{fmtPrecip(snap.precipitation.value.mm)}</b>
+            {isFc && snap.precipitation.value.probability !== undefined && snap.precipitation.value.probability > 0 && (
+              <span className="sub">{Math.round(snap.precipitation.value.probability)} % risk</span>
+            )}
+          </Cell>
+        )}
       </dl>
 
       {isFc && (
@@ -226,6 +207,13 @@ function Cell<T>({
       </dd>
     </div>
   );
+}
+
+/** Trycktendens 3 h, som i synoptiska observationer. */
+function fmtTrend(d: number): string {
+  const v = Math.abs(d).toFixed(1).replace(".", ",");
+  if (Math.abs(d) < 0.5) return "oförändrat senaste 3 h";
+  return `${d > 0 ? "stigande" : "fallande"} ${v} hPa / 3 h`;
 }
 
 function sameOrigin(a: Origin, b?: Origin) {

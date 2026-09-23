@@ -31,7 +31,6 @@ const TAF_MAX_KM = 50;
 /** Vilka SMHI-parametrar som behövs för respektive Väderlek-parameter. */
 const SMHI_FOR: Record<ParamKey, SmhiParamName[]> = {
   temperature: ["temperature"],
-  dewPoint: ["dewPoint"],
   humidity: ["humidity"],
   wind: ["windSpeed", "windDirection"],
   gust: ["gust"],
@@ -45,7 +44,6 @@ const SMHI_FOR: Record<ParamKey, SmhiParamName[]> = {
 /** Om en METAR alls innehåller parametern. */
 const METAR_HAS: Record<ParamKey, (m: AwcMetar) => boolean> = {
   temperature: (m) => m.temp != null,
-  dewPoint: (m) => m.dewp != null,
   humidity: (m) => m.temp != null && m.dewp != null,
   wind: (m) => m.wspd != null,
   gust: (m) => m.wspd != null,
@@ -184,10 +182,6 @@ export async function buildWeatherBundle(lat: number, lon: number): Promise<Weat
         station: winner ? stationRef : null,
         reason: selectionReason(param, winner, ranked),
         latestTimestamp: winner ? new Date(winner.latestMs).toISOString() : undefined,
-        alternatives: ranked
-          .filter((c) => !winner || key(c) !== key(winner))
-          .slice(0, 3)
-          .map(({ latestMs, ...ref }) => ({ ...ref, latestTimestamp: new Date(latestMs).toISOString() })),
       };
     }),
   );

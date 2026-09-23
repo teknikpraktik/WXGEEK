@@ -46,7 +46,6 @@ export function normalizeSmhiForecast(raw: SmhiForecastRaw): Forecast {
       cloudCoverOktas: num(d, "cloud_area_fraction"),
       lowCloudCoverOktas: num(d, "low_type_cloud_area_fraction"),
       precipitationMm: num(d, "precipitation_amount_mean"),
-      precipitationMinMm: num(d, "precipitation_amount_min"),
       precipitationMaxMm: num(d, "precipitation_amount_max"),
       precipitationProbability: num(d, "probability_of_precipitation"),
       thunderProbability: thunder,

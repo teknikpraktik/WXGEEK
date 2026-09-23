@@ -15,18 +15,6 @@ export const HOUR = 3_600_000;
 export const PAST_HOURS = 12;
 export const FUTURE_HOURS = 36;
 
-/** Parametrar som kan väljas som huvudvisualisering. */
-export type PlotParam = "temperature" | "wind" | "pressure" | "visibility" | "cloudBase" | "precipitation";
-
-export const PLOT_PARAMS: Array<{ key: PlotParam; label: string; unit: string }> = [
-  { key: "temperature", label: "Temperatur", unit: "°C" },
-  { key: "wind", label: "Vind", unit: "m/s" },
-  { key: "pressure", label: "Lufttryck", unit: "hPa" },
-  { key: "visibility", label: "Sikt", unit: "km" },
-  { key: "cloudBase", label: "Molnbas", unit: "m" },
-  { key: "precipitation", label: "Nederbörd", unit: "mm/h" },
-];
-
 export type Pt = { t: number; v: number };
 export type Span = { t0: number; t1: number };
 
@@ -83,33 +71,32 @@ function fcstPoints(bundle: WeatherBundle, get: (p: ForecastPoint) => number | u
 }
 
 // ---------------------------------------------------------------------------
-// Plotdata
+// Meteogram: alla mått på samma tidsaxel, i smala körfält
 // ---------------------------------------------------------------------------
 
+export type PrecipKind = "regn" | "snö";
 export type CloudBlock = Span & { baseM: number; cover: CloudLayer["cover"] | "MODEL"; opacity: number };
-export type Bar = Span & { v: number; max?: number };
-export type Arrow = { t: number; deg: number; speed?: number; forecast: boolean };
+export type Bar = Span & { v: number; max?: number; kind: PrecipKind };
+export type Strip = Span & { kind: PrecipKind; label: string };
+export type Arrow = { t: number; deg?: number; variable?: boolean; speed: number; gust?: number; forecast: boolean };
+export type Mark = Span & { forecast: boolean; label: string };
 
-export type PlotData = {
-  param: PlotParam;
-  unit: string;
-  domain: [number, number];
-  ticks: number[];
-  scale: "linear" | "sqrt";
-  observed: Pt[][];
-  forecast: Pt[][];
-  /** Byar (vind) */
-  observedSecondary?: Pt[];
-  forecastSecondary?: Pt[][];
-  observedBars?: Bar[];
-  forecastBars?: Bar[];
-  observedClouds?: CloudBlock[];
-  forecastClouds?: CloudBlock[];
-  arrows?: Arrow[];
-  /** Kort text när data saknas för en sida */
-  observedMissing?: string;
-  forecastMissing?: string;
-  formatTick: (v: number) => string;
+export type Meteogram = {
+  temp: { observed: Pt[][]; forecast: Pt[][]; domain: [number, number]; ticks: number[] };
+  /** Uppmätt nederbörd (SMHI, mm/h) */
+  precipObserved: Bar[];
+  /** Observerad nederbörd utan mängd (t.ex. "lätt regn" i METAR) */
+  precipStrips: Strip[];
+  precipForecast: Bar[];
+  precipMax: number;
+  wind: Arrow[];
+  cloudsObserved: CloudBlock[];
+  cloudsForecast: CloudBlock[];
+  /** Dimma / sikt under 5 km */
+  lowVis: Array<Mark & { severe: boolean }>;
+  thunder: Mark[];
+  pressure: { observed: Pt[][]; forecast: Pt[][]; domain: [number, number] };
+  missing: { temp?: string; wind?: string; clouds?: string; pressure?: string; forecast?: string };
 };
 
 function niceDomain(values: number[], minSpan: number, pad = 0.1): [number, number] {
@@ -123,7 +110,7 @@ function niceDomain(values: number[], minSpan: number, pad = 0.1): [number, numb
   return [lo, hi];
 }
 
-function niceTicks([lo, hi]: [number, number], count = 4): number[] {
+function niceTicks([lo, hi]: [number, number], count = 3): number[] {
   const raw = (hi - lo) / count;
   const mag = 10 ** Math.floor(Math.log10(raw));
   const step = [1, 2, 2.5, 5, 10].map((m) => m * mag).find((s) => s >= raw) ?? raw;
@@ -134,162 +121,173 @@ function niceTicks([lo, hi]: [number, number], count = 4): number[] {
 
 const OBS_GAP = 100 * 60 * 1000;
 const FCST_GAP = 3 * HOUR + 1;
-
 const COVER_OPACITY: Record<string, number> = { FEW: 0.22, SCT: 0.42, BKN: 0.68, OVC: 0.9, VV: 0.9 };
 
-export function buildPlot(bundle: WeatherBundle, param: PlotParam, now: number): PlotData {
-  const unit = PLOT_PARAMS.find((p) => p.key === param)!.unit;
-  const noObs = (k: ParamKey, what: string) =>
-    stationFor(bundle, k) ? undefined : `Ingen ${what} i närheten`;
-  const noFc = bundle.forecast ? undefined : "Prognos saknas";
+const precipKindOf = (p: Phenomenon | undefined): PrecipKind | null => {
+  if (!p) return null;
+  const g = PHENOMENON_GROUP[p.kind];
+  return g === "snö" ? "snö" : g === "regn" || g === "åska" ? "regn" : null;
+};
 
-  switch (param) {
-    case "temperature": {
-      const o = obsPoints(bundle, "temperature", (x) => x.temperatureC);
-      const f = fcstPoints(bundle, (x) => x.temperatureC, now);
-      const domain = niceDomain([...o, ...f].map((p) => p.v), 6);
-      return {
-        param, unit, domain, ticks: niceTicks(domain), scale: "linear",
-        observed: segments(o, OBS_GAP), forecast: segments(f, FCST_GAP),
-        observedMissing: noObs("temperature", "temperaturmätning"), forecastMissing: noFc,
-        formatTick: (v) => `${v}°`.replace("-", "−"),
-      };
-    }
-    case "pressure": {
-      const o = obsPoints(bundle, "pressure", (x) => x.pressureHpa);
-      const f = fcstPoints(bundle, (x) => x.pressureHpa, now);
-      const domain = niceDomain([...o, ...f].map((p) => p.v), 8, 0.15);
-      return {
-        param, unit, domain, ticks: niceTicks(domain), scale: "linear",
-        observed: segments(o, OBS_GAP), forecast: segments(f, FCST_GAP),
-        observedMissing: noObs("pressure", "tryckmätning"), forecastMissing: noFc,
-        formatTick: (v) => String(Math.round(v)),
-      };
-    }
-    case "wind": {
-      const o = obsPoints(bundle, "wind", (x) => x.windSpeedMs);
-      const og = obsPoints(bundle, "gust", (x) => x.windGustMs);
-      const f = fcstPoints(bundle, (x) => x.windSpeedMs, now);
-      const fg = fcstPoints(bundle, (x) => x.windGustMs, now);
-      const max = Math.max(8, ...[...o, ...og, ...f, ...fg].map((p) => p.v));
-      const domain: [number, number] = [0, Math.ceil((max * 1.1) / 2) * 2];
-      const windStation = stationFor(bundle, "wind");
-      const arrows: Arrow[] = [];
-      let lastT = -Infinity;
-      for (const x of windStation?.observations ?? []) {
-        const t = ts(x);
-        // Glesa ut till ungefär en pil per timme.
-        if (x.windDirectionDeg !== undefined && t - lastT >= 55 * 60 * 1000) {
-          arrows.push({ t, deg: x.windDirectionDeg, speed: x.windSpeedMs, forecast: false });
-          lastT = t;
-        }
+export function buildMeteogram(bundle: WeatherBundle, now: number): Meteogram {
+  const fc = (bundle.forecast?.points ?? []).filter((p) => ts(p) >= now - 30 * 60 * 1000);
+  const hourlyFc = fc.filter((p) => !p.intervalStart || ts(p) - Date.parse(p.intervalStart) <= HOUR);
+  const missing: Meteogram["missing"] = {};
+  if (!bundle.forecast) missing.forecast = "Prognos saknas";
+
+  // Temperatur
+  const tObs = obsPoints(bundle, "temperature", (x) => x.temperatureC);
+  const tFc = fcstPoints(bundle, (x) => x.temperatureC, now);
+  const tDomain = niceDomain([...tObs, ...tFc].map((p) => p.v), 6, 0.15);
+  if (!stationFor(bundle, "temperature")) missing.temp = "Ingen temperaturmätning i närheten";
+
+  // Väderfenomen (observerat) – används för nederbördstyp, dimma och åska
+  const phenObs = stationFor(bundle, "phenomena")?.observations ?? [];
+  const phenStep = stepOf(phenObs);
+  const precipKindNear = (t: number): PrecipKind | null => {
+    for (const o of phenObs) {
+      if (Math.abs(ts(o) - t) <= 45 * 60 * 1000) {
+        const k = precipKindOf(o.weatherPhenomena?.[0]);
+        if (k) return k;
       }
-      for (const p of bundle.forecast?.points ?? []) {
-        const t = ts(p);
-        if (t >= now && p.windDirectionDeg !== undefined && t - lastT >= 55 * 60 * 1000) {
-          arrows.push({ t, deg: p.windDirectionDeg, speed: p.windSpeedMs, forecast: true });
-          lastT = t;
-        }
-      }
-      return {
-        param, unit, domain, ticks: niceTicks(domain), scale: "linear",
-        observed: segments(o, OBS_GAP), forecast: segments(f, FCST_GAP),
-        observedSecondary: og, forecastSecondary: segments(fg, FCST_GAP), arrows,
-        observedMissing: noObs("wind", "vindmätning"), forecastMissing: noFc,
-        formatTick: (v) => String(v),
-      };
     }
-    case "visibility": {
-      const o = obsPoints(bundle, "visibility", (x) => x.visibilityM && Math.min(10000, x.visibilityM) / 1000);
-      const f = fcstPoints(bundle, (x) => x.visibilityM && Math.min(10000, x.visibilityM) / 1000, now);
-      return {
-        param, unit, domain: [0, 10.5], ticks: [0, 2, 5, 10], scale: "linear",
-        observed: segments(o, OBS_GAP), forecast: segments(f, FCST_GAP),
-        observedMissing: noObs("visibility", "siktobservation"), forecastMissing: noFc,
-        formatTick: (v) => (v >= 10 ? "≥10" : String(v)),
-      };
-    }
-    case "cloudBase": {
-      const s = stationFor(bundle, "cloudBase");
-      const obs = s?.observations ?? [];
-      const step = stepOf(obs);
-      const observedClouds: CloudBlock[] = [];
-      for (const x of obs) {
-        const t = ts(x);
-        const span = { t0: t - step / 2, t1: t + step / 2 };
-        if (x.cloudLayers?.length) {
-          for (const l of x.cloudLayers) {
-            observedClouds.push({ ...span, baseM: l.baseM, cover: l.cover, opacity: COVER_OPACITY[l.cover] });
-          }
-        } else if (x.cloudBaseM !== undefined) {
-          // SMHI anger bara lägsta molnbas, inte täckningsgrad.
-          observedClouds.push({ ...span, baseM: x.cloudBaseM, cover: "MODEL", opacity: 0.6 });
-        }
-      }
-      const forecastClouds: CloudBlock[] = [];
-      for (const p of bundle.forecast?.points ?? []) {
-        const t = ts(p);
-        if (t < now - 30 * 60 * 1000 || p.cloudBaseM === undefined) continue;
-        const oktas = p.lowCloudCoverOktas ?? p.cloudCoverOktas ?? 4;
-        forecastClouds.push({
-          t0: t - HOUR / 2, t1: t + HOUR / 2, baseM: p.cloudBaseM, cover: "MODEL",
-          opacity: 0.15 + (Math.max(oktas, p.cloudCoverOktas ?? 0) / 8) * 0.6,
-        });
-      }
-      return {
-        param, unit, domain: [0, 3000], ticks: [0, 300, 1000, 2000, 3000], scale: "sqrt",
-        observed: [], forecast: [], observedClouds, forecastClouds,
-        observedMissing: noObs("cloudBase", "molnbasobservation"), forecastMissing: noFc,
-        formatTick: (v) => (v >= 1000 ? `${v / 1000} km` : `${v}`),
-      };
-    }
-    case "precipitation": {
-      const s = stationFor(bundle, "precipitation");
-      const observedBars: Bar[] = (s?.observations ?? []).flatMap((x) =>
-        x.precipitationMm === undefined ? [] : [{ t0: ts(x) - HOUR, t1: ts(x), v: x.precipitationMm }],
-      );
-      const forecastBars: Bar[] = (bundle.forecast?.points ?? []).flatMap((p) => {
-        const t1 = ts(p);
-        const t0 = p.intervalStart ? Date.parse(p.intervalStart) : t1 - HOUR;
-        if (t1 < now || p.precipitationMm === undefined || t1 - t0 > HOUR) return [];
-        return [{ t0, t1, v: p.precipitationMm, max: p.precipitationMaxMm }];
-      });
-      const max = Math.max(2, ...observedBars.map((b) => b.v), ...forecastBars.map((b) => b.max ?? b.v));
-      const domain: [number, number] = [0, Math.ceil(max * 1.1)];
-      return {
-        param, unit, domain, ticks: niceTicks(domain, 3), scale: "linear",
-        observed: [], forecast: [], observedBars, forecastBars,
-        observedMissing: noObs("precipitation", "nederbördsmätare"), forecastMissing: noFc,
-        formatTick: (v) => String(v).replace(".", ","),
-      };
+    return null;
+  };
+
+  // Nederbörd: uppmätt (SMHI) + observerad utan mängd (väderkod) + prognos
+  const precipObserved: Bar[] = (stationFor(bundle, "precipitation")?.observations ?? []).flatMap((x) =>
+    x.precipitationMm === undefined || x.precipitationMm <= 0
+      ? []
+      : [{ t0: ts(x) - HOUR, t1: ts(x), v: x.precipitationMm, kind: precipKindNear(ts(x) - HOUR / 2) ?? "regn" }],
+  );
+  const precipStrips: Strip[] = [];
+  for (const o of phenObs) {
+    const p = o.weatherPhenomena?.[0];
+    const kind = precipKindOf(p);
+    if (!kind || !p) continue;
+    const t = ts(o);
+    const span = { t0: t - phenStep / 2, t1: t + phenStep / 2 };
+    // Remsan visas bara där ingen uppmätt mängd finns.
+    if (precipObserved.some((b) => b.t0 < span.t1 && b.t1 > span.t0)) continue;
+    precipStrips.push({ ...span, kind, label: p.label });
+  }
+  const precipForecast: Bar[] = hourlyFc.flatMap((p) => {
+    const t1 = ts(p);
+    const t0 = p.intervalStart ? Date.parse(p.intervalStart) : t1 - HOUR;
+    if (t1 < now || p.precipitationMm === undefined || (p.precipitationMaxMm ?? p.precipitationMm) < 0.05) return [];
+    return [{ t0, t1, v: p.precipitationMm, max: p.precipitationMaxMm, kind: precipKindOf(p.phenomenon) ?? "regn" }];
+  });
+  const precipMax = Math.max(2, ...precipObserved.map((b) => b.v), ...precipForecast.map((b) => b.max ?? b.v));
+
+  // Vind: en pil per timme med medelvind och byar
+  const wind: Arrow[] = [];
+  const windObs = stationFor(bundle, "wind")?.observations ?? [];
+  const gustObs = stationFor(bundle, "gust")?.observations ?? [];
+  if (!windObs.length) missing.wind = "Ingen vindmätning i närheten";
+  let lastT = -Infinity;
+  for (const x of windObs) {
+    const t = ts(x);
+    if (x.windSpeedMs === undefined || t - lastT < 55 * 60 * 1000) continue;
+    const g = gustObs.find((o) => Math.abs(ts(o) - t) <= 35 * 60 * 1000 && o.windGustMs !== undefined);
+    wind.push({ t, deg: x.windDirectionDeg, variable: x.windVariable, speed: x.windSpeedMs, gust: g?.windGustMs, forecast: false });
+    lastT = t;
+  }
+  for (const p of hourlyFc) {
+    const t = ts(p);
+    if (t < now || p.windSpeedMs === undefined || t - lastT < 55 * 60 * 1000) continue;
+    wind.push({ t, deg: p.windDirectionDeg, speed: p.windSpeedMs, gust: p.windGustMs, forecast: true });
+    lastT = t;
+  }
+
+  // Moln
+  const cloudObs = stationFor(bundle, "cloudBase")?.observations ?? [];
+  const cloudStep = stepOf(cloudObs);
+  const cloudsObserved: CloudBlock[] = [];
+  for (const x of cloudObs) {
+    const t = ts(x);
+    const span = { t0: t - cloudStep / 2, t1: t + cloudStep / 2 };
+    if (x.cloudLayers?.length) {
+      for (const l of x.cloudLayers) cloudsObserved.push({ ...span, baseM: l.baseM, cover: l.cover, opacity: COVER_OPACITY[l.cover] });
+    } else if (x.cloudBaseM !== undefined) {
+      cloudsObserved.push({ ...span, baseM: x.cloudBaseM, cover: "MODEL", opacity: 0.6 });
     }
   }
+  if (!cloudObs.length) missing.clouds = "Ingen molnobservation i närheten";
+  const cloudsForecast: CloudBlock[] = hourlyFc.flatMap((p) => {
+    if (p.cloudBaseM === undefined) return [];
+    const t = ts(p);
+    const oktas = Math.max(p.lowCloudCoverOktas ?? 0, p.cloudCoverOktas ?? 4);
+    return [{ t0: t - HOUR / 2, t1: t + HOUR / 2, baseM: p.cloudBaseM, cover: "MODEL" as const, opacity: 0.15 + (oktas / 8) * 0.6 }];
+  });
+
+  // Låg sikt / dimma och åska
+  const lowVis: Meteogram["lowVis"] = [];
+  const thunder: Mark[] = [];
+  const visObs = stationFor(bundle, "visibility")?.observations ?? [];
+  const visStep = stepOf(visObs);
+  for (const o of visObs) {
+    if (o.visibilityM !== undefined && o.visibilityM < 5000) {
+      const t = ts(o);
+      lowVis.push({ t0: t - visStep / 2, t1: t + visStep / 2, forecast: false, severe: o.visibilityM < 1000, label: `Sikt ${o.visibilityM} m` });
+    }
+  }
+  for (const o of phenObs) {
+    const p = o.weatherPhenomena?.[0];
+    const t = ts(o);
+    const span = { t0: t - phenStep / 2, t1: t + phenStep / 2 };
+    if (p && PHENOMENON_GROUP[p.kind] === "dimma" && !lowVis.some((v) => v.t0 < span.t1 && v.t1 > span.t0)) {
+      lowVis.push({ ...span, forecast: false, severe: p.kind === "dimma", label: p.label });
+    }
+    if (p?.kind === "åska") thunder.push({ ...span, forecast: false, label: p.label });
+  }
+  for (const p of hourlyFc) {
+    const t = ts(p);
+    const span = { t0: t - HOUR / 2, t1: t + HOUR / 2 };
+    if ((p.visibilityM !== undefined && p.visibilityM < 5000) || p.phenomenon?.kind === "dimma") {
+      lowVis.push({
+        ...span,
+        forecast: true,
+        severe: (p.visibilityM ?? 5000) < 1000 || p.phenomenon?.kind === "dimma",
+        label: p.phenomenon?.label ?? "Nedsatt sikt",
+      });
+    }
+    if (p.phenomenon?.kind === "åska") thunder.push({ ...span, forecast: true, label: p.phenomenon.label });
+  }
+
+  // Lufttryck
+  const pObs = obsPoints(bundle, "pressure", (x) => x.pressureHpa);
+  const pFc = fcstPoints(bundle, (x) => x.pressureHpa, now);
+  if (!stationFor(bundle, "pressure")) missing.pressure = "Ingen tryckmätning";
+
+  return {
+    temp: { observed: segments(tObs, OBS_GAP), forecast: segments(tFc, FCST_GAP), domain: tDomain, ticks: niceTicks(tDomain) },
+    precipObserved,
+    precipStrips,
+    precipForecast,
+    precipMax,
+    wind,
+    cloudsObserved,
+    cloudsForecast,
+    lowVis,
+    thunder,
+    pressure: {
+      observed: segments(pObs, OBS_GAP),
+      forecast: segments(pFc, FCST_GAP),
+      domain: niceDomain([...pObs, ...pFc].map((p) => p.v), 6, 0.2),
+    },
+    missing,
+  };
 }
 
-// ---------------------------------------------------------------------------
-// Händelser (väderfenomen) längs tidslinjen
-// ---------------------------------------------------------------------------
-
-export type EventBlock = Span & { group: "regn" | "snö" | "dimma" | "åska"; label: string; forecast: boolean };
-
-export function buildEvents(bundle: WeatherBundle, now: number): EventBlock[] {
-  const out: EventBlock[] = [];
-  const s = stationFor(bundle, "phenomena");
-  if (s) {
-    const step = stepOf(s.observations);
-    for (const o of s.observations) {
-      const p = o.weatherPhenomena?.[0];
-      if (!p) continue;
-      const t = ts(o);
-      out.push({ t0: t - step / 2, t1: t + step / 2, group: PHENOMENON_GROUP[p.kind], label: p.label, forecast: false });
-    }
-  }
-  for (const p of bundle.forecast?.points ?? []) {
-    const t = ts(p);
-    if (t < now || !p.phenomenon) continue;
-    out.push({ t0: t - HOUR / 2, t1: t + HOUR / 2, group: PHENOMENON_GROUP[p.phenomenon.kind], label: p.phenomenon.label, forecast: true });
-  }
-  return out;
+/** Trycktendens senaste 3 h (hPa) fram till tidpunkten t, från observationerna. */
+export function pressureTendency(bundle: WeatherBundle, t: number): number | undefined {
+  const s = stationFor(bundle, "pressure");
+  if (!s) return undefined;
+  const pts = s.observations.filter((o) => o.pressureHpa !== undefined && ts(o) <= t + 10 * 60 * 1000);
+  const last = pts.at(-1);
+  if (!last || t - ts(last) > 2 * HOUR) return undefined;
+  const ref = pts.find((o) => Math.abs(ts(last) - 3 * HOUR - ts(o)) <= 35 * 60 * 1000);
+  return ref ? last.pressureHpa! - ref.pressureHpa! : undefined;
 }
 
 // ---------------------------------------------------------------------------
@@ -310,11 +308,12 @@ export type Snapshot = {
   mode: "now" | "observed" | "forecast";
   time: number;
   temperature: Reading<number>;
-  dewPoint: Reading<number>;
   humidity: Reading<number>;
   wind: Reading<{ deg?: number; variable?: boolean; speed?: number }>;
   gust: Reading<number | undefined>;
   pressure: Reading<number>;
+  /** Förändring senaste 3 h (hPa), endast observerat */
+  pressureTrend?: number;
   visibility: Reading<{ m: number; atLeast?: boolean }>;
   cloud: Reading<{ baseM?: number; layers?: CloudLayer[]; nsc?: boolean; oktas?: number }>;
   precipitation: Reading<{ mm: number; max?: number; probability?: number }>;
@@ -401,7 +400,6 @@ export function snapshotAt(bundle: WeatherBundle, t: number, now: number): Snaps
       mode,
       time: t,
       temperature: def(p?.temperatureC, origin),
-      dewPoint: null,
       humidity: def(p?.relativeHumidity, origin),
       wind: p?.windSpeedMs !== undefined ? { value: { deg: p.windDirectionDeg, speed: p.windSpeedMs }, origin } : null,
       gust: p ? def(p.windGustMs, origin) : null,
@@ -448,11 +446,11 @@ export function snapshotAt(bundle: WeatherBundle, t: number, now: number): Snaps
     mode,
     time: t,
     temperature: pickObs(bundle, "temperature", t, mode, (o) => o.temperatureC),
-    dewPoint: pickObs(bundle, "dewPoint", t, mode, (o) => o.dewPointC),
     humidity: pickObs(bundle, "humidity", t, mode, (o) => o.relativeHumidity),
     wind,
     gust,
     pressure: pickObs(bundle, "pressure", t, mode, (o) => o.pressureHpa),
+    pressureTrend: pressureTendency(bundle, t),
     visibility: pickObs(bundle, "visibility", t, mode, (o) =>
       o.visibilityM === undefined ? undefined : { m: o.visibilityM, atLeast: o.visibilityAtLeast },
     ),

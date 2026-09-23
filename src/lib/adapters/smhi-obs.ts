@@ -4,7 +4,6 @@ import { parseSmhiPresentWeather } from "../weather/phenomena";
 /** SMHI metobs-parametrar som Väderlek använder. */
 export const SMHI_PARAMS = {
   temperature: 1,
-  dewPoint: 39,
   humidity: 6,
   windDirection: 3,
   windSpeed: 4,
@@ -91,9 +90,6 @@ export function mergeSmhiStation(
       switch (name) {
         case "temperature":
           o.temperatureC = v;
-          break;
-        case "dewPoint":
-          o.dewPointC = v;
           break;
         case "humidity":
           o.relativeHumidity = v;

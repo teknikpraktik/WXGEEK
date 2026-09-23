@@ -478,36 +478,6 @@ main {
   border-top: 1px solid var(--rule);
 }
 
-.params {
-  display: flex;
-  gap: 2px;
-  overflow-x: auto;
-  scrollbar-width: none;
-  margin: 0 -16px 8px;
-  padding: 0 16px;
-}
-.params::-webkit-scrollbar {
-  display: none;
-}
-.param {
-  flex: none;
-  background: none;
-  border: 0;
-  border-bottom: 2px solid transparent;
-  padding: 6px 10px 7px;
-  font-size: 14px;
-  color: var(--muted);
-  cursor: pointer;
-}
-.param:first-child {
-  padding-left: 0;
-}
-.param.active {
-  color: var(--ink);
-  border-bottom-color: var(--ink);
-  font-weight: 500;
-}
-
 .tl {
   position: relative;
   margin: 0 -16px;
@@ -552,18 +522,6 @@ main {
   font-size: 10px;
   color: var(--muted);
   white-space: nowrap;
-}
-.tl-yaxis .tl-unit {
-  transform: none;
-  top: 0;
-  font-size: 10px;
-  color: var(--ink-2);
-}
-.tl-yaxis .tl-rowlabel {
-  font-family: var(--font-ui);
-  font-size: 10px;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
 }
 
 .tl-cursor {
@@ -660,23 +618,7 @@ main {
 .tl-dot {
   fill: var(--obs);
 }
-.tl-gust line {
-  stroke: var(--obs);
-  stroke-width: 1.5;
-  opacity: 0.7;
-}
 
-.tl-bar {
-  fill: var(--obs);
-  opacity: 0.85;
-}
-.tl-bar.fc {
-  fill: var(--fc-soft);
-  stroke: var(--fc);
-  stroke-width: 1;
-  stroke-dasharray: 3 2;
-  opacity: 1;
-}
 .tl-whisker {
   stroke: var(--fc);
   stroke-width: 1;
@@ -694,46 +636,6 @@ main {
 }
 .tl-cloud.fc {
   fill: var(--fc);
-}
-
-.tl-arrow path {
-  fill: none;
-  stroke: var(--obs);
-  stroke-width: 1.5;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-.tl-arrow.fc path {
-  stroke: var(--fc);
-}
-
-.tl-eventbase {
-  stroke: var(--rule-2);
-  stroke-width: 1;
-}
-.tl-ev {
-  opacity: 0.95;
-}
-.tl-ev.fc {
-  fill-opacity: 0.28;
-  stroke-width: 1;
-  stroke-dasharray: 2 2;
-}
-.ev-regn {
-  fill: var(--ev-regn);
-  stroke: var(--ev-regn);
-}
-.ev-sno {
-  fill: var(--ev-sno);
-  stroke: var(--ev-sno);
-}
-.ev-dimma {
-  fill: var(--ev-dimma);
-  stroke: var(--ev-dimma);
-}
-.ev-aska {
-  fill: var(--ev-aska);
-  stroke: var(--ev-aska);
 }
 
 .tl-taf rect {
@@ -783,16 +685,6 @@ main {
 .lg-fc::before {
   border-top: 2px dashed var(--fc);
 }
-.lg-gust::before {
-  width: 8px;
-  border-top-width: 1.5px;
-  opacity: 0.7;
-}
-.lg-cloud::before {
-  height: 6px;
-  border: 0;
-  background: linear-gradient(to right, color-mix(in srgb, var(--obs) 25%, transparent), var(--obs));
-}
 
 .btn-now {
   white-space: nowrap;
@@ -810,45 +702,113 @@ main {
   pointer-events: auto;
 }
 
-.evlegend {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 4px 12px;
-  font-size: 11px;
+/* Meteogram-körfält */
+.tl-yaxis .tl-lane {
+  transform: none;
+  font-family: var(--font-ui);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
   color: var(--muted);
 }
-.evlegend .ev {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
+.tl-lanesep {
+  stroke: var(--rule);
+  stroke-width: 1;
 }
-.evlegend .ev::before {
-  content: "";
+.tl-line.thin {
+  stroke-width: 1.5;
+}
+.tl-precip.k-regn {
+  fill: var(--ev-regn);
+}
+.tl-precip.k-sno {
+  fill: var(--ev-sno);
+}
+.tl-precip.fc {
+  fill-opacity: 0.3;
+  stroke-width: 1;
+  stroke-dasharray: 3 2;
+}
+.tl-precip.fc.k-regn {
+  stroke: var(--ev-regn);
+}
+.tl-precip.fc.k-sno {
+  stroke: var(--ev-sno);
+}
+.tl-wind path {
+  fill: none;
+  stroke: var(--obs);
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.tl-wind.fc path {
+  stroke: var(--fc);
+}
+.tl-wind-vrb {
+  fill: var(--obs);
+}
+.tl-wind.fc .tl-wind-vrb {
+  fill: var(--fc);
+}
+.tl-wind-speed {
+  font-family: var(--font-num);
+  font-size: 10.5px;
+  font-weight: 500;
+  fill: var(--obs);
+}
+.tl-wind.fc .tl-wind-speed {
+  fill: var(--fc);
+}
+.tl-wind-gust {
+  font-family: var(--font-num);
+  font-size: 9px;
+  fill: var(--muted);
+}
+.tl-ground {
+  stroke: var(--rule);
+  stroke-width: 1;
+}
+.tl-lowvis {
+  fill: var(--ev-dimma);
+  opacity: 0.45;
+}
+.tl-lowvis.severe {
+  opacity: 0.9;
+}
+.tl-lowvis.fc {
+  opacity: 0.3;
+}
+.tl-lowvis.fc.severe {
+  opacity: 0.55;
+}
+.tl-thunder {
+  font-size: 13px;
+  font-weight: 600;
+  fill: var(--ev-aska);
+}
+.tl-thunder.fc {
+  opacity: 0.6;
+}
+.lg-regn::before,
+.lg-sno::before,
+.lg-fog::before {
   width: 10px;
   height: 8px;
+  border: 0;
   border-radius: 2px;
 }
-.evlegend .ev-regn::before {
+.lg-regn::before {
   background: var(--ev-regn);
 }
-.evlegend .ev-sno::before {
+.lg-sno::before {
   background: var(--ev-sno);
 }
-.evlegend .ev-dimma::before {
+.lg-fog::before {
   background: var(--ev-dimma);
 }
-.evlegend .ev-aska::before {
-  background: var(--ev-aska);
-}
-.evlegend .hint {
-  margin-left: auto;
-}
-@media (max-width: 520px) {
-  .evlegend .hint {
-    flex-basis: 100%;
-    margin-left: 0;
-  }
+.small-b {
+  font-size: 13px !important;
 }
 
 /* ------------------------------------------------------------------------- */

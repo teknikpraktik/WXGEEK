@@ -36,7 +36,7 @@ datakälla påverkar bara en adapter och `sources.ts`.
 | `src/lib/server/geocode.ts` | Ortsökning och omvänd geokodning |
 | `src/lib/weather/stations.ts` | Regler och poängsättning för stationsval |
 | `src/lib/weather/phenomena.ts` | METAR-väderkoder, SMHI "rådande väder", SMHI-symboler → svenska fenomen |
-| `src/lib/client/timeline.ts` | Klientlogik: plotdata per parameter, händelser, avläsning vid en tidpunkt |
+| `src/lib/client/timeline.ts` | Klientlogik: meteogramdata, trycktendens, avläsning vid en tidpunkt |
 | `src/lib/format.ts` | Svensk formatering, avrundning mot falsk precision |
 | `src/app/api/*/route.ts` | API-routes |
 | `src/components/` | React-komponenter |
@@ -47,7 +47,7 @@ datakälla påverkar bara en adapter och `sources.ts`.
    - Senaste METAR för alla flygplatser inom ~110 km (`bbox`).
    - TAF för flygplatser inom ~60 km.
    - SMHI-prognos för punkten.
-   - SMHI:s stationslistor för 11 parametrar (cachade i minnet).
+   - SMHI:s stationslistor för 10 parametrar (cachade i minnet).
 2. **Kandidater per parameter**: METAR-stationer vars senaste rapport innehåller
    parametern + SMHI-stationer som mäter den och har rapporterat senaste 3 h.
 3. **Stationsval** (se nedan). För SMHI-vinnare hämtas `latest-day`; om den
@@ -70,7 +70,7 @@ poäng = avstånd_km + 10 × max(0, ålder_h − 1) − källpreferens_km
 
 | Parameter | Maxavstånd | Preferens |
 |---|---|---|
-| Temperatur, daggpunkt, vind | 40 km | – |
+| Temperatur, vind | 40 km | – |
 | Luftfuktighet | 40 km | SMHI −10 km (METAR har heltalsgrader) |
 | Byar | 40 km | SMHI −30 km (METAR rapporterar bara kraftiga byar) |
 | Lufttryck | 100 km | – (varierar långsamt i rummet) |
@@ -114,7 +114,7 @@ Tre nivåer:
    för stora för data cachen (2 MB-gräns per post och onödig lagring). De hämtas
    med `no-store`, komprimeras (bara aktiva stationer som rapporterat senaste 3 h)
    och hålls i minnet 1 h. Fluid Compute återanvänder instanser, så detta ger
-   god träffgrad. Kall start hämtar 11 listor parallellt (~2–4 s).
+   god träffgrad. Kall start hämtar 10 listor parallellt (~2–4 s).
 
 ## UI-struktur
 
@@ -123,8 +123,8 @@ VaderlekApp            – plats, datahämtning, auto-uppdatering (5 min när fl
 ├─ PlacePicker         – "Använd min position" + ortsökning (sök vid submit, inte per tangent)
 ├─ Readout             – avläsning vid markörens tidpunkt: NU / OBSERVERAT / PROGNOS
 │  ├─ huvudvärde (temperatur) + primär källa (station, avstånd, ålder)
-│  ├─ Timeline         – kärnan: horisontellt scrollbar graf −12 h … +36 h
-│  └─ rutnät           – vind, byar, sikt, molnbas, tryck, daggpunkt, fuktighet, nederbörd
+│  ├─ Timeline         – kärnan: horisontellt scrollbart meteogram −12 h … +36 h
+│  └─ rutnät           – vind (+ byar), sikt, molnbas, tryck (+ tendens), fuktighet, nederbörd (om data finns)
 └─ Details             – rå METAR, TAF, stationsval med motivering, källstatus, attribution
 ```
 
@@ -138,10 +138,19 @@ VaderlekApp            – plats, datahämtning, auto-uppdatering (5 min när fl
 - **Observerat**: heldragen bläckfärgad linje på tonad bakgrund.
   **Prognos**: streckad blå linje på svagt skrafferad bakgrund. Röd NU-linje.
   Linjer dras aldrig över luckor i data.
-- Parametrar: Temperatur, Vind (hastighet + byar + riktningspilar), Lufttryck,
-  Sikt (tak 10 km), Molnbas (molnlager som block, täthet = täckningsgrad,
-  kvadratrotsskala 0–3 km så låga moln syns tydligt), Nederbörd (staplar, prognos med max-värde).
-- Väderfenomen som diskreta block under grafen (regn, snö, dimma/dis, åska).
+- **Meteogram** – inga flikar, alla mått samtidigt i körfält på samma tidsaxel:
+  1. **Temperatur + nederbörd**: temperaturkurva; nederbördsstaplar från botten
+     (egen skala, färg = regn/snö). Observerad nederbörd utan uppmätt mängd
+     (t.ex. "lätt regn" i METAR) visas som en tunn remsa i stället för en stapel.
+     Prognosstaplar har streck upp till max-värdet.
+  2. **Vind**: en pil per timme (varifrån det blåser) med medelvind i m/s; byar
+     visas under när de är minst 3 m/s högre.
+  3. **Moln**: molnlager som block (täthet = täckningsgrad, kvadratrotsskala 0–3 km).
+     Vid marklinjen: grått band vid dimma eller sikt under 5 km (mörkare under 1 km).
+     Åska markeras med ϟ.
+  4. **Lufttryck**: tunn kurva – tendensen syns, exakt värde i avläsningen.
+- Sikt och väderfenomen har alltså inga egna körfält längre; de är inbakade där
+  de betyder något (nederbördens färg, dimbandet, åskmarkeringen).
 - TAF som intervall (TEMPO/PROB streckade, BECMG med markering när övergången är klar).
   TAF omvandlas aldrig till timvärden.
 

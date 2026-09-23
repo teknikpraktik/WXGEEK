@@ -84,7 +84,6 @@ export type ForecastPoint = {
   cloudCoverOktas?: number;
   lowCloudCoverOktas?: number;
   precipitationMm?: number;
-  precipitationMinMm?: number;
   precipitationMaxMm?: number;
   precipitationProbability?: number;
   thunderProbability?: number;
@@ -138,7 +137,6 @@ export type Taf = {
 /** Parametrar som kan visas och som har egen stationsvalslogik. */
 export type ParamKey =
   | "temperature"
-  | "dewPoint"
   | "humidity"
   | "wind"
   | "gust"
@@ -173,8 +171,6 @@ export type ParamSelection = {
   /** Kort svensk motivering, t.ex. "Närmaste station med aktuell mätning" */
   reason: string;
   latestTimestamp?: string;
-  /** Andra kandidater som övervägdes */
-  alternatives: Array<StationRef & { latestTimestamp?: string }>;
 };
 
 export type SourceStatus = {
