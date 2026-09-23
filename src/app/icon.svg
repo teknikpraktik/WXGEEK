@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- Väderlek: DÅ ← NU → SEN. Tonad vänsterhalva + heldraget = observerat,
+       streckat blått = prognos, röd markör = NU. -->
+  <rect width="512" height="512" fill="#f2f1ec"/>
+  <rect width="256" height="512" fill="#e3e1d9"/>
+  <!-- observerat -->
+  <path d="M84 318 C 146 318, 178 212, 241 212" fill="none" stroke="#121418" stroke-width="30" stroke-linecap="round"/>
+  <!-- prognos -->
+  <path d="M256 212 C 318 212, 352 170, 428 168" fill="none" stroke="#2a58d6" stroke-width="30" stroke-linecap="round" stroke-dasharray="14 46" stroke-dashoffset="-44"/>
+  <!-- NU -->
+  <path d="M256 150 V 388" stroke="#e0452b" stroke-width="16" stroke-linecap="round"/>
+  <path d="M256 96 L 284 124 L 256 152 L 228 124 Z" fill="#e0452b"/>
+</svg>

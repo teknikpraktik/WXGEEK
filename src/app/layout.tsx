@@ -18,6 +18,11 @@ export const metadata: Metadata = {
   title: "Väderlek",
   description: "Vädret som ett förlopp: observerat då, nu och prognos sen. METAR och SMHI på samma tidslinje.",
   applicationName: "Väderlek",
+  appleWebApp: {
+    capable: true,
+    title: "Väderlek",
+    statusBarStyle: "default",
+  },
 };
 
 export const viewport: Viewport = {
