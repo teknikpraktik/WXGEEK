@@ -975,3 +975,11 @@ main {
 .foot .stale-note {
   color: var(--warn);
 }
+
+.cell .val .val-prefix {
+  font-size: 0.5em;
+  font-weight: 400;
+  color: var(--ink-2);
+  margin-right: 2px;
+  vertical-align: 0.35em;
+}

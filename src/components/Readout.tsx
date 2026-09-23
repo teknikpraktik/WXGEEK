@@ -168,7 +168,17 @@ function Val({ v, unit, icon }: { v: string; unit: string; icon?: ReactNode }) {
   return (
     <span className="val">
       {icon}
-      <b>{v}</b>
+      {/* "≥" som diskret prefix, inte lika stort som siffran */}
+      <b>
+        {v.startsWith("≥") ? (
+          <>
+            <span className="val-prefix">≥</span>
+            {v.slice(1)}
+          </>
+        ) : (
+          v
+        )}
+      </b>
       {unit && <span className="unit">{unit}</span>}
     </span>
   );
