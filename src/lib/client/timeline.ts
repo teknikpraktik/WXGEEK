@@ -578,13 +578,19 @@ export function buildChart(bundle: WeatherBundle, now: number, prevTempDomain?: 
     const vis = m.visibility?.value.m;
     const wx = m.weather?.value ?? [];
     const fog = wx.find((x) => x.kind === "dimma" || x.kind === "dis");
-    if ((vis !== undefined && vis < 5000) || fog) {
+    // Dimma i TAF:ens TEMPO/PROB (t.ex. TEMPO BCFG) ger också dimsymbol under gruppens tid.
+    const alt = fog?.kind === "dimma" ? undefined : m.supplements.find((p) => p.phenomena?.some((x) => x.kind === "dimma"));
+    const altFog = alt?.phenomena?.find((x) => x.kind === "dimma");
+    if ((vis !== undefined && vis < 5000) || fog || altFog) {
       lowVis.push({
         ...span,
         forecast: true,
-        severe: (vis ?? 5000) < 1000 || fog?.kind === "dimma",
-        phenomenon: !!fog,
-        label: fog?.label ?? `Visibility ${vis} m`,
+        severe: (vis ?? 5000) < 1000 || fog?.kind === "dimma" || !!altFog,
+        phenomenon: !!(fog || altFog),
+        label:
+          alt && altFog
+            ? `${altFog.label} (${alt.change === "PROB" ? `PROB${alt.probability ?? ""}` : "TEMPO"})`
+            : (fog?.label ?? `Visibility ${vis} m`),
       });
     }
     const ts_ = wx.find((x) => x.kind === "åska");

@@ -97,7 +97,7 @@ function skySub(snap: Snapshot): string {
   const k = snap.sky;
   switch (k.kind) {
     case "SKC":
-      return k.fromSmhi ? "Clear · 0/8 · SMHI model (CAVOK)" : "Clear sky · 0/8";
+      return "Clear sky · 0/8";
     case "CAVOK":
       return "No cloud below 1,500 m";
     case "NSC":
@@ -107,7 +107,7 @@ function skySub(snap: Snapshot): string {
     case "MISSING":
       return "";
     default:
-      return `${COVER_LABEL[k.kind]} · ${COVER_OKTAS[k.kind]}${k.fromSmhi ? " · SMHI model (CAVOK)" : ""}`;
+      return `${COVER_LABEL[k.kind]} · ${COVER_OKTAS[k.kind]}`;
   }
 }
 

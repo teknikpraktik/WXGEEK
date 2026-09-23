@@ -26,7 +26,7 @@ const WIND_H = 50;
 const AXIS_H = 30;
 /** Molnsymbolen ritas så här högt över temperaturkurvan (symbolens mitt, px). */
 const SKY_LIFT = 17;
-/** Nederbörden börjar vid molnsymbolens underkant. */
+/** Molnsymbolens underkant relativt dess mitt – regnet börjar här. */
 const SKY_BOTTOM = 7;
 
 type Props = {
@@ -215,11 +215,12 @@ export const Timeline = memo(function Timeline({ now, until, data, onCursor, rec
     },
     [tempPts, yTemp, chartTop],
   );
-  // Timmar med nederbörd får alltid en molnsymbol, så att regnet kommer ur ett moln.
-  const wet = useMemo(() => {
+  // Nederbörd kring timmen t (observerad eller prognos) – ger regn under molnsymbolen.
+  const precipAt = useMemo(() => {
     const all = [...data.precipObserved, ...data.precipForecast];
-    return (t: number) => all.some((p) => p.drawT1 > t - HOUR / 2 && p.drawT0 < t + HOUR / 2);
+    return (t: number) => all.find((p) => p.drawT1 > t - HOUR / 2 && p.drawT0 < t + HOUR / 2);
   }, [data.precipObserved, data.precipForecast]);
+  const wet = useCallback((t: number) => !!precipAt(t), [precipAt]);
   // Dimma/dis kring timmen t: rapporterad dimma/dis, sikt under 1 km, eller sikt under 5 km
   // utan nederbörd (annars är det nederbörden som skymmer). Dimma går före dis.
   const fogAt = useMemo(() => {
@@ -331,20 +332,6 @@ export const Timeline = memo(function Timeline({ now, until, data, onCursor, rec
             <line x1={0} x2={W} y1={precipTop} y2={precipTop} className="tl-lanesep" />
             <line x1={0} x2={W} y1={windTop - 1} y2={windTop - 1} className="tl-lanesep" />
 
-            {/* Nederbörd – droppar från molnbasen över hela tiden det regnar */}
-            {[...data.precipObserved, ...data.precipForecast.map((p) => ({ ...p, fc: true }))].map((p, i) => (
-              <PrecipStreaks
-                key={`pr${i}`}
-                p={p}
-                forecast={"fc" in p}
-                x={x}
-                tAtX={(px) => start + (px / PX_PER_HOUR) * HOUR}
-                fromY={skyY}
-                toY={groundY - 1}
-                unknownBase={false}
-              />
-            ))}
-
             {data.thunder.map((m, i) => (
               <text key={`th${i}`} x={(x(m.t0) + x(m.t1)) / 2} y={chartTop + 30} textAnchor="middle" className={`tl-thunder${m.forecast ? " fc" : ""}`}>
                 ϟ<title>{m.label}</title>
@@ -371,11 +358,16 @@ export const Timeline = memo(function Timeline({ now, until, data, onCursor, rec
             {/* Molnighet på temperaturkurvan; dimma/dis ersätter molnsymbolen */}
             {skyShown.map((k) => {
               const fog = fogAt(k.t);
+              const rain = precipAt(k.t);
               const what = fog ? fog.label : skyTitle(k);
+              const rainText = rain
+                ? ` · ${rain.label}${rain.mm !== undefined ? ` ${rain.mm.toFixed(1)} mm` : ""}${rain.probability !== undefined ? `, ${Math.round(rain.probability)} %` : ""}`
+                : "";
               return (
                 <g key={`sky${k.t}`} transform={`translate(${x(k.t)},${skyY(k.t)})`} className={`tl-skyicon${k.forecast ? " fc" : ""}`}>
                   {fog ? <FogIcon severe={fog.severe} /> : <SkyIcon sky={k} day={k.day} />}
-                  <title>{`${fmtTime(k.t)}: ${what}${k.forecast ? " (forecast)" : ""}`}</title>
+                  {rain && <RainMarks kind={rain.kind} />}
+                  <title>{`${fmtTime(k.t)}: ${what}${rainText}${k.forecast ? " (forecast)" : ""}`}</title>
                 </g>
               );
             })}
@@ -437,11 +429,11 @@ export const Timeline = memo(function Timeline({ now, until, data, onCursor, rec
               FORECAST →
             </text>
 
-            {/* Nya dygnets namn till vänster om strecket – ovanpå NU-linjen, med kontur */}
+            {/* Nya dygnets namn till höger om strecket – ovanpå NU-linjen, med kontur */}
             {hours
               .filter((h) => h.h === 0)
               .map((h) => (
-                <text key={`day${h.t}`} x={x(h.t) - 4} y={axisTop + 25} className="tl-daylabel" textAnchor="end">
+                <text key={`day${h.t}`} x={x(h.t) + 4} y={axisTop + 25} className="tl-daylabel" textAnchor="start">
                   {dayDate(h.t)}
                 </text>
               ))}
@@ -512,57 +504,24 @@ function tempStops(lo: number, hi: number) {
   return out;
 }
 
+/** Regn under molnsymbolen: tre korta streck (snö: prickar), x och y relativt symbolens underkant. */
+const RAIN_MARKS: Array<[number, number]> = [
+  [-6, 3],
+  [0, 7],
+  [6, 3],
+];
+const RAIN_LEN = 7;
+
 /**
- * Nederbörd som droppar (regn) eller prickar (snö) från molnbasen till marken, spridda
- * över hela regnperioden. Tätare ju mer det regnar.
+ * Nederbörd som symbol: några korta streck eller prickar direkt under molnet, samma längd oavsett
+ * var kurvan ligger. Signalerar bara att det regnar/snöar – mängden visas av timstaplarna.
  */
-function PrecipStreaks({
-  p,
-  forecast,
-  x,
-  tAtX,
-  fromY,
-  toY,
-  unknownBase,
-}: {
-  p: Precip;
-  forecast: boolean;
-  x: (t: number) => number;
-  /** Tiden vid x (invers av x) */
-  tAtX: (x: number) => number;
-  /** Molnets höjd (y) vid tiden t – dropparna börjar vid dess underkant */
-  fromY: (t: number) => number;
-  toY: number;
-  unknownBase: boolean;
-}) {
-  const x0 = x(p.drawT0) + 1.5;
-  const x1 = x(p.drawT1) - 1.5;
-  if (x1 <= x0) return null;
-  // Vertikalt avstånd mellan droppar efter mängd; okänd mängd (bara väderkod) = glest.
-  const rowGap = p.mm === undefined ? 16 : p.mm < 0.5 ? 18 : p.mm < 2 ? 12 : p.mm < 5 ? 9 : 7;
-  const colGap = 5.5;
-  const snow = p.kind === "snö";
-  const len = snow ? 0.1 : 4;
-  const cols = Math.max(1, Math.floor((x1 - x0) / colGap) + 1);
-  const step = cols > 1 ? (x1 - x0) / (cols - 1) : 0;
-  let d = "";
-  for (let c = 0; c < cols; c++) {
-    const xx = x0 + c * step;
-    const top = fromY(tAtX(xx)) + SKY_BOTTOM;
-    // Förskjut varannan kolumn så att dropparna inte hamnar i rader.
-    for (let y = top + 3 + ((c * 7) % rowGap); y + len < toY; y += rowGap) {
-      d += `M${xx.toFixed(1)},${y.toFixed(1)}l-0.8,${len}`;
-    }
-  }
-  const cls = `tl-precip k-${snow ? "sno" : "regn"}${forecast ? " fc" : ""}${unknownBase ? " nobase" : ""}`;
-  // Prognos: dropparnas täckning speglar SMHI:s sannolikhet för nederbörd.
-  const opacity = forecast && p.probability !== undefined ? 0.2 + 0.8 * Math.min(1, p.probability / 100) : undefined;
+function RainMarks({ kind }: { kind: Precip["kind"] }) {
+  const snow = kind === "snö";
+  const d = RAIN_MARKS.map(([dx, dy]) => `M${dx},${SKY_BOTTOM + dy}${snow ? "l0,0.1" : `l-1.6,${RAIN_LEN}`}`).join("");
   return (
-    <g className={cls} style={opacity !== undefined ? { opacity } : undefined}>
+    <g className={`tl-precip k-${snow ? "sno" : "regn"}`}>
       <path d={d} />
-      <title>
-        {`${p.label}${p.mm !== undefined ? ` ${p.mm.toFixed(1)} mm` : ""}${p.probability !== undefined ? `, ${Math.round(p.probability)} %` : ""}${forecast ? " (forecast)" : " (observed)"}${unknownBase ? " – cloud base unknown" : ""}`}
-      </title>
     </g>
   );
 }

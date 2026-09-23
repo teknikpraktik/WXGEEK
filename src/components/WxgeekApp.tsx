@@ -8,6 +8,7 @@ import { Timeline } from "./Timeline";
 import { Readout } from "./Readout";
 import { PlacePicker } from "./PlacePicker";
 import { DataInfo, Warnings } from "./DataInfo";
+import { Logo } from "./Logo";
 
 const PLACE_KEY = "wxgeek:place";
 /** Previous app name – read once so existing users keep their place. */
@@ -197,7 +198,9 @@ export function WxgeekApp() {
   return (
     <div className="app">
       <header className="top">
-        <h1 className="wordmark">WXGEEK</h1>
+        <h1 className="wordmark">
+          <Logo className="logo" />
+        </h1>
         {place && (
           <button
             type="button"

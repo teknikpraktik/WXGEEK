@@ -24,12 +24,14 @@ situation **now**, and the **forecast** for the next 24 hours, all on the same a
   behind cloud (SCT), mostly cloud (BKN), full cloud (OVC); moon instead of sun at night. The
   symbol is a simplification: the largest category among simultaneous layers (oktas are never
   summed). CAVOK, NSC and missing data are never shown as clear sky. **Fog** (three lines,
-  below 1 km) and **mist** (two lines) replace the cloud symbol when fog or mist is reported,
-  when visibility is below 1 km, or when it is below 5 km without precipitation.
+  below 1 km) and **mist** (two lines) replace the cloud symbol when fog or mist is reported
+  (including fog in a TAF TEMPO/PROB group, e.g. BCFG), when visibility is below 1 km, or when
+  it is below 5 km without precipitation.
 - **Precipitation, mm per hour**: one series of bars from a zero line (dark = measured or
   expected, light = possible; "≤0.3" = most likely dry, but up to 0.3 mm possible). Hours
-  without data have no zero line, so missing is not 0 mm. Drops fall from the cloud symbols;
-  forecast drops are shaded by probability.
+  without data have no zero line, so missing is not 0 mm. Every hour with precipitation gets a
+  cloud symbol with a few short rain strokes (snow: dots) just below it – they only signal
+  precipitation, the bars show the amount.
 - Wind arrows run below the time axis, which labels every hour. Midnight is marked by a line
   through the time axis with the new day's name, and the new day has a subtle background.
 - Drag the chart (or use the arrow keys) to select a time within the fixed −12 h … +24 h

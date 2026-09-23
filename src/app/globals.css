@@ -127,13 +127,22 @@ main {
   border-bottom: 1px solid var(--ink);
 }
 
+/* Loggan (SVG): sol, moln, horisont och ordbild; bläcket följer temat */
 .wordmark {
   margin: 0;
-  font-family: var(--font-num);
-  font-weight: 500;
-  font-size: 13px;
-  letter-spacing: 0.32em;
-  text-transform: uppercase;
+  flex: none;
+  line-height: 0;
+}
+.logo {
+  display: block;
+  height: clamp(18px, 5vw, 24px);
+  width: auto;
+}
+.logo-ink {
+  fill: var(--ink);
+}
+.logo-sun {
+  fill: #f6c839;
 }
 
 .foot {
@@ -746,10 +755,6 @@ main {
 .tl-precip.fc {
   opacity: 0.55;
 }
-/* Molnbas okänd: strecken börjar uppifrån och tonas */
-.tl-precip.nobase {
-  opacity: 0.4;
-}
 
 /* ------------------------------------------------------------------------- */
 /* Rådata och källor överst                                                    */
@@ -832,6 +837,7 @@ main {
 
 /* Platsväljare – tydligt klickbar, minst 44 px träffyta */
 .placebtn {
+  min-width: 0;
   display: inline-flex;
   align-items: center;
   gap: 10px;

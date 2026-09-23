@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { normalizeTaf, splitTafGroups, type AwcTaf } from "../adapters/taf";
 import { mergedForecastAt, tafMainAt, tafSupplementsAt, tafEndWithin } from "./forecast";
+import { buildChart } from "./timeline";
 import type { ForecastPoint, WeatherBundle } from "../types";
 
 const T = (d: number, h: number) => Date.UTC(2026, 8, d, h) / 1000;
@@ -171,4 +172,25 @@ test("motsägelse mellan TAF och SMHI om nederbörd förklaras", () => {
   const pts = smhiHours(T(23, 15), 6).map((p) => ({ ...p, precipitationMm: 0.6 }));
   const m = mergedForecastAt(bundleWith(ESNS, pts), T(23, 16) * 1000);
   assert.match(m.note ?? "", /TAF gives no precipitation/);
+});
+
+test("dimma i TAF:ens TEMPO (BCFG) ger dimsymbol under gruppens tid", () => {
+  const taf: AwcTaf = {
+    icaoId: "ESXX",
+    issueTime: "2026-09-23T14:30:00.000Z",
+    validTimeFrom: T(23, 15),
+    validTimeTo: T(24, 15),
+    rawTAF: "TAF ESXX 231430Z 2315/2415 17005KT 9999 BKN020 TEMPO 2318/2321 BCFG",
+    lat: 57.7,
+    lon: 12.0,
+    fcsts: [
+      { timeFrom: T(23, 15), timeTo: T(24, 15), timeBec: null, fcstChange: null, probability: null, wdir: 170, wspd: 5, wgst: null, visib: "6+", wxString: null, clouds: [{ cover: "BKN", base: 2000, type: null }] },
+      { timeFrom: T(23, 18), timeTo: T(23, 21), timeBec: null, fcstChange: "TEMPO", probability: null, wdir: null, wspd: null, wgst: null, visib: "", wxString: "BCFG", clouds: [] },
+    ],
+  };
+  const chart = buildChart(bundleWith(taf, smhiHours(T(23, 15), 12)), T(23, 15) * 1000);
+  const fog = chart.lowVis.filter((v) => v.phenomenon);
+  const hours = fog.map((v) => new Date((v.t0 + v.t1) / 2).getUTCHours());
+  assert.deepEqual(hours, [18, 19, 20], "bara inom TEMPO 2318/2321");
+  assert.ok(fog.every((v) => v.severe && v.label === "Fog patches (TEMPO)"));
 });
