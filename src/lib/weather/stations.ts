@@ -25,26 +25,26 @@ export const PARAM_RULES: Record<ParamKey, ParamRule> = {
     maxKm: 40,
     sources: ["SMHI", "METAR"],
     prefer: { SMHI: 30 },
-    preferReason: "SMHI mäter byvind varje timme – METAR rapporterar bara kraftiga byar",
+    preferReason: "SMHI measures gusts hourly – METAR only reports strong gusts",
   },
   visibility: {
     maxKm: 50,
     sources: ["METAR", "SMHI"],
     prefer: { METAR: 20 },
-    preferReason: "Flygplatsobservation (METAR) är standardkälla för sikt",
+    preferReason: "Airport observation (METAR) is the standard source for visibility",
   },
   cloudBase: {
     maxKm: 50,
     sources: ["METAR", "SMHI"],
     prefer: { METAR: 20 },
-    preferReason: "METAR anger alla molnlager, inte bara det lägsta",
+    preferReason: "METAR reports all cloud layers, not just the lowest",
   },
   precipitation: { maxKm: 30, sources: ["SMHI"] },
   phenomena: {
     maxKm: 40,
     sources: ["METAR", "SMHI"],
     prefer: { METAR: 15 },
-    preferReason: "METAR beskriver väderfenomen mer detaljerat",
+    preferReason: "METAR describes weather phenomena in more detail",
   },
 };
 
@@ -78,11 +78,11 @@ export function rankCandidates(candidates: Candidate[], param: ParamKey, now: nu
 
 export function selectionReason(param: ParamKey, winner: Candidate | undefined, ranked: Candidate[]): string {
   const rule = PARAM_RULES[param];
-  if (!winner) return `Ingen station med aktuell mätning inom ${rule.maxKm} km`;
+  if (!winner) return `No station with a current observation within ${rule.maxKm} km`;
   const nearest = [...ranked].sort((a, b) => a.distanceKm - b.distanceKm)[0];
   if (nearest && nearest.stationId !== winner.stationId && rule.prefer?.[winner.source] && rule.preferReason) {
     return rule.preferReason;
   }
-  if (nearest && nearest.stationId !== winner.stationId) return "Närmare station saknade aktuell mätning";
-  return "Närmaste station med aktuell mätning";
+  if (nearest && nearest.stationId !== winner.stationId) return "Closer station had no current observation";
+  return "Nearest station with a current observation";
 }

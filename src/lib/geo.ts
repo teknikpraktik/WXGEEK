@@ -34,3 +34,28 @@ export function compassWord(deg: number): string {
 export function compass(deg: number): string {
   return COMPASS[Math.round((((deg % 360) + 360) % 360) / 45) % 8];
 }
+
+/** Point-in-polygon (ray casting). Ring = [[lon, lat], ...]. */
+export function pointInRing(lon: number, lat: number, ring: number[][]): boolean {
+  let inside = false;
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const [xi, yi] = ring[i];
+    const [xj, yj] = ring[j];
+    if (yi > lat !== yj > lat && lon < ((xj - xi) * (lat - yi)) / (yj - yi) + xi) inside = !inside;
+  }
+  return inside;
+}
+
+/** GeoJSON Polygon/MultiPolygon contains the point (holes respected). */
+export function geometryContains(
+  geom: { type: string; coordinates: unknown } | null | undefined,
+  lon: number,
+  lat: number,
+): boolean {
+  if (!geom) return false;
+  const inPolygon = (poly: number[][][]) =>
+    poly.length > 0 && pointInRing(lon, lat, poly[0]) && !poly.slice(1).some((hole) => pointInRing(lon, lat, hole));
+  if (geom.type === "Polygon") return inPolygon(geom.coordinates as number[][][]);
+  if (geom.type === "MultiPolygon") return (geom.coordinates as number[][][][]).some(inPolygon);
+  return false;
+}

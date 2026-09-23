@@ -2,10 +2,10 @@ import type { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "Väderlek",
-    short_name: "Väderlek",
-    description: "Vädret som ett förlopp: observerat då, nu och prognos sen.",
-    lang: "sv",
+    name: "GeekWX",
+    short_name: "GeekWX",
+    description: "Observed weather, now and forecast on one timeline.",
+    lang: "en",
     start_url: "/",
     display: "standalone",
     background_color: "#f2f1ec",

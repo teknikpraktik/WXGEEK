@@ -27,7 +27,7 @@ export function PlacePicker({ onPick, onUseLocation, locating, geoError, onClose
     try {
       const res = await fetch(`/api/geocode?q=${encodeURIComponent(query)}`);
       const json = await res.json();
-      if (!res.ok) throw new Error(json.error ?? "Sökningen misslyckades");
+      if (!res.ok) throw new Error(json.error ?? "Search failed");
       setResults(json.places);
     } catch (err) {
       setError((err as Error).message);
@@ -42,19 +42,18 @@ export function PlacePicker({ onPick, onUseLocation, locating, geoError, onClose
       {intro && (
         <div className="picker-intro">
           <p className="picker-lead">
-            Väderlek visar vädret som ett förlopp: <b>observerat</b> de senaste timmarna, läget <b>nu</b> och{" "}
-            <b>prognosen</b> framåt – på samma tidslinje.
+            <b>Observed</b> weather for the past 12 hours, <b>now</b> and the <b>forecast</b> – on one timeline.
           </p>
-          <p className="muted">Välj plats för att börja.</p>
+          <p className="muted">Choose a location.</p>
         </div>
       )}
       <div className="picker-head">
         <button type="button" className="btn btn-primary" onClick={onUseLocation} disabled={locating}>
-          {locating ? "Hämtar position…" : "Använd min position"}
+          {locating ? "Locating…" : "Use my location"}
         </button>
         {onClose && (
-          <button type="button" className="btn btn-ghost" onClick={onClose} aria-label="Stäng">
-            Stäng
+          <button type="button" className="btn btn-ghost" onClick={onClose} aria-label="Close">
+            Close
           </button>
         )}
       </div>
@@ -62,7 +61,7 @@ export function PlacePicker({ onPick, onUseLocation, locating, geoError, onClose
 
       <form onSubmit={search} className="picker-form" role="search">
         <label htmlFor="place-q" className="picker-label">
-          Sök svensk ort
+          Search for a place in Sweden
         </label>
         <div className="picker-row">
           <input
@@ -70,18 +69,18 @@ export function PlacePicker({ onPick, onUseLocation, locating, geoError, onClose
             type="search"
             inputMode="search"
             autoComplete="off"
-            placeholder="t.ex. Karlstad, Kiruna, Visby"
+            placeholder="e.g. Karlstad, Kiruna, Visby"
             value={q}
             onChange={(e) => setQ(e.target.value)}
           />
           <button type="submit" className="btn" disabled={busy || q.trim().length < 2}>
-            {busy ? "Söker…" : "Sök"}
+            {busy ? "Searching…" : "Search"}
           </button>
         </div>
       </form>
 
       {error && <p className="picker-error">{error}</p>}
-      {results && results.length === 0 && <p className="muted">Hittade ingen ort i Sverige med det namnet.</p>}
+      {results && results.length === 0 && <p className="muted">No place in Sweden with that name.</p>}
       {results && results.length > 0 && (
         <ul className="picker-results">
           {results.map((p) => (
@@ -94,7 +93,7 @@ export function PlacePicker({ onPick, onUseLocation, locating, geoError, onClose
           ))}
         </ul>
       )}
-      <p className="picker-attrib">Ortsökning: © OpenStreetMap-bidragsgivare</p>
+      <p className="picker-attrib">Place search: © OpenStreetMap contributors</p>
     </div>
   );
 }

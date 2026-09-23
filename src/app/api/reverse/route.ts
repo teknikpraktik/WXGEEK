@@ -5,7 +5,7 @@ export async function GET(req: NextRequest) {
   const lat = Number(req.nextUrl.searchParams.get("lat"));
   const lon = Number(req.nextUrl.searchParams.get("lon"));
   if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
-    return NextResponse.json({ error: "Ogiltiga koordinater" }, { status: 400 });
+    return NextResponse.json({ error: "Invalid coordinates" }, { status: 400 });
   }
   // ~1 km upplösning räcker för ett ortsnamn.
   const rLat = Math.round(lat * 100) / 100;

@@ -10,10 +10,12 @@ Repot var tomt när arbetet började (2026-09-23). Projektet skapades med
 ```
 Webbläsare                              Server (Vercel Functions, Node.js)            Externa källor
 ───────────                             ─────────────────────────────────             ──────────────
-VaderlekApp ── /api/weather?lat&lon ──▶ route.ts ─▶ buildWeatherBundle() ──┬──▶ AWC  metar (bbox, historik)
+GeekwxApp ─── /api/weather?lat&lon ──▶ route.ts ─▶ buildWeatherBundle() ──┬──▶ AWC  metar (bbox, historik)
    │                                                 │                     ├──▶ AWC  taf (bbox)
    │                                                 │  stationsval        ├──▶ SMHI metobs (stationslistor, latest-day)
-   │                                                 │  normalisering      └──▶ SMHI snow1g (punktprognos)
+   │                                                 │  normalisering      ├──▶ SMHI snow1g (punktprognos)
+   │                                                 │                     ├──▶ SMHI IBWW (varningar)
+   │                                                 │                     └──▶ AWC  isigmet
    │◀──────── WeatherBundle (JSON) ──────────────────┘
    │
    ├─ /api/geocode?q=      ─▶ Nominatim search
@@ -33,13 +35,15 @@ datakälla påverkar bara en adapter och `sources.ts`.
 | `src/lib/server/sources.ts` | Alla externa HTTP-anrop, cache-tider (`CACHE`) |
 | `src/lib/server/http.ts` | `fetchJson` (timeout, User-Agent, 204/404 → `null`) och minnescache |
 | `src/lib/server/bundle.ts` | Orkestrering: hämtar parallellt, väljer stationer, bygger `WeatherBundle` |
+| `src/lib/server/warnings.ts` | SMHI-varningar och SIGMET för platsen (point-in-polygon) |
 | `src/lib/server/geocode.ts` | Ortsökning och omvänd geokodning |
 | `src/lib/weather/stations.ts` | Regler och poängsättning för stationsval |
 | `src/lib/weather/phenomena.ts` | METAR-väderkoder, SMHI "rådande väder", SMHI-symboler → svenska fenomen |
 | `src/lib/client/forecast.ts` | Prognosens källor: TAF-huvudprognos, BECMG, TEMPO/PROB, SMHI-komplettering, källa per variabel |
+| `src/lib/client/alerts.ts` | Betydande väder ur senaste METAR och TAF (åska, CB/TCU, underkylt, dimma, sikt < 1 500 m, vind/byar ≥ 13 m/s, tak < 150 m) |
 | `src/lib/client/timeline.ts` | Klientlogik: diagramdata, avläsning vid en tidpunkt |
 | `*.test.ts` | Tester för tids-, TAF- och datalogik (`npm test`) |
-| `src/lib/format.ts` | Svensk formatering, avrundning mot falsk precision |
+| `src/lib/format.ts` | Engelsk formatering (en-GB, Europe/Stockholm), avrundning mot falsk precision |
 | `src/app/api/*/route.ts` | API-routes |
 | `src/components/` | React-komponenter |
 
@@ -61,7 +65,8 @@ datakälla påverkar bara en adapter och `sources.ts`.
    slås ihop per tidpunkt till `WeatherObservation`.
 6. **TAF**: närmaste giltiga TAF inom 50 km.
    **Prognosfönster** (`forecastUntil`): alltid NU + 12 h (fast fönster).
-7. **Källstatus** per källa med svenskt felmeddelande.
+7. **Varningar**: SMHI IBWW och SIGMET hämtas parallellt; fel där stoppar inget.
+8. **Källstatus** per källa med felmeddelande (engelska).
 
 ## Stationsval
 
@@ -120,14 +125,13 @@ Tre nivåer:
 ## UI-struktur
 
 ```
-VaderlekApp            – plats, datahämtning, auto-uppdatering (5 min när fliken syns), klocka
-├─ PlacePicker         – "Använd min position" + ortsökning (sök vid submit, inte per tangent)
-├─ Readout             – avläsning vid markörens tidpunkt: NU / OBSERVERAT / PROGNOS
-│  ├─ nuväder          – temperatur, vind, sikt, molnbas (+ nederbörd) på en rad, samma storlek och typografi
-│  └─ Timeline         – kärnan: horisontellt scrollbart diagram −12 h … prognosfönstrets slut
-├─ DataInfo            – under diagrammet, liten stil: rå METAR, rå TAF; källfel bara när en tjänst inte svarar
-├─ attribution
-└─ sidfot            – © år Per Björkman · Teknikpraktik (+ varning om data är äldre än 2 h)
+GeekwxApp              – plats, datahämtning, auto-uppdatering (5 min när fliken syns), klocka
+├─ PlacePicker         – "Use my location" + ortsökning (sök vid submit, inte per tangent)
+├─ Readout             – temperatur, vind, sikt, molnbas (+ nederbörd när data finns) vid markörens tid
+│  └─ Timeline         – diagrammet −12 h … +12 h
+├─ Warnings            – SMHI-varningar, SIGMET, betydande väder ur METAR/TAF
+├─ DataInfo            – rå METAR och TAF; källfel bara när en tjänst inte svarar
+└─ sidfot              – källor, "Not for flight planning", © år Per Björkman · Teknikpraktik
 ```
 
 ### Prognosens källor (src/lib/client/forecast.ts)
@@ -139,14 +143,13 @@ VaderlekApp            – plats, datahämtning, auto-uppdatering (5 min när fl
 - **Huvudprognos** = BASE/FM. **BECMG** ändrar bara de element gruppen anger (läses ur
   rå-TAF); under övergångsintervallet gäller tidigare läge och övergången redovisas
   som "någon gång under 16–18" – aldrig som ett exakt ögonblick.
-- **TEMPO/PROB** visas som kompletterande information i detaljvyn, med vad de gäller.
+- **TEMPO/PROB** används bara som komplement (varningar under diagrammet).
   PROB40 blir aldrig en generell regnsannolikhet.
 - **CAVOK** = sikt ≥ 10 km, inga moln under 1 500 m, ingen CB/TCU, inget väder. Ingen
   molnbas härleds. AWC:s avkodning tappar CAVOK och VV – de läses ur råtexten.
 - Källa och giltighet bevaras per variabel och tidpunkt. TAF gäller flygplatsen och SMHI
-  platsens koordinater; båda anges i källraden och i detaljvyn. Motsägelser (t.ex. TAF
+  platsens koordinater; båda anges i koden per variabel. Motsägelser (t.ex. TAF
   utan nederbörd men SMHI med mängd) förklaras i stället för att jämnas ut.
-- I tidslinjen markeras var TAF slutar: "TAF ESGG slutar 02:00 · SMHI fortsätter".
 
 ### Tidslinjen
 
@@ -156,8 +159,8 @@ VaderlekApp            – plats, datahämtning, auto-uppdatering (5 min när fl
   timme, begränsat till fönstret; "Nu" behåller alltid sin plats. Tangentbord: pilar
   (±1 h, Shift ±6 h) och `N`.
 - **Vald tid** och **NU** har olika markörer som fungerar utan färgseende: NU är en
-  heldragen linje med etiketten "NU 17:12"; vald tid är en streckad linje med romb och
-  etiketten "Vald 18:00". Vald tid avrundas till 5 min.
+  heldragen linje med etiketten "NOW 17:12"; vald tid är en fetare streckad grön linje med romb och
+  etiketten "18:00". Vald tid avrundas till 5 min.
 - Följer klockan när användaren står på NU, men flyttar aldrig grafen under en pågående
   interaktion.
 - **Färger**: observerat och prognos har samma diskreta grå/svarta toner – skillnaden
@@ -169,8 +172,8 @@ VaderlekApp            – plats, datahämtning, auto-uppdatering (5 min när fl
 - **Ett diagram med två y-axlar**:
   - **Vänster axel – molnbas (m)**, kvadratrotsskala 0–3 km så att låga moln får
     mest utrymme. Molnlager ritas som molnformer med platt underkant vid molnbasen;
-    angränsande block på samma höjd slås ihop. Täthet = täckningsgrad (FEW → OVC).
-    Gråare ju större del av himlen som täcks; prognosmoln något ljusare.
+    angränsande block på samma höjd slås ihop. Molnikonen fylls nerifrån med andelen åttondelar som täcks
+    (FEW 2/8, SCT 4/8, BKN 6/8, OVC 8/8; SMHI-oktas direkt) via SVG-gradienter `cov0`…`cov8`.
   - **Höger axel – temperatur (°C)**, skalan färgad blå/röd. Axeln sitter dikt an mot
     diagrammets högerkant (där datat slutar) och stannar vid vyns kant när man scrollar bakåt.
   - **Observerat och prognos sitter ihop**: prognoskurvan (streckad) börjar i senaste
@@ -184,7 +187,8 @@ VaderlekApp            – plats, datahämtning, auto-uppdatering (5 min när fl
   - Temperaturkurvan:, heldragen (observerat) / streckad (prognos) kurva, färgad efter temperaturen.
   - **Nederbörd som droppar**: korta droppar (regn) eller prickar (snö) från lägsta
     molnlagret (SCT/BKN/OVC) ned till marken, spridda över hela molnets bredd under
-    regnperioden. Tätare ju mer det regnar.
+    regnperioden. Tätare ju mer det regnar. Prognosdroppar tonas efter SMHI:s
+    sannolikhet för nederbörd (opacitet 0,2 + 0,8 · p).
   - **Snö som snödjup**: nederbörd som faller som snö räknas som uppskattat nysnödjup
     (1 mm vatten ≈ 1 cm nysnö, utan smältning/sättning) och ritas som ett vitt lager
     underst; regn läggs som vatten ovanpå. Etiketten visar t.ex. "4,0 mm · ≈ 6,0 cm snö".
@@ -194,8 +198,7 @@ VaderlekApp            – plats, datahämtning, auto-uppdatering (5 min när fl
     komprimerad skala (max 20 px). Saknas nederbördsmätare börjar summan på noll vid NU. Antal streck efter mängd; regn streckat, snö prickat. Saknas
     molnbas börjar strecken uppifrån och tonas ned.
   - Dimma/dis: ljusgrått lager från marken (dimma ~150 m, dis/sikt under 5 km ~60 m). Åska markeras med ϟ.
-- **Förklaringen** byggs från datat och visar bara det som faktiskt finns i diagrammet,
-  med samma symboler.
+- Ingen förklaring (legend) och inga instruktionstexter under diagrammet.
 - **Tidsaxel direkt under diagrammet** (tim-streck, "09:00" var 3:e timme, veckodag vid midnatt).
   Vänsteraxeln har solid bakgrund så att moln tonar bort innan de når etiketterna.
 - **Markören** är mörkgrön; NU-linjen mellangrön. När markören står på NU syns bara romben.
@@ -208,19 +211,9 @@ VaderlekApp            – plats, datahämtning, auto-uppdatering (5 min när fl
 
 ### Avläsning
 
-- Tre lägen i text (inte bara färg): **Senaste observation** (NU – visar faktisk
-  observationstid och ålder, t.ex. "Uppmätt 16:50 (23 min sedan) · klockan är 17:12"),
-  **Observerat** och **Prognos** (datum, lokal tid och relativ tid, "om 2 h 30 min").
-  Alla tider är lokala (Europe/Stockholm, sommartid hanteras).
-- Äldre än 90 min markeras "äldre observation"; äldre än maxåldern (METAR 2 h, SMHI 3 h)
-  visas som "Saknas" i stället för som en mätning nu.
-- **Sammanfattning**: alltid fem rutor i samma ordning (temperatur, vind, sikt, molnbas,
-  nederbörd) med reserverad höjd; 5 kolumner på desktop, 3 + 2 på mobil. Saknade uppgifter
-  = "Saknas"; saknad nederbördsmätare är inte noll. Nederbörd anges med intervall
-  ("0,1 mm under 19–20"); sannolikhet visas separat i detaljvyn.
-- **Väderläge** på en egen rad.
-- **Detaljvy** för vald tid: värde, tid/intervall och källa per variabel (METAR, SMHI-station,
-  TAF med giltighet, SMHI-prognos med koordinater), TEMPO/PROB/BECMG och förklaringar.
-  Ingen information kräver hover.
-- **Vind**: pilen visar vart vinden blåser; text "Från sydost · 4 m/s, byar 7 m/s";
-  "Vindstilla" under 0,5 m/s.
+- Rutnät: temperatur, vind, sikt, molnbas – och nederbörd bara när data finns för vald tid
+  (uppmätt, eller SMHI-prognos med intervall och sannolikhet).
+- Vind: pil + m/s, "From 140° · gusts 7 m/s" (riktning i hela tiotal grader), "Calm" under 0,5 m/s.
+- Molnbas: höjd + typ och åttondelar, t.ex. "Broken · 5–7/8 · CB", "Overcast · 8/8".
+- Observationer äldre än 90 min markeras "old"; äldre än maxåldern visas som saknade.
+- Väderläget på en egen rad utan etikett. Ingen detaljvy. Alla tider lokala (Europe/Stockholm).

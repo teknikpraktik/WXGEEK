@@ -1,6 +1,6 @@
 import "server-only";
 
-export const USER_AGENT = "Vaderlek/0.1 (+https://github.com/teknikpraktik/vaderlek)";
+export const USER_AGENT = "GeekWX/0.1 (+https://github.com/teknikpraktik/vaderlek)";
 
 export class UpstreamError extends Error {
   constructor(
@@ -31,16 +31,16 @@ export async function fetchJson<T>(url: string, opts: FetchOpts = {}): Promise<T
       ...(revalidate > 0 ? { next: { revalidate } } : { cache: "no-store" as const }),
     });
   } catch (e) {
-    throw new UpstreamError(`Nätverksfel mot ${new URL(url).host}: ${(e as Error).message}`);
+    throw new UpstreamError(`Network error contacting ${new URL(url).host}: ${(e as Error).message}`);
   }
   if (res.status === 204 || res.status === 404) return null;
-  if (!res.ok) throw new UpstreamError(`${new URL(url).host} svarade ${res.status}`, res.status);
+  if (!res.ok) throw new UpstreamError(`${new URL(url).host} responded ${res.status}`, res.status);
   const text = await res.text();
   if (!text.trim()) return null;
   try {
     return JSON.parse(text) as T;
   } catch {
-    throw new UpstreamError(`Ogiltig JSON från ${new URL(url).host}`);
+    throw new UpstreamError(`Invalid JSON from ${new URL(url).host}`);
   }
 }
 

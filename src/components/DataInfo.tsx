@@ -1,48 +1,66 @@
 "use client";
 
-import { useState } from "react";
-import type { WeatherBundle } from "@/lib/types";
+import type { WeatherBundle, WeatherWarning } from "@/lib/types";
 import type { Snapshot } from "@/lib/client/timeline";
-import { fmtDistance, fmtTime } from "@/lib/format";
+import type { AviationAlert } from "@/lib/client/alerts";
+import { fmtDateTime } from "@/lib/format";
 
-/**
- * Kort, begriplig källinformation i anslutning till grafen: vilken flygplats TAF
- * gäller, vilken plats SMHI-prognosen gäller och vilka stationer som mätt.
- */
-export function SourceLine({ bundle, now }: { bundle: WeatherBundle; now: number }) {
-  const obs = new Map<string, string>();
-  for (const sel of Object.values(bundle.selections)) {
-    const s = sel.station;
-    if (!s) continue;
-    const name = s.source === "METAR" ? `METAR ${s.stationId}` : `SMHI-station ${s.stationName}`;
-    obs.set(`${s.source}:${s.stationId}`, `${name} (${fmtDistance(s.distanceKm)})`);
+const LEVEL_LABEL: Record<WeatherWarning["level"], string> = {
+  RED: "Red warning",
+  ORANGE: "Orange warning",
+  YELLOW: "Yellow warning",
+  MESSAGE: "Message",
+  SIGMET: "SIGMET",
+};
+
+function period(from?: string, to?: string): string {
+  if (!from && !to) return "";
+  if (from && to) {
+    const a = Date.parse(from);
+    const b = Date.parse(to);
+    return b - a < 24 * 3_600_000 ? `${fmtDateTime(a)}–${fmtDateTime(b).split(", ")[1]}` : `${fmtDateTime(a)} – ${fmtDateTime(b)}`;
   }
-  const taf = bundle.taf;
-  const tafValid = taf && Date.parse(taf.validTo) > now;
-  const fc = bundle.forecast;
+  return from ? `from ${fmtDateTime(Date.parse(from))}` : `until ${fmtDateTime(Date.parse(to!))}`;
+}
+
+/** SMHI warnings, SIGMETs and significant weather from METAR/TAF – under the chart. */
+export function Warnings({ warnings, alerts }: { warnings: WeatherWarning[]; alerts: AviationAlert[] }) {
+  if (!warnings.length && !alerts.length) return null;
   return (
-    <p className="source-line">
-      <span>
-        <b>Observerat:</b> {obs.size ? [...obs.values()].join(", ") : "ingen station i närheten"}
-      </span>
-      <span>
-        <b>Prognos:</b>{" "}
-        {tafValid
-          ? `TAF ${taf.stationId}${taf.stationName ? ` ${taf.stationName}` : ""} (${fmtDistance(taf.distanceKm)}, gäller för flygplatsen till ${fmtTime(taf.validTo)}) för vind, sikt, moln och väder; `
-          : "ingen giltig TAF inom 50 km; "}
-        {fc
-          ? `SMHI för platsens koordinater (${fc.latitude.toFixed(2).replace(".", ",")} N ${fc.longitude.toFixed(2).replace(".", ",")} E) för temperatur, nederbörd${tafValid ? " och resten av perioden" : " och övriga värden"}.`
-          : "SMHI-prognos saknas."}
-      </span>
-    </p>
+    <section className="warnings" aria-label="Warnings">
+      {warnings.map((w) => (
+        <div key={w.id} className={`warning lvl-${w.level.toLowerCase()}`}>
+          <p className="warning-head">
+            <span className="warning-level">{LEVEL_LABEL[w.level]}</span>
+            <span className="warning-title">{w.title}</span>
+          </p>
+          <p className="warning-meta">
+            {w.source === "SMHI" ? "SMHI" : "Aviation"}
+            {w.area ? ` · ${w.area}` : ""}
+            {period(w.from, w.to) ? ` · ${period(w.from, w.to)}` : ""}
+          </p>
+          {w.text && <p className="warning-text">{w.text}</p>}
+        </div>
+      ))}
+      {alerts.map((a) => (
+        <div key={a.id} className="warning lvl-aviation">
+          <p className="warning-head">
+            <span className="warning-level">
+              {a.stationId} · {a.when}
+            </span>
+            <span className="warning-title">{a.items.join(" · ")}</span>
+          </p>
+        </div>
+      ))}
+    </section>
   );
 }
 
-/** Rå METAR och TAF i en expanderbar sektion med kopiering. Källfel visas alltid. */
+/** Raw METAR and TAF at the bottom of the page. Service errors are shown when present. */
 export function DataInfo({ bundle, snap }: { bundle: WeatherBundle; snap: Snapshot }) {
   const down = bundle.sources.filter((s) => s.failed && s.message);
   return (
-    <section className="datainfo" aria-label="Flygväderdata och källor">
+    <section className="datainfo" aria-label="METAR and TAF">
       {down.length > 0 && (
         <p className="used">
           {down.map((s) => (
@@ -52,33 +70,18 @@ export function DataInfo({ bundle, snap }: { bundle: WeatherBundle; snap: Snapsh
           ))}
         </p>
       )}
-      <details className="flightdata">
-        <summary>Visa flygväderdata</summary>
-        {snap.metar ? <RawLine tag="METAR" text={snap.metar.raw} /> : <p className="muted">Ingen METAR i närheten.</p>}
-        {bundle.taf ? <RawLine tag="TAF" text={bundle.taf.raw} /> : <p className="muted">Ingen TAF inom 50 km.</p>}
-      </details>
+      {snap.metar && (
+        <p className="raw-line">
+          <span className="raw-tag">METAR</span>
+          <code className="raw-text">{snap.metar.raw}</code>
+        </p>
+      )}
+      {bundle.taf && (
+        <p className="raw-line">
+          <span className="raw-tag">TAF</span>
+          <code className="raw-text">{bundle.taf.raw}</code>
+        </p>
+      )}
     </section>
-  );
-}
-
-function RawLine({ tag, text }: { tag: string; text: string }) {
-  const [copied, setCopied] = useState(false);
-  const copy = async () => {
-    try {
-      await navigator.clipboard.writeText(text);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
-    } catch {
-      /* urklipp inte tillgängligt */
-    }
-  };
-  return (
-    <div className="raw-line">
-      <span className="raw-tag">{tag}</span>
-      <code className="raw-text">{text}</code>
-      <button type="button" className="btn btn-small" onClick={copy} aria-label={`Kopiera ${tag}`}>
-        {copied ? "Kopierat" : "Kopiera"}
-      </button>
-    </div>
   );
 }

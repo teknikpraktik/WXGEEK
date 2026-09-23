@@ -5,9 +5,10 @@ stämmer – SMHI:s tidigare prognos-API `pmp3g` svarar t.ex. nu med `404`.
 
 | Källa | Används till | Autentisering | Licens |
 |---|---|---|---|
-| NOAA Aviation Weather Center (AWC) Data API | METAR (nu + historik), TAF, stationslista för flygplatser | Ingen | Amerikansk federal data, fri att använda |
+| NOAA Aviation Weather Center (AWC) Data API | METAR (nu + historik), TAF, SIGMET, stationslista för flygplatser | Ingen | Amerikansk federal data, fri att använda |
 | SMHI Meteorologiska observationer (metobs) | Stationsobservationer, senaste dygnet | Ingen | CC BY 4.0 – ange SMHI som källa |
 | SMHI Meteorologiska prognoser, kategori `snow1g` | Punktprognos (timvis ~2,5 dygn, sedan 6/12 h) | Ingen | CC BY 4.0 – ange SMHI som källa |
+| SMHI Impact-based weather warnings (IBWW) | Varningar och meddelanden för platsen | Ingen | CC BY 4.0 |
 | OpenStreetMap Nominatim | Ortsökning och omvänd geokodning | Ingen (User-Agent krävs) | ODbL – ange © OpenStreetMap-bidragsgivare |
 
 Alla anrop görs från serverns API-routes (se `docs/architecture.md`). AWC tillåter
@@ -27,6 +28,7 @@ Dokumentation: <https://aviationweather.gov/data/api/>
 | `metar` med `bbox` | `metar?bbox=58.4,11.5,60.4,15.5&format=json` | Senaste METAR för alla stationer i området → kandidater för stationsval (avstånd + ålder) |
 | `metar` med `ids` + `hours` | `metar?ids=ESOK&format=json&hours=13` | Historik för vald station (~26 rapporter/13 h för svenska flygplatser med halvtimmesrapporter) |
 | `taf` | `taf?ids=ESOK&format=json` | Aktuell TAF |
+| `isigmet` | `isigmet?format=json` | Internationella SIGMET; filtreras på polygon som innehåller platsen eller FIR ESAA |
 | `stationinfo` med `bbox` | `stationinfo?bbox=...&format=json` | Vilka stationer som har TAF (`siteType` innehåller `"TAF"`) |
 
 `bbox` anges som `latMin,lonMin,latMax,lonMax`.
@@ -64,7 +66,7 @@ API:t ger upp till **30 dagar** bakåt. Vi använder `hours=13` (≈ 12 h + marg
 
 - Max **100 anrop/minut** (överskridande → blockering, HTTP 429).
 - De flesta endpoints returnerar max 400 poster.
-- Sätt egen `User-Agent` (vi skickar `Vaderlek/0.1 (+https://github.com/teknikpraktik/vaderlek)`).
+- Sätt egen `User-Agent` (vi skickar `GeekWX/0.1 (+https://github.com/teknikpraktik/vaderlek)`).
 - `204 No Content` = giltig fråga men ingen data (t.ex. station utan aktuell METAR).
 - CORS tillåts inte → endast serveranrop.
 - Svaren har `Cache-Control: max-age=60`.
@@ -95,7 +97,7 @@ AWC returnerar både rå TAF (`rawTAF`) och avkodade perioder i `fcsts[]`:
 | `visib` | Sikt i statute miles (`"6+"` = ≥ 10 km) |
 | `wxString`, `clouds[]` | Väderfenomen, molnlager (fot) |
 
-Vi visar perioderna som **intervall** i avläsningen (den period som gäller vid vald tidpunkt) – aldrig som timvärden. TAF:s slut bestämmer hur långt prognosen visas.
+Vi visar perioderna som **intervall** i avläsningen (den period som gäller vid vald tidpunkt) – aldrig som timvärden. Prognosfönstret är alltid NU + 12 h.
 TAF finns bara för flygplatser med TAF-tjänst och gäller i princip flygplatsens
 närområde (≈ 8 km radie). Vi visar endast TAF för flygplats inom 50 km.
 
@@ -131,7 +133,7 @@ Värden är **strängar**. Kvalitet `G` = kontrollerat, `Y` = misstänkt/prelimi
 
 ### Historik
 
-`latest-day` ger ca 24 h, vilket räcker för Väderleks −12 h. (`latest-hour` och
+`latest-day` ger ca 24 h, vilket räcker för GeekWX:s −12 h. (`latest-hour` och
 `latest-months` finns också.)
 
 ### Rate limits och villkor
@@ -196,14 +198,27 @@ Senaste körning: `.../snow1g/version/1/createdtime.json`
 
 ---
 
-## 5. Geokodning – OpenStreetMap Nominatim
+## 5. SMHI – varningar (IBWW)
 
-- Sök: `https://nominatim.openstreetmap.org/search?q=Karlstad&countrycodes=se&format=jsonv2&limit=6&accept-language=sv`
-- Omvänd: `https://nominatim.openstreetmap.org/reverse?lat=..&lon=..&format=jsonv2&zoom=10&accept-language=sv`
+Endpoint: `https://opendata-download-warnings.smhi.se/ibww/api/version/1/warning.json`
+
+- Lista med varningar; varje `warningAreas[]` har `warningLevel` (`MESSAGE`, `YELLOW`,
+  `ORANGE`, `RED`), `approximateStart`/`approximateEnd`, beskrivningar på `sv`/`en` och
+  ett GeoJSON-område (Polygon/MultiPolygon).
+- Vi visar varningar vars område innehåller platsen (point-in-polygon) och som överlappar
+  fönstret −12 h … +12 h. Rubrik = `eventDescription.en`.
+- Hämtas med `revalidate: 300`. Licens CC BY 4.0.
+
+---
+
+## 6. Geokodning – OpenStreetMap Nominatim
+
+- Sök: `https://nominatim.openstreetmap.org/search?q=Karlstad&countrycodes=se&format=jsonv2&limit=6&accept-language=en`
+- Omvänd: `https://nominatim.openstreetmap.org/reverse?lat=..&lon=..&format=jsonv2&zoom=10&accept-language=en`
 
 Användningspolicy (<https://operations.osmfoundation.org/policies/nominatim/>):
 max 1 anrop/sekund, identifierande `User-Agent`, ingen autocomplete-sökning vid
-varje tangenttryckning, cacha resultat, visa ODbL-attribution. Väderlek söker
+varje tangenttryckning, cacha resultat, visa ODbL-attribution. GeekWX söker
 därför bara när användaren skickar sökningen och cachar svaren i 24 h.
 
 Alternativ som testades: Open-Meteo geocoding (fungerar, men icke-kommersiella villkor).

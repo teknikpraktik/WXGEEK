@@ -189,6 +189,18 @@ export type SourceStatus = {
   message?: string;
 };
 
+/** Official warnings: SMHI impact-based weather warnings and aviation SIGMETs. */
+export type WeatherWarning = {
+  id: string;
+  source: "SMHI" | "SIGMET";
+  level: "MESSAGE" | "YELLOW" | "ORANGE" | "RED" | "SIGMET";
+  title: string;
+  area?: string;
+  from?: string;
+  to?: string;
+  text?: string;
+};
+
 export type Place = {
   name: string;
   detail?: string;
@@ -207,5 +219,7 @@ export type WeatherBundle = {
   /** Slutet på det fasta prognosfönstret (NU + 12 h). */
   forecastUntil: string;
   taf: Taf | null;
+  /** SMHI warnings and SIGMETs for the location within the window */
+  warnings: WeatherWarning[];
   sources: SourceStatus[];
 };

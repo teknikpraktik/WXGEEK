@@ -15,12 +15,12 @@ const mono = IBM_Plex_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Väderlek",
-  description: "Vädret som ett förlopp: observerat då, nu och prognos sen. METAR och SMHI på samma tidslinje.",
-  applicationName: "Väderlek",
+  title: "GeekWX",
+  description: "Observed weather, now and forecast on one timeline – METAR, TAF and SMHI for Sweden.",
+  applicationName: "GeekWX",
   appleWebApp: {
     capable: true,
-    title: "Väderlek",
+    title: "GeekWX",
     statusBarStyle: "default",
   },
 };
@@ -37,7 +37,7 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="sv" className={`${sans.variable} ${mono.variable}`}>
+    <html lang="en" className={`${sans.variable} ${mono.variable}`}>
       <body>{children}</body>
     </html>
   );

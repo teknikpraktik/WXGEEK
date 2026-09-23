@@ -26,6 +26,7 @@ function bundle(obs: WeatherObservation[], precipStation = false): WeatherBundle
     forecast: null,
     forecastUntil: iso(now + 12 * H),
     taf: null,
+    warnings: [],
     sources: [],
   } as WeatherBundle;
 }
@@ -84,5 +85,5 @@ test("luckor i historiken dras inte ihop och fylls inte med prognos", () => {
   const chart = buildChart(bundle([ob(now - 10 * H, 5), ob(now - 9.5 * H, 5), ob(now - 2 * H, 8)]), now);
   assert.equal(chart.temp.observed.length, 2, "luckan mellan -9,5 h och -2 h syns");
   assert.equal(chart.temp.forecast.length, 0, "ingen prognos när SMHI saknas");
-  assert.equal(chart.missing.forecast, "Prognos saknas");
+  assert.equal(chart.missing.forecast, "No forecast");
 });

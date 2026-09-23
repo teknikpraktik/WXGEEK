@@ -1,5 +1,5 @@
 import type { CloudLayer, Taf, TafChange, TafElement, TafPeriod } from "../types";
-import { compassWord } from "../geo";
+import { fmtWindDeg } from "../format";
 import { cleanAwcName, FT_TO_M, ktToMs, visibFromAwc } from "./metar";
 import { parseMetarWeather } from "../weather/phenomena";
 
@@ -74,17 +74,18 @@ function elementsInGroup(g: string): TafElement[] {
 }
 
 function fmtVis(m: number, atLeast?: boolean) {
-  if (atLeast && m >= 10000) return "sikt 10 km eller mer";
-  return m < 1000 ? `sikt ${m} m` : `sikt ${(m / 1000).toLocaleString("sv-SE", { maximumFractionDigits: 1 })} km`;
+  if (atLeast && m >= 10000) return "visibility 10 km or more";
+  return m < 1000 ? `visibility ${m} m` : `visibility ${(m / 1000).toLocaleString("en-GB", { maximumFractionDigits: 1 })} km`;
 }
 
 const roundBase = (m: number) => (m < 1000 ? Math.round(m / 10) * 10 : Math.round(m / 100) * 100);
 const COVER_WORD: Record<string, string> = {
-  FEW: "få moln",
-  SCT: "spridda moln",
-  BKN: "brutet molntäcke",
-  OVC: "mulet",
+  FEW: "few",
+  SCT: "scattered",
+  BKN: "broken",
+  OVC: "overcast",
 };
+const COVER_OKTAS: Record<string, string> = { FEW: "1–2/8", SCT: "3–4/8", BKN: "5–7/8", OVC: "8/8" };
 
 /**
  * Svensk sammanfattning av de element gruppen faktiskt anger. För BECMG/TEMPO/PROB
@@ -93,33 +94,35 @@ const COVER_WORD: Record<string, string> = {
 function summarize(p: Omit<TafPeriod, "summary">, only?: TafElement[]): string {
   const has = (e: TafElement) => !only || only.includes(e);
   const parts: string[] = [];
-  if (p.cavok && has("visibility")) parts.push("CAVOK: sikt minst 10 km, inga moln under 1 500 m, inget väder av betydelse");
+  if (p.cavok && has("visibility")) parts.push("CAVOK: visibility 10 km or more, no cloud below 1,500 m, no significant weather");
   else {
     if (has("wind") && p.windSpeedMs !== undefined) {
-      if (p.windSpeedMs < 0.5) parts.push("vindstilla");
+      if (p.windSpeedMs < 0.5) parts.push("calm");
       else {
-        const dir = p.windVariable ? "varierande vind" : p.windDirectionDeg !== undefined ? `vind från ${compassWord(p.windDirectionDeg)}` : "vind";
+        const dir = p.windVariable ? "variable wind" : p.windDirectionDeg !== undefined ? `wind from ${fmtWindDeg(p.windDirectionDeg)}` : "wind";
         let w = `${dir} ${Math.round(p.windSpeedMs)} m/s`;
-        if (p.windGustMs) w += `, byar ${Math.round(p.windGustMs)} m/s`;
+        if (p.windGustMs) w += `, gusts ${Math.round(p.windGustMs)} m/s`;
         parts.push(w);
       }
     }
     if (has("visibility") && p.visibilityM !== undefined) parts.push(fmtVis(p.visibilityM, p.visibilityAtLeast));
     if (has("weather")) {
-      if (p.nsw) parts.push("inget väder av betydelse");
+      if (p.nsw) parts.push("no significant weather");
       else if (p.phenomena?.length) parts.push(p.phenomena.map((x) => x.label.toLowerCase()).join(", "));
     }
     if (has("clouds")) {
       const vv = p.cloudLayers?.find((l) => l.cover === "VV");
       const lowest = p.cloudLayers?.find((l) => l.cover !== "VV");
-      if (vv) parts.push(`skymd himmel, vertikal sikt ${roundBase(vv.baseM)} m`);
+      if (vv) parts.push(`sky obscured, vertical visibility ${roundBase(vv.baseM)} m`);
       else if (lowest) {
-        parts.push(`${COVER_WORD[lowest.cover] ?? "moln"} ${roundBase(lowest.baseM)} m${lowest.type === "CB" ? " (bymoln)" : ""}`);
-      } else if (p.noSignificantCloud) parts.push("inga betydande moln");
+        parts.push(
+          `${COVER_WORD[lowest.cover] ?? "cloud"} ${COVER_OKTAS[lowest.cover] ?? ""} at ${roundBase(lowest.baseM)} m${lowest.type ? ` (${lowest.type})` : ""}`,
+        );
+      } else if (p.noSignificantCloud) parts.push("no significant cloud");
     }
   }
   const s = parts.join(" · ");
-  return s ? s.charAt(0).toUpperCase() + s.slice(1) : "Inga uppgifter i gruppen";
+  return s ? s.charAt(0).toUpperCase() + s.slice(1) : "No details in group";
 }
 
 export function normalizeTaf(t: AwcTaf, distanceKm: number): Taf {

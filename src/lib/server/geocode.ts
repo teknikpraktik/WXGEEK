@@ -17,12 +17,12 @@ type NominatimResult = {
 function detailFrom(r: NominatimResult): string | undefined {
   const parts = r.display_name.split(",").map((s) => s.trim());
   // "Karlstad, Karlstads kommun, Värmlands län, 652 24, Sverige" → "Karlstads kommun, Värmlands län"
-  const rest = parts.slice(1).filter((p) => p !== "Sverige" && !/^\d{3} ?\d{2}$/.test(p));
+  const rest = parts.slice(1).filter((p) => p !== "Sweden" && p !== "Sverige" && !/^\d{3} ?\d{2}$/.test(p));
   return rest.slice(0, 2).join(", ") || undefined;
 }
 
 export async function searchPlaces(q: string): Promise<Place[]> {
-  const url = `${NOMINATIM}/search?q=${encodeURIComponent(q)}&countrycodes=se&format=jsonv2&limit=6&accept-language=sv`;
+  const url = `${NOMINATIM}/search?q=${encodeURIComponent(q)}&countrycodes=se&format=jsonv2&limit=6&accept-language=en`;
   const res = (await fetchJson<NominatimResult[]>(url, { revalidate: CACHE.geocode })) ?? [];
   const seen = new Set<string>();
   return res
@@ -41,10 +41,10 @@ export async function searchPlaces(q: string): Promise<Place[]> {
 }
 
 export async function reversePlace(lat: number, lon: number): Promise<Place | null> {
-  const url = `${NOMINATIM}/reverse?lat=${lat.toFixed(3)}&lon=${lon.toFixed(3)}&format=jsonv2&zoom=12&accept-language=sv`;
+  const url = `${NOMINATIM}/reverse?lat=${lat.toFixed(3)}&lon=${lon.toFixed(3)}&format=jsonv2&zoom=12&accept-language=en`;
   const r = await fetchJson<NominatimResult & { error?: string }>(url, { revalidate: CACHE.geocode });
   if (!r || r.error) return null;
   const a = r.address ?? {};
-  const name = a.village || a.town || a.city || a.suburb || a.hamlet || a.municipality || r.name || "Okänd plats";
+  const name = a.village || a.town || a.city || a.suburb || a.hamlet || a.municipality || r.name || "Unknown place";
   return { name, detail: a.municipality ?? a.county, latitude: lat, longitude: lon };
 }

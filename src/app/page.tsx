@@ -1,5 +1,5 @@
-import { VaderlekApp } from "@/components/VaderlekApp";
+import { GeekwxApp } from "@/components/GeekwxApp";
 
 export default function Page() {
-  return <VaderlekApp />;
+  return <GeekwxApp />;
 }

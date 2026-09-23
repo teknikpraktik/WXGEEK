@@ -12,6 +12,7 @@ import {
   fetchTafsInBbox,
   getSmhiStations,
 } from "./sources";
+import { sigmetsAt, smhiWarningsAt } from "./warnings";
 import { MAX_AGE_MS, rankCandidates, selectionReason, type Candidate } from "../weather/stations";
 import type {
   Forecast,
@@ -29,7 +30,7 @@ const FORECAST_WINDOW_MS = 12 * 60 * 60 * 1000;
 const METAR_RADIUS_KM = 110;
 const TAF_MAX_KM = 50;
 
-/** Vilka SMHI-parametrar som behövs för respektive Väderlek-parameter. */
+/** Vilka SMHI-parametrar som behövs för respektive GeekWX-parameter. */
 const SMHI_FOR: Record<ParamKey, SmhiParamName[]> = {
   temperature: ["temperature"],
   wind: ["windSpeed", "windDirection"],
@@ -62,6 +63,12 @@ export async function buildWeatherBundle(lat: number, lon: number): Promise<Weat
   const metarBox = bboxAround(lat, lon, METAR_RADIUS_KM);
   const tafBox = bboxAround(lat, lon, TAF_MAX_KM + 10);
   const smhiParamNames = Object.keys(SMHI_PARAMS) as SmhiParamName[];
+
+  // Varningar hämtas parallellt; ett fel här stoppar inget annat.
+  const warningsP = Promise.allSettled([
+    smhiWarningsAt(lat, lon, now - HISTORY_MS, now + FORECAST_WINDOW_MS),
+    sigmetsAt(lat, lon, now - HISTORY_MS, now + FORECAST_WINDOW_MS),
+  ]);
 
   const [metarLatestRes, tafRes, forecastRes, ...smhiListRes] = await Promise.allSettled([
     fetchMetarsInBbox(metarBox),
@@ -273,9 +280,9 @@ export async function buildWeatherBundle(lat: number, lon: number): Promise<Weat
       return t >= now - 60 * 60 * 1000 && t <= forecastUntil + 60 * 60 * 1000;
     });
   } else if (forecastRes.status === "fulfilled") {
-    forecastMessage = "Platsen ligger utanför SMHI:s prognosområde";
+    forecastMessage = "The location is outside SMHI's forecast area";
   } else {
-    forecastMessage = "SMHI:s prognostjänst svarar inte just nu";
+    forecastMessage = "SMHI forecast service is not responding";
   }
 
   // -------------------------------------------------------------------------
@@ -289,28 +296,28 @@ export async function buildWeatherBundle(lat: number, lon: number): Promise<Weat
     failed: metarLatestRes.status === "rejected" || metarHistoryError,
     message:
       metarLatestRes.status === "rejected"
-        ? "Flygvädertjänsten (NOAA AWC) svarar inte just nu"
+        ? "Aviation weather service (NOAA AWC) is not responding"
         : !metarStation
-          ? "Ingen flygplats med aktuell METAR i närheten"
+          ? "No airport with a current METAR nearby"
           : metarHistoryError
-            ? "Historik kunde inte hämtas – visar senaste rapport"
+            ? "History unavailable – showing latest report"
             : undefined,
   });
   sources.push({
     id: "smhi-obs",
-    label: "SMHI observationer",
+    label: "SMHI observations",
     // Att ingen SMHI-station valts är inget fel – en närmare flygplats kan ha vunnit alla parametrar.
     ok: smhiListsOk && smhiDataErrors === 0,
     failed: !smhiListsOk || smhiDataErrors > 0,
     message: !smhiListsOk
-      ? "SMHI:s observationstjänst svarar inte just nu"
+      ? "SMHI observation service is not responding"
       : smhiDataErrors > 0
-        ? "Vissa SMHI-mätningar kunde inte hämtas"
+        ? "Some SMHI observations could not be loaded"
         : undefined,
   });
   sources.push({
     id: "smhi-forecast",
-    label: "SMHI prognos",
+    label: "SMHI forecast",
     ok: !!forecast,
     failed: forecastRes.status === "rejected",
     message: forecastMessage,
@@ -322,9 +329,9 @@ export async function buildWeatherBundle(lat: number, lon: number): Promise<Weat
     failed: tafRes.status === "rejected",
     message:
       tafRes.status === "rejected"
-        ? "TAF kunde inte hämtas"
+        ? "TAF could not be loaded"
         : !taf
-          ? `Ingen flygplats med TAF inom ${TAF_MAX_KM} km`
+          ? `No airport with a TAF within ${TAF_MAX_KM} km`
           : undefined,
   });
 
@@ -336,6 +343,7 @@ export async function buildWeatherBundle(lat: number, lon: number): Promise<Weat
     forecast,
     forecastUntil: new Date(forecastUntil).toISOString(),
     taf,
+    warnings: (await warningsP).flatMap((r) => (r.status === "fulfilled" ? r.value : [])),
     sources,
   };
 }

@@ -4,7 +4,7 @@ import { searchPlaces } from "@/lib/server/geocode";
 export async function GET(req: NextRequest) {
   const q = (req.nextUrl.searchParams.get("q") ?? "").trim();
   if (q.length < 2 || q.length > 80) {
-    return NextResponse.json({ error: "Ange minst två tecken" }, { status: 400 });
+    return NextResponse.json({ error: "Enter at least two characters" }, { status: 400 });
   }
   try {
     const places = await searchPlaces(q);
@@ -13,6 +13,6 @@ export async function GET(req: NextRequest) {
       { headers: { "Cache-Control": "public, max-age=3600, s-maxage=86400" } },
     );
   } catch {
-    return NextResponse.json({ error: "Ortsökningen svarar inte just nu" }, { status: 502 });
+    return NextResponse.json({ error: "Place search is not responding" }, { status: 502 });
   }
 }

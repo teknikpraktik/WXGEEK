@@ -50,6 +50,7 @@ function bundleWith(taf: AwcTaf | null, pts: ForecastPoint[]): WeatherBundle {
     forecast: { source: "SMHI", model: "snow1g", createdTime: iso(T(23, 14)), referenceTime: iso(T(23, 14)), latitude: 57.7, longitude: 12.0, points: pts },
     forecastUntil: iso(T(24, 3)),
     taf: taf ? normalizeTaf(taf, 12) : null,
+    warnings: [],
     sources: [],
   };
 }
@@ -169,5 +170,5 @@ test("variabel som TAF saknar kompletteras av SMHI", () => {
 test("motsägelse mellan TAF och SMHI om nederbörd förklaras", () => {
   const pts = smhiHours(T(23, 15), 6).map((p) => ({ ...p, precipitationMm: 0.6 }));
   const m = mergedForecastAt(bundleWith(ESNS, pts), T(23, 16) * 1000);
-  assert.match(m.note ?? "", /TAF anger ingen nederbörd/);
+  assert.match(m.note ?? "", /TAF gives no precipitation/);
 });

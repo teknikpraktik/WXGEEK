@@ -148,6 +148,8 @@ export type Precip = Span & {
   drawT0: number;
   drawT1: number;
   label: string;
+  /** SMHI probability of precipitation (%), forecast only */
+  probability?: number;
 };
 
 /**
@@ -206,7 +208,7 @@ function niceTicks([lo, hi]: [number, number], count = 4): number[] {
 const OBS_GAP = 100 * 60 * 1000;
 const FCST_GAP = 3 * HOUR + 1;
 // Täckningsgrad enligt METAR: FEW 1–2, SCT 3–4, BKN 5–7, OVC 8 oktas.
-const COVER_DENSITY: Record<string, number> = { FEW: 0.2, SCT: 0.45, BKN: 0.75, OVC: 1, VV: 1 };
+const COVER_DENSITY: Record<string, number> = { FEW: 0.25, SCT: 0.5, BKN: 0.75, OVC: 1, VV: 1 };
 
 const precipKindOf = (p: Phenomenon | undefined): PrecipKind | null => {
   if (!p) return null;
@@ -236,7 +238,7 @@ function source(blocks: CloudBlock[], span: Span): { fromM?: number; atT: number
 export function buildChart(bundle: WeatherBundle, now: number): ChartData {
   const fc = forecastWindow(bundle, now);
   const missing: ChartData["missing"] = {};
-  if (!bundle.forecast) missing.forecast = "Prognos saknas";
+  if (!bundle.forecast) missing.forecast = "No forecast";
 
   // Temperatur
   const tObs = obsPoints(bundle, "temperature", (x) => x.temperatureC);
@@ -262,7 +264,7 @@ export function buildChart(bundle: WeatherBundle, now: number): ChartData {
     if (c.layers?.length) return c.layers.find((l) => l.cover !== "FEW")?.baseM;
     return c.baseM;
   };
-  if (!stationFor(bundle, "temperature")) missing.temp = "Ingen temperaturmätning i närheten";
+  if (!stationFor(bundle, "temperature")) missing.temp = "No temperature observation nearby";
 
   // Moln
   const cloudObs = stationFor(bundle, "cloudBase")?.observations ?? [];
@@ -277,7 +279,7 @@ export function buildChart(bundle: WeatherBundle, now: number): ChartData {
       cloudsObserved.push({ ...span, baseM: x.cloudBaseM, cover: "MODEL", density: 0.6 });
     }
   }
-  if (!cloudObs.length) missing.clouds = "Ingen molnobservation i närheten";
+  if (!cloudObs.length) missing.clouds = "No cloud observation nearby";
   const cloudsForecast: CloudBlock[] = merged.flatMap((m): CloudBlock[] => {
     const c = m.clouds?.value;
     if (!c) return [];
@@ -308,7 +310,7 @@ export function buildChart(bundle: WeatherBundle, now: number): ChartData {
     if (x.precipitationMm === undefined || x.precipitationMm <= 0) continue;
     const span = { t0: ts(x) - HOUR, t1: ts(x) };
     const kind = kindNear(span.t0 + HOUR / 2) ?? "regn";
-    precipObserved.push({ ...span, kind, mm: x.precipitationMm, ...source(cloudsObserved, span), label: kind === "snö" ? "Snö" : "Regn" });
+    precipObserved.push({ ...span, kind, mm: x.precipitationMm, ...source(cloudsObserved, span), label: kind === "snö" ? "Snow" : "Rain" });
   }
   for (const o of phenObs) {
     const p = o.weatherPhenomena?.[0];
@@ -336,7 +338,7 @@ export function buildChart(bundle: WeatherBundle, now: number): ChartData {
       base !== undefined
         ? { fromM: base, atT: m.t, drawT0: m.t - HOUR / 2, drawT1: m.t + HOUR / 2 }
         : { atT: (t0 + t1) / 2, drawT0: t0, drawT1: t1 };
-    return [{ t0, t1, kind, mm: amount, ...from, label: wxPrecip?.label ?? (kind === "snö" ? "Snö" : "Regn") }];
+    return [{ t0, t1, kind, mm: amount, ...from, label: wxPrecip?.label ?? (kind === "snö" ? "Snow" : "Rain"), probability: pr?.probability }];
   });
 
   // Nederbörd vid minusgrader är snö, oavsett vad väderkoden säger.
@@ -351,8 +353,8 @@ export function buildChart(bundle: WeatherBundle, now: number): ChartData {
     const temp = tempNear(p.atT);
     if (p.kind === "regn" && temp !== undefined && temp < 0) {
       p.kind = "snö";
-      p.label = p.label.replace(/regnskurar/i, "Snöbyar").replace(/regn/i, "snö");
-      if (!/snö/i.test(p.label)) p.label = "Snö";
+      p.label = p.label.replace(/rain showers/i, "Snow showers").replace(/rain/i, "snow");
+      if (!/snow/i.test(p.label)) p.label = "Snow";
     }
   }
 
@@ -404,7 +406,7 @@ export function buildChart(bundle: WeatherBundle, now: number): ChartData {
   const wind: Arrow[] = [];
   const windObs = stationFor(bundle, "wind")?.observations ?? [];
   const gustObs = stationFor(bundle, "gust")?.observations ?? [];
-  if (!windObs.length) missing.wind = "Ingen vindmätning i närheten";
+  if (!windObs.length) missing.wind = "No wind observation nearby";
   let lastT = -Infinity;
   for (const x of windObs) {
     const t = ts(x);
@@ -431,8 +433,8 @@ export function buildChart(bundle: WeatherBundle, now: number): ChartData {
   for (const o of cloudObs) {
     const t = ts(o);
     if (!o.clearSky || t - lastClear < 55 * 60 * 1000) continue;
-    const code = o.raw?.match(/\b(CAVOK|SKC|CLR)\b/)?.[1] ?? "Klart";
-    clear.push({ t, forecast: false, day: isDaylight(lat, lon, t), label: `Klart (${code})` });
+    const code = o.raw?.match(/\b(CAVOK|SKC|CLR)\b/)?.[1] ?? "Clear";
+    clear.push({ t, forecast: false, day: isDaylight(lat, lon, t), label: `Clear (${code})` });
     lastClear = t;
   }
   for (const m of merged) {
@@ -443,7 +445,7 @@ export function buildChart(bundle: WeatherBundle, now: number): ChartData {
       t: m.t,
       forecast: true,
       day: isDaylight(lat, lon, m.t),
-      label: c?.cavok ? "CAVOK enligt TAF – inga moln under 1 500 m" : "Klart enligt SMHI-prognos",
+      label: c?.cavok ? "CAVOK (TAF) – no cloud below 1,500 m" : "Clear sky (SMHI forecast)",
     });
     lastClear = m.t;
   }
@@ -452,7 +454,7 @@ export function buildChart(bundle: WeatherBundle, now: number): ChartData {
   for (const o of visObs) {
     if (o.visibilityM !== undefined && o.visibilityM < 5000) {
       const t = ts(o);
-      lowVis.push({ t0: t - visStep / 2, t1: t + visStep / 2, forecast: false, severe: o.visibilityM < 1000, label: `Sikt ${o.visibilityM} m` });
+      lowVis.push({ t0: t - visStep / 2, t1: t + visStep / 2, forecast: false, severe: o.visibilityM < 1000, label: `Visibility ${o.visibilityM} m` });
     }
   }
   for (const o of phenObs) {
@@ -474,7 +476,7 @@ export function buildChart(bundle: WeatherBundle, now: number): ChartData {
         ...span,
         forecast: true,
         severe: (vis ?? 5000) < 1000 || fog?.kind === "dimma",
-        label: fog?.label ?? `Sikt ${vis} m`,
+        label: fog?.label ?? `Visibility ${vis} m`,
       });
     }
     const ts_ = wx.find((x) => x.kind === "åska");

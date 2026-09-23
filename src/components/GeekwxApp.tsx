@@ -3,12 +3,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Place, WeatherBundle } from "@/lib/types";
 import { buildChart, HOUR, snapshotAt } from "@/lib/client/timeline";
-import { ChartLegend, Timeline } from "./Timeline";
+import { aviationAlerts } from "@/lib/client/alerts";
+import { Timeline } from "./Timeline";
 import { Readout } from "./Readout";
 import { PlacePicker } from "./PlacePicker";
-import { DataInfo, SourceLine } from "./DataInfo";
+import { DataInfo, Warnings } from "./DataInfo";
 
-const PLACE_KEY = "vaderlek:place";
+const PLACE_KEY = "geekwx:place";
+/** Previous app name – read once so existing users keep their place. */
+const LEGACY_PLACE_KEY = "vaderlek:place";
 const REFRESH_MS = 5 * 60 * 1000;
 
 type StoredPlace = Place & { fromGeolocation?: boolean };
@@ -25,11 +28,11 @@ function writeStored(key: string, v: unknown) {
   try {
     localStorage.setItem(key, JSON.stringify(v));
   } catch {
-    /* privat läge m.m. */
+    /* private mode etc. */
   }
 }
 
-export function VaderlekApp() {
+export function GeekwxApp() {
   const [place, setPlace] = useState<StoredPlace | null>(null);
   const [booted, setBooted] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -46,11 +49,11 @@ export function VaderlekApp() {
   const [step, setStep] = useState<{ dir: -1 | 1; n: number }>({ dir: 1, n: 0 });
 
   // ---------------------------------------------------------------------------
-  // Plats
+  // Location
   // ---------------------------------------------------------------------------
   const locate = useCallback(() => {
     if (!("geolocation" in navigator)) {
-      setGeoError("Webbläsaren stöder inte platsbestämning. Sök efter en ort i stället.");
+      setGeoError("Location is not supported by this browser. Search for a place instead.");
       return;
     }
     setLocating(true);
@@ -58,7 +61,7 @@ export function VaderlekApp() {
     navigator.geolocation.getCurrentPosition(
       async (pos) => {
         const { latitude, longitude } = pos.coords;
-        let name = "Min position";
+        let name = "My location";
         let detail: string | undefined;
         try {
           const r = await fetch(`/api/reverse?lat=${latitude}&lon=${longitude}`);
@@ -68,7 +71,7 @@ export function VaderlekApp() {
             detail = j.place.detail;
           }
         } catch {
-          /* namn är inte kritiskt */
+          /* the name is not critical */
         }
         const p: StoredPlace = { name, detail, latitude, longitude, fromGeolocation: true };
         setPlace(p);
@@ -80,8 +83,8 @@ export function VaderlekApp() {
         setLocating(false);
         setGeoError(
           err.code === err.PERMISSION_DENIED
-            ? "Platsåtkomst nekades. Sök efter en ort i stället."
-            : "Kunde inte bestämma din position. Sök efter en ort i stället.",
+            ? "Location access was denied. Search for a place instead."
+            : "Could not determine your location. Search for a place instead.",
         );
         setPickerOpen(true);
       },
@@ -89,13 +92,15 @@ export function VaderlekApp() {
     );
   }, []);
 
-  // Första start: sparad plats → annars försök med geolocation.
+  // First start: stored place → otherwise try geolocation.
   useEffect(() => {
-    const stored = readStored<StoredPlace>(PLACE_KEY);
-    // Läses från localStorage efter hydrering för att undvika SSR-mismatch.
+    const stored = readStored<StoredPlace>(PLACE_KEY) ?? readStored<StoredPlace>(LEGACY_PLACE_KEY);
+    // Read from localStorage after hydration to avoid an SSR mismatch.
     /* eslint-disable react-hooks/set-state-in-effect */
-    if (stored) setPlace(stored);
-    else locate();
+    if (stored) {
+      setPlace(stored);
+      writeStored(PLACE_KEY, stored);
+    } else locate();
     setBooted(true);
     /* eslint-enable react-hooks/set-state-in-effect */
   }, [locate]);
@@ -118,13 +123,13 @@ export function VaderlekApp() {
     try {
       const res = await fetch(`/api/weather?lat=${p.latitude.toFixed(3)}&lon=${p.longitude.toFixed(3)}`);
       const json = await res.json();
-      if (!res.ok) throw new Error(json.error ?? "Kunde inte hämta väderdata");
+      if (!res.ok) throw new Error(json.error ?? "Could not load weather data");
       if (id === reqId.current) {
         setBundle(json);
         setNow(Date.now());
       }
     } catch (e) {
-      if (id === reqId.current) setError((e as Error).message || "Kunde inte hämta väderdata");
+      if (id === reqId.current) setError((e as Error).message || "Could not load weather data");
     } finally {
       if (id === reqId.current) setLoading(false);
     }
@@ -138,7 +143,7 @@ export function VaderlekApp() {
     load(place);
   }, [place, load]);
 
-  // Klocka + automatisk uppdatering när fliken är synlig.
+  // Clock + automatic refresh while the tab is visible.
   useEffect(() => {
     const tick = setInterval(() => setNow(Date.now()), 30_000);
     let lastLoad = Date.now();
@@ -166,19 +171,22 @@ export function VaderlekApp() {
   }, [place, load]);
 
   // ---------------------------------------------------------------------------
-  // Härledd data
+  // Derived data
   // ---------------------------------------------------------------------------
   const chart = useMemo(() => (bundle ? buildChart(bundle, now) : null), [bundle, now]);
+  const alerts = useMemo(
+    () => (bundle ? aviationAlerts(bundle, now, Date.parse(bundle.forecastUntil)) : []),
+    [bundle, now],
+  );
   const t = cursor ?? now;
   const snap = useMemo(() => (bundle ? snapshotAt(bundle, t, now) : null), [bundle, t, now]);
   const onCursor = useCallback((tt: number) => setCursor(tt), []);
   const awayFromNow = cursor !== null && Math.abs(cursor - now) > 10 * 60 * 1000;
-  // Stegknapparna begränsas till det fasta fönstret (12 h bakåt och framåt).
+  // Step buttons are limited to the fixed window (12 h back and forward).
   const winStart = Math.floor(now / HOUR) * HOUR - 12 * HOUR;
   const winEnd = bundle ? Date.parse(bundle.forecastUntil) : now + 12 * HOUR;
   const canBack = t - HOUR >= winStart - 1;
   const canFwd = t + HOUR <= winEnd + 1;
-
 
   // ---------------------------------------------------------------------------
   // Render
@@ -186,17 +194,17 @@ export function VaderlekApp() {
   return (
     <div className="app">
       <header className="top">
-        <h1 className="wordmark">Väderlek</h1>
+        <h1 className="wordmark">GeekWX</h1>
         {place && (
           <button
             type="button"
             className="placebtn"
             onClick={() => setPickerOpen((v) => !v)}
             aria-expanded={pickerOpen}
-            aria-label={`Plats: ${place.name}. Byt plats`}
+            aria-label={`Location: ${place.name}. Change location`}
           >
             <span className="placebtn-name">{place.name}</span>
-            <span className="placebtn-action">Byt plats</span>
+            <span className="placebtn-action">Change</span>
           </button>
         )}
       </header>
@@ -218,7 +226,7 @@ export function VaderlekApp() {
             <div className="state state-error">
               <p>{error}</p>
               <button type="button" className="btn" onClick={() => load(place)}>
-                Försök igen
+                Try again
               </button>
             </div>
           )}
@@ -231,44 +239,42 @@ export function VaderlekApp() {
                   <div key={i} className="skeleton" />
                 ))}
               </div>
-              <p className="muted">Hämtar observationer och prognos…</p>
             </div>
           )}
 
           {bundle && snap && chart && (
             <>
               <Readout snap={snap} now={now}>
-                <section className="timeline-wrap" aria-label="Tidslinje">
+                <section className="timeline-wrap" aria-label="Timeline">
                   <div className="tl-controls">
-                    <span className="tl-hint">Dra i grafen för att välja tid</span>
-                    <div className="tl-buttons" role="group" aria-label="Välj tid">
+                    <div className="tl-buttons" role="group" aria-label="Select time">
                       <button
                         type="button"
                         className="btn btn-step"
                         onClick={() => setStep((st) => ({ dir: -1, n: st.n + 1 }))}
                         disabled={!canBack}
-                        aria-label="Föregående timme"
+                        aria-label="Previous hour"
                       >
-                        ◀ <span className="btn-label">Föregående</span>
+                        ◀
                       </button>
-                      {/* "Nu" behåller alltid sin plats, även när nu redan är valt */}
+                      {/* "Now" always keeps its place, even when now is selected */}
                       <button
                         type="button"
                         className="btn btn-now"
                         onClick={() => setRecenter((n) => n + 1)}
                         disabled={!awayFromNow}
-                        aria-label="Välj aktuell tid"
+                        aria-label="Select current time"
                       >
-                        Nu
+                        Now
                       </button>
                       <button
                         type="button"
                         className="btn btn-step"
                         onClick={() => setStep((st) => ({ dir: 1, n: st.n + 1 }))}
                         disabled={!canFwd}
-                        aria-label="Nästa timme"
+                        aria-label="Next hour"
                       >
-                        <span className="btn-label">Nästa</span> ▶
+                        ▶
                       </button>
                     </div>
                   </div>
@@ -280,31 +286,30 @@ export function VaderlekApp() {
                     recenterSignal={recenter}
                     stepSignal={step}
                   />
-                  <ChartLegend data={chart} />
-                  <SourceLine bundle={bundle} now={now} />
                 </section>
               </Readout>
 
+              <Warnings warnings={bundle.warnings ?? []} alerts={alerts} />
+
+              {error && <p className="inline-error">Update failed: {error}</p>}
+              {loading && <p className="muted small">Updating…</p>}
+
               <DataInfo bundle={bundle} snap={snap} />
-
-              {error && <p className="inline-error">Uppdateringen misslyckades: {error}. Visar data från {new Date(bundle.generatedAt).toLocaleTimeString("sv-SE", { hour: "2-digit", minute: "2-digit" })}.</p>}
-              {loading && <p className="muted small">Uppdaterar…</p>}
-
-              <p className="attrib">
-                Data: SMHI (CC BY 4.0, bearbetad: stationsurval och enhetsomräkning) · METAR/TAF: NOAA Aviation
-                Weather Center · Ortnamn: © OpenStreetMap-bidragsgivare. Väderlek är inte en flygväderstjänst och ska
-                inte användas för flygplanering.
-              </p>
             </>
           )}
         </main>
       )}
 
       <footer className="foot">
-        <span>© {new Date(now).getFullYear()} Per Björkman · Teknikpraktik</span>
-        {bundle && Math.abs(now - Date.parse(bundle.generatedAt)) > 2 * HOUR && (
-          <span className="stale-note">Data kan vara inaktuell</span>
-        )}
+        <span>
+          Data: SMHI (CC BY 4.0) · NOAA Aviation Weather Center · © OpenStreetMap contributors. Not for flight planning.
+        </span>
+        <span>
+          © {new Date(now).getFullYear()} Per Björkman · Teknikpraktik
+          {bundle && Math.abs(now - Date.parse(bundle.generatedAt)) > 2 * HOUR && (
+            <span className="stale-note"> · Data may be out of date</span>
+          )}
+        </span>
       </footer>
     </div>
   );

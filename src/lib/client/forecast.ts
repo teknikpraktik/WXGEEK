@@ -277,9 +277,9 @@ export function mergedForecastAt(
     const tafRain = hasPrecip(out.weather.value);
     const smhiRain = out.precipitation.value.mm >= 0.1;
     if (!tafRain && smhiRain)
-      out.note = `TAF anger ingen nederbörd vid ${taf!.stationId}; SMHI:s modell ger nederbörd för platsen.`;
+      out.note = `TAF gives no precipitation at ${taf!.stationId}; SMHI's model gives precipitation for the location.`;
     else if (tafRain && !smhiRain)
-      out.note = `TAF anger nederbörd vid ${taf!.stationId}; SMHI:s modell ger ingen mängd för platsen.`;
+      out.note = `TAF gives precipitation at ${taf!.stationId}; SMHI's model gives no amount for the location.`;
   }
   return out;
 }

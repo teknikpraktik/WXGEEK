@@ -1,110 +1,93 @@
-# Väderlek
+# GeekWX
 
-**DÅ ← NU → SEN**
+**Observed ← NOW → Forecast**
 
-Väderlek är en svensk, mobile-first väderapp som visar vädret som ett
-sammanhängande förlopp genom tiden. Vanliga väderappar är prognosappar –
-Väderlek behandlar **observerat väder som en förstklassig datatyp**.
+GeekWX is a mobile-first weather app for Sweden that shows the weather as one
+continuous timeline: what was actually **observed** over the past 12 hours, the
+situation **now**, and the **forecast** for the next 12 hours, all on the same axis.
 
 ```
-−12 h ←──────── NU ────────→ +12 h
-  observerat          prognos
+−12 h ←──────── NOW ────────→ +12 h
+     observed            forecast
 ```
 
-- Öppna appen och se direkt det **observerade** vädret nu – med station, avstånd och ålder.
-- Dra tidslinjen bakåt ~12 timmar och se hur vädret faktiskt utvecklats.
-- Dra framåt och se prognosen på **samma** tidsaxel.
-- Ett diagram: molnbas (meter, vänster axel) och temperatur (°C, höger axel), med nederbörd som faller från molnbasen och vindpilar under.
-- Fast fönster: 12 h observationer bakåt och 12 h prognos framåt. Välj tid genom att dra i grafen eller med knapparna ◀ Nu ▶.
-- Prognosen använder **TAF först** (vind, sikt, moln, väder vid flygplatsen under TAF:s giltighetstid) och **SMHI** för temperatur, nederbördsmängd, saknade värden och resten av perioden – med källa per värde.
-- Nuvädret (temperatur, vind, sikt, molnbas, nederbörd) visas först i ett stabilt rutnät; detaljvyn visar exakta värden, tider och källor för vald tid; rå METAR och TAF finns under "Visa flygväderdata".
-- Observation (heldraget, tonad bakgrund) och prognos (streckat, skrafferad bakgrund) skiljs åt med stil, inte färg. Grön linje markerar NU.
+- The header shows temperature, wind (m/s, direction in whole tens of degrees),
+  visibility and cloud base with cover type and oktas. Precipitation appears only
+  when data exists for the selected time.
+- One chart: cloud base (m, left axis) and temperature (°C, right axis). Cloud icons are
+  filled from the bottom by the eighths of the sky covered. Precipitation falls as drops
+  from the cloud base, and forecast drops are shaded by SMHI's probability of
+  precipitation. The ground layer shows accumulated rain (mm) and estimated snow depth
+  (cm). Wind arrows run below the chart.
+- Drag the chart, or use ◀ Now ▶, to select a time within the fixed ±12 h window.
+- The forecast uses **TAF first** for wind, visibility, cloud and weather at the airport
+  while the TAF is valid. **SMHI** covers temperature, precipitation, missing values and
+  the rest of the window.
+- Warnings appear under the chart: SMHI impact-based weather warnings, SIGMETs and
+  significant weather in METAR/TAF. Significant weather covers thunderstorms, CB/TCU,
+  freezing precipitation, fog, visibility below 1,500 m, wind or gusts of 13 m/s or more,
+  and ceilings below 150 m.
+- Raw METAR and TAF are printed at the bottom of the page.
 
-Väderlek kombinerar **METAR** (flygplatsobservationer), **SMHI:s observationer**,
-**SMHI:s prognos** och **TAF** (flygplatsprognos). Flygmeteorologin syns i
-informationsdesignen, men allt presenteras på begriplig svenska. Rå METAR/TAF
-finns som detalj för den som vill.
+GeekWX never implies more precision than the sources support: it interpolates no values,
+and it shows missing data as missing. It is not a flight-planning service.
 
-Appen ger aldrig sken av större precision än källorna medger: inga
-interpolerade värden, en flygplatsobservation presenteras med avstånd och ålder,
-och saknade data visas som saknade.
+## Getting started
 
-## Kom igång
-
-Kräver Node.js 20+ (utvecklat med Node 24).
+Requires Node.js 20+ (developed on Node 24).
 
 ```bash
 npm install
 npm run dev
 ```
 
-Öppna <http://localhost:3000>.
-
-Övriga skript:
+Open <http://localhost:3000>.
 
 ```bash
 npm run lint       # ESLint
 npm run typecheck  # TypeScript
-npm test           # tester för tids-, TAF- och datalogik (node:test via tsx)
-npm run build      # produktionsbygge
-npm start          # kör produktionsbygget
+npm test           # time, TAF, alert and data logic tests (node:test via tsx)
+npm run build      # production build
+npm start          # run the production build
 ```
 
-## Miljövariabler
+## Environment variables
 
-Inga krävs. Alla datakällor är öppna och saknar API-nycklar. Arkitekturen
-skickar ändå alla externa anrop via serverns API-routes (cache, CORS, framtida nycklar).
+None. All data sources are open and need no API keys. External calls still go through
+the server's API routes, which handle caching, CORS and any future keys.
 
-## Deployment på Vercel
+## Deployment on Vercel
 
-1. Importera repot i Vercel (framework: Next.js, inga inställningar behövs).
-2. Deploya. API-routes körs som Vercel Functions (Node.js, Fluid Compute).
+The repository is connected to Vercel, and every push to `main` is deployed. API routes
+run as Vercel Functions (Node.js, Fluid Compute) and send `Cache-Control` with
+`s-maxage`, so the CDN takes load off both the functions and the upstream sources.
 
-Eller via CLI:
+## Data sources
 
-```bash
-npm i -g vercel
-vercel        # förhandsversion
-vercel --prod # produktion
-```
-
-API-svaren har `Cache-Control` med `s-maxage`, så Vercels CDN avlastar både
-funktionerna och de externa källorna.
-
-## Datakällor
-
-| Källa | Används till | Licens |
+| Source | Used for | Licence |
 |---|---|---|
-| NOAA Aviation Weather Center | METAR (nu + 13 h), TAF | Fri (amerikansk federal data) |
-| SMHI Meteorologiska observationer | Stationsmätningar, senaste dygnet | CC BY 4.0 |
-| SMHI Meteorologiska prognoser (`snow1g`) | Punktprognos | CC BY 4.0 |
-| OpenStreetMap Nominatim | Ortsökning | ODbL |
+| NOAA Aviation Weather Center | METAR (now + 13 h), TAF, SIGMET | US federal data, free to use |
+| SMHI meteorological observations | Station observations, last 24 h | CC BY 4.0 |
+| SMHI meteorological forecast (`snow1g`) | Point forecast | CC BY 4.0 |
+| SMHI impact-based weather warnings (IBWW) | Warnings for the location | CC BY 4.0 |
+| OpenStreetMap Nominatim | Place search | ODbL |
 
-Detaljer, endpoints, begränsningar och verifiering: [`docs/data-sources.md`](docs/data-sources.md).
-Arkitektur, stationsval och cache: [`docs/architecture.md`](docs/architecture.md).
+Details, endpoints and limitations: [`docs/data-sources.md`](docs/data-sources.md).
+Architecture, station selection and caching: [`docs/architecture.md`](docs/architecture.md).
 
-## Kända begränsningar (MVP)
+## Known limitations
 
-- **Stationsbaserat.** Lokala skurar mellan stationer syns inte i observationerna. Radar är en naturlig nästa version.
-- **SMHI:s observationer publiceras med ~1 h fördröjning**; METAR är ofta färskare men finns bara vid flygplatser och ibland bara under öppettider.
-- **METAR-temperatur är heltal.** Vi visar dem utan decimal för att inte antyda större precision.
-- **Byar i METAR** rapporteras bara när de är kraftiga. SMHI:s byvind föredras när den finns.
-- **Molnbas i prognosen** (`cloud_base_altitude`) saknar dokumenterad referensnivå (mark/hav) – den visas som ungefärlig.
-- **Nederbörd** mäts timvis på relativt få SMHI-stationer; ofta finns ingen mätare inom 30 km.
-- **TAF** visas bara för flygplatser inom 50 km och gäller i praktiken flygplatsens närområde.
-- **Endast Sverige** (koordinater utanför ger fel). Prognosen täcker SMHI:s modellområde.
-- SMHI:s stationslistor hålls i serverns minne; en kall start tar några sekunder extra.
-- Ingen offline-cache/PWA ännu.
-
-## Nästa steg
-
-- Radar (nederbörd mellan stationer).
-- Fler parametrar i grafen (daggpunkt/fuktighet, sannolikhet för nederbörd).
-- Jämförelse prognos vs utfall bakåt i tiden ("hur bra var prognosen?").
-- Enhetstester för adapters (METAR/TAF-parsning) med sparade fixtures.
-- PWA / offline-läge.
+- **Station based.** Local showers between stations are not observed.
+- **SMHI observations are published with ~1 h delay.** METAR is often fresher but only exists at airports.
+- **METAR temperature is reported in whole degrees.** GeekWX shows it without a decimal.
+- **METAR gusts** are reported only when strong, so SMHI gusts are preferred when available.
+- **SMHI forecast cloud base** has no documented reference level (ground or sea), so it is treated as approximate.
+- **Precipitation gauges** are sparse.
+- **Snow depth** is estimated as new snow (1 mm water ≈ 1 cm snow), without melting or settling.
+- **TAF** applies to the airport (within 50 km), while SMHI applies to the location's coordinates.
+- **Sweden only.**
 
 ---
 
-Data: SMHI (CC BY 4.0), NOAA Aviation Weather Center, © OpenStreetMap-bidragsgivare.
-Väderlek är inte en flygväderstjänst och ska inte användas för flygplanering.
+Data: SMHI (CC BY 4.0), NOAA Aviation Weather Center, © OpenStreetMap contributors.
+Not for flight planning. © Per Björkman · Teknikpraktik
