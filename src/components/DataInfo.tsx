@@ -2,11 +2,13 @@
 
 import type { WeatherBundle } from "@/lib/types";
 import type { Snapshot } from "@/lib/client/timeline";
+import { PrimarySrc } from "./Readout";
 
 /**
  * Rå METAR/TAF överst, med liten stil. Källfel visas bara när något inte svarar.
  */
-export function DataInfo({ bundle, snap }: { bundle: WeatherBundle; snap: Snapshot }) {
+export function DataInfo({ bundle, snap, now }: { bundle: WeatherBundle; snap: Snapshot; now: number }) {
+  const primary = snap.temperature?.origin ?? snap.wind?.origin;
   const down = bundle.sources.filter((s) => s.failed && s.message);
 
   return (
@@ -23,6 +25,7 @@ export function DataInfo({ bundle, snap }: { bundle: WeatherBundle; snap: Snapsh
           <span className="raw-text">{bundle.taf.raw}</span>
         </p>
       )}
+      {snap.mode !== "forecast" && primary && <PrimarySrc o={primary} now={now} mode={snap.mode} />}
       {down.length > 0 && (
         <p className="used">
           {down.map((s) => (

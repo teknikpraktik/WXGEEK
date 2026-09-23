@@ -85,7 +85,6 @@ export function Readout({ snap, now, forecastCreated, children }: Props) {
         <div className="readout-headline">
           {phen && <span className="headline-phen">{phen}</span>}
         </div>
-        {!isFc && primary && <PrimarySrc o={primary} {...cellProps} />}
       </div>
 
       <dl className="readout-grid">
@@ -200,7 +199,8 @@ function sameOrigin(a: Origin, b?: Origin) {
   return !!b && a.kind === b.kind && a.stationId === b.stationId && Math.abs(a.timestamp - b.timestamp) < 15 * 60 * 1000;
 }
 
-function PrimarySrc({ o, now, mode }: { o: Origin; now: number; mode: Snapshot["mode"] }) {
+/** Källa för huvudvärdet: "ESOK · 11 km · 26 min sedan". Visas under rådata. */
+export function PrimarySrc({ o, now, mode }: { o: Origin; now: number; mode: Snapshot["mode"] }) {
   const age = now - o.timestamp;
   const stale = mode === "now" && age > STALE_MS;
   return (
