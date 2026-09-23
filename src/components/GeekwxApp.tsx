@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Place, WeatherBundle } from "@/lib/types";
 import { buildChart, HOUR, snapshotAt } from "@/lib/client/timeline";
 import { aviationAlerts } from "@/lib/client/alerts";
+import { explainWeather } from "@/lib/client/explain";
 import { Timeline } from "./Timeline";
 import { Readout } from "./Readout";
 import { PlacePicker } from "./PlacePicker";
@@ -178,6 +179,11 @@ export function GeekwxApp() {
     () => (bundle ? aviationAlerts(bundle, now, Date.parse(bundle.forecastUntil)) : []),
     [bundle, now],
   );
+  // Plain-language description of the weather at NOW (independent of the cursor)
+  const story = useMemo(
+    () => (bundle && chart ? explainWeather(snapshotAt(bundle, now, now), chart, now) : []),
+    [bundle, chart, now],
+  );
   const t = cursor ?? now;
   const snap = useMemo(() => (bundle ? snapshotAt(bundle, t, now) : null), [bundle, t, now]);
   const onCursor = useCallback((tt: number) => setCursor(tt), []);
@@ -290,6 +296,14 @@ export function GeekwxApp() {
               </Readout>
 
               <Warnings warnings={bundle.warnings ?? []} alerts={alerts} />
+
+              {story.length > 0 && (
+                <section className="story" aria-label="The weather explained">
+                  {story.map((p, i) => (
+                    <p key={i}>{p}</p>
+                  ))}
+                </section>
+              )}
 
               {error && <p className="inline-error">Update failed: {error}</p>}
               {loading && <p className="muted small">Updating…</p>}

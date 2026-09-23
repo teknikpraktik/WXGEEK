@@ -41,6 +41,7 @@ datakälla påverkar bara en adapter och `sources.ts`.
 | `src/lib/weather/phenomena.ts` | METAR-väderkoder, SMHI "rådande väder", SMHI-symboler → svenska fenomen |
 | `src/lib/client/forecast.ts` | Prognosens källor: TAF-huvudprognos, BECMG, TEMPO/PROB, SMHI-komplettering, källa per variabel |
 | `src/lib/client/alerts.ts` | Betydande väder ur senaste METAR och TAF (åska, CB/TCU, underkylt, dimma, sikt < 1 500 m, vind/byar ≥ 13 m/s, tak < 150 m) |
+| `src/lib/client/explain.ts` | Populärvetenskaplig text om vädret vid NU: molntyp/höjd, daggpunkt (ur rå-METAR) och fuktighet, Beaufort, nederbörd, temperaturtrend |
 | `src/lib/client/timeline.ts` | Klientlogik: diagramdata, avläsning vid en tidpunkt |
 | `*.test.ts` | Tester för tids-, TAF- och datalogik (`npm test`) |
 | `src/lib/format.ts` | Engelsk formatering (en-GB, Europe/Stockholm), avrundning mot falsk precision |
@@ -130,6 +131,7 @@ GeekwxApp              – plats, datahämtning, auto-uppdatering (5 min när fl
 ├─ Readout             – temperatur, vind, sikt, molnbas (+ nederbörd när data finns) vid markörens tid
 │  └─ Timeline         – diagrammet −12 h … +12 h
 ├─ Warnings            – SMHI-varningar, SIGMET, betydande väder ur METAR/TAF
+├─ story               – populärvetenskaplig beskrivning av vädret vid NU (src/lib/client/explain.ts, regelbaserad)
 ├─ DataInfo            – rå METAR och TAF; källfel bara när en tjänst inte svarar
 └─ sidfot              – källor, © år Per Björkman · Teknikpraktik
 ```

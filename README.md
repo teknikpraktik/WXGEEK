@@ -30,6 +30,9 @@ situation **now**, and the **forecast** for the next 12 hours, all on the same a
   significant weather in METAR/TAF. Significant weather covers thunderstorms, CB/TCU,
   freezing precipitation, fog, visibility below 1,500 m, wind or gusts of 13 m/s or more,
   and ceilings below 150 m.
+- A plain-language explanation of the current weather follows the warnings. It covers cloud
+  type and height, dew point and humidity, wind on the Beaufort scale, precipitation and the
+  12-hour temperature trend. The text is generated from rules, not by AI.
 - Raw METAR and TAF are printed at the bottom of the page.
 
 GeekWX never implies more precision than the sources support: it interpolates no values,
