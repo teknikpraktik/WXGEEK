@@ -236,7 +236,6 @@ export function VaderlekApp() {
                   now={now}
                   until={Date.parse(bundle.forecastUntil)}
                   data={chart}
-                  taf={bundle.taf}
                   onCursor={onCursor}
                   recenterSignal={recenter}
                 />

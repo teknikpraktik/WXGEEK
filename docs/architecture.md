@@ -154,9 +154,9 @@ VaderlekApp            – plats, datahämtning, auto-uppdatering (5 min när fl
 - **Vind under diagrammet**: en pil per timme (varifrån det blåser) med m/s under;
   byar visas under när de är minst 3 m/s högre.
 - Lufttryck och luftfuktighet visas inte (och hämtas inte).
-- TAF som intervall (TEMPO/PROB streckade, BECMG med markering när övergången är klar).
-  Överlappande perioder staplas i egna rader.
-  TAF omvandlas aldrig till timvärden.
+- TAF ritas inte i diagrammet (för plottrigt). Den styr prognosfönstrets längd,
+  visas som aktiva perioder i avläsningen (t.ex. "40 % risk 14–18: molnbas 310 m")
+  och i rått format under diagrammet. TAF omvandlas aldrig till timvärden.
 
 ### Avläsning
 

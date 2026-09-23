@@ -620,24 +620,6 @@ main {
   stroke-width: 1;
 }
 
-.tl-taf rect {
-  fill: none;
-  stroke: var(--taf);
-  stroke-width: 1;
-}
-.tl-taf.taf-tempo rect,
-.tl-taf.taf-prob rect {
-  stroke-dasharray: 3 2;
-}
-.tl-taf line {
-  stroke: var(--taf);
-}
-.tl-taf text {
-  font-family: var(--font-num);
-  font-size: 9.5px;
-  fill: var(--taf);
-}
-
 .tl-footer {
   display: flex;
   align-items: center;

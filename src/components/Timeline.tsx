@@ -1,7 +1,6 @@
 "use client";
 
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import type { Taf, TafPeriod } from "@/lib/types";
 import { CLOUD_TICKS, CLOUD_TOP_M, HOUR, PAST_HOURS, type ChartData, type Precip, type Pt } from "@/lib/client/timeline";
 import { fmtDay, localHour, fmtTime } from "@/lib/format";
 
@@ -13,7 +12,6 @@ const TOP = 26; // NU / OBSERVERAT / PROGNOS
 const CHART_H = 210; // molnbas (vänster axel) + temperatur (höger axel) + nederbörd
 const GROUND_PAD = 6; // luft under marklinjen
 const WIND_H = 44;
-const TAF_H = 18;
 const AXIS_H = 28;
 const GAP = 6;
 
@@ -22,14 +20,13 @@ type Props = {
   /** Prognosfönstrets slut (ms) */
   until: number;
   data: ChartData;
-  taf: Taf | null;
   /** Tid under markören */
   onCursor: (t: number) => void;
   /** Ökas för att be tidslinjen återgå till NU */
   recenterSignal: number;
 };
 
-export const Timeline = memo(function Timeline({ now, until, data, taf, onCursor, recenterSignal }: Props) {
+export const Timeline = memo(function Timeline({ now, until, data, onCursor, recenterSignal }: Props) {
   const scroller = useRef<HTMLDivElement>(null);
   const [viewW, setViewW] = useState(0);
   const followNow = useRef(true);
@@ -44,28 +41,12 @@ export const Timeline = memo(function Timeline({ now, until, data, taf, onCursor
   const tAt = useCallback((scrollLeft: number) => start + (scrollLeft / PX_PER_HOUR) * HOUR, [start]);
   const maxOffsetH = Math.max(1, Math.round((until - now) / HOUR));
 
-  const tafPeriods = useMemo(() => {
-    const rowsEnd: number[] = [];
-    return (taf?.periods ?? [])
-      .filter((p) => p.change !== "BASE" && Date.parse(p.to) > start)
-      .sort((a, b) => Date.parse(a.from) - Date.parse(b.from))
-      .map((p) => {
-        const from = Date.parse(p.from);
-        let row = rowsEnd.findIndex((e) => e <= from);
-        if (row < 0) row = rowsEnd.length;
-        rowsEnd[row] = Date.parse(p.to);
-        return { p, row };
-      });
-  }, [taf, start]);
-  const tafRows = tafPeriods.reduce((m, x) => Math.max(m, x.row + 1), 0);
-
   // Layout
   const chartTop = TOP;
   const groundY = chartTop + CHART_H - GROUND_PAD;
   const chartBottom = chartTop + CHART_H;
   const windTop = chartBottom + GAP;
-  const tafTop = windTop + WIND_H + GAP;
-  const axisTop = tafTop + (tafRows ? tafRows * (TAF_H + 3) + GAP - 3 : 0);
+  const axisTop = windTop + WIND_H + GAP;
   const H = axisTop + AXIS_H;
 
   // Skalor: molnbas (m, kvadratrot) och temperatur (°C, linjär) delar ytan
@@ -200,11 +181,6 @@ export const Timeline = memo(function Timeline({ now, until, data, taf, onCursor
         <span className="tl-lane" style={{ top: windTop + 2 }}>
           Vind
         </span>
-        {tafPeriods.length > 0 && (
-          <span className="tl-lane" style={{ top: tafTop + 3 }}>
-            TAF
-          </span>
-        )}
       </div>
       {/* Höger axel: temperatur (°C) */}
       <div className="tl-yaxis right" aria-hidden>
@@ -270,7 +246,7 @@ export const Timeline = memo(function Timeline({ now, until, data, taf, onCursor
               <line key={m} x1={0} x2={W} y1={yCloud(m)} y2={yCloud(m)} className="tl-grid" />
             ))}
             <line x1={0} x2={W} y1={groundY} y2={groundY} className="tl-ground" />
-            {[windTop, ...(tafPeriods.length ? [tafTop] : [])].map((yy) => (
+            {[windTop].map((yy) => (
               <line key={yy} x1={0} x2={W} y1={yy - GAP / 2} y2={yy - GAP / 2} className="tl-lanesep" />
             ))}
             {hours
@@ -366,11 +342,6 @@ export const Timeline = memo(function Timeline({ now, until, data, taf, onCursor
                 )}
                 <title>{`${Math.round(a.speed)} m/s${a.gust ? `, byar ${Math.round(a.gust)} m/s` : ""}${a.forecast ? " (prognos)" : ""}`}</title>
               </g>
-            ))}
-
-            {/* TAF */}
-            {tafPeriods.map(({ p, row }, i) => (
-              <TafBand key={i} p={p} x={x} top={tafTop + row * (TAF_H + 3)} />
             ))}
 
             {/* Tidsaxel */}
@@ -487,27 +458,5 @@ function Missing({ x, y, text, anchor }: { x: number; y: number; text?: string; 
     <text x={x} y={y} className="tl-missing" textAnchor={anchor}>
       {text}
     </text>
-  );
-}
-
-function TafBand({ p, x, top }: { p: TafPeriod; x: (t: number) => number; top: number }) {
-  const t0 = Date.parse(p.from);
-  const t1 = Date.parse(p.to);
-  const label =
-    p.change === "TEMPO" ? "TEMPO" : p.change === "PROB" ? `PROB${p.probability ?? ""}` : p.change === "BECMG" ? "BECMG" : "FM";
-  const w = x(t1) - x(t0);
-  return (
-    <g className={`tl-taf taf-${p.change.toLowerCase()}`}>
-      <rect x={x(t0)} y={top} width={Math.max(2, w)} height={TAF_H} rx={2} />
-      {p.change === "BECMG" && p.becomingBy && (
-        <line x1={x(Date.parse(p.becomingBy))} x2={x(Date.parse(p.becomingBy))} y1={top} y2={top + TAF_H} />
-      )}
-      {w > 60 && (
-        <text x={x(t0) + 5} y={top + 12.5}>
-          {label} · {p.summary}
-        </text>
-      )}
-      <title>{`${label}: ${p.summary}`}</title>
-    </g>
   );
 }

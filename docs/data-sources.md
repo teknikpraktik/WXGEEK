@@ -95,7 +95,7 @@ AWC returnerar både rå TAF (`rawTAF`) och avkodade perioder i `fcsts[]`:
 | `visib` | Sikt i statute miles (`"6+"` = ≥ 10 km) |
 | `wxString`, `clouds[]` | Väderfenomen, molnlager (fot) |
 
-Vi visar perioderna som **intervall** på tidslinjen – aldrig som timvärden.
+Vi visar perioderna som **intervall** i avläsningen (den period som gäller vid vald tidpunkt) – aldrig som timvärden. TAF:s slut bestämmer hur långt prognosen visas.
 TAF finns bara för flygplatser med TAF-tjänst och gäller i princip flygplatsens
 närområde (≈ 8 km radie). Vi visar endast TAF för flygplats inom 50 km.
 
