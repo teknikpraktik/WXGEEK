@@ -1385,3 +1385,17 @@ main {
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
+
+/* Precipitation per hour under the ground line: likely (solid) and possible (light) */
+.tl-prh rect.likely { fill: var(--ev-regn); }
+.tl-prh rect.possible { fill: var(--ev-regn); opacity: 0.28; }
+.tl-prh.snow rect.likely,
+.tl-prh.snow rect.possible { fill: var(--ev-sno); }
+.tl-prh text {
+  font-family: var(--font-num);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+}
+.tl-prh text.likely { fill: var(--ev-regn); font-weight: 600; }
+.tl-prh text.possible { fill: var(--ev-regn); opacity: 0.7; }
+.tl-prh.snow text { fill: var(--ev-sno); }

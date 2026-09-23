@@ -156,6 +156,15 @@ export type Precip = Span & {
  * Ackumulerad nederbörd vid marken. Regn som vatten (mm); snö som uppskattat nysnödjup (cm)
  * med tumregeln 1 mm vatten ≈ 1 cm nysnö. Smältning och sättning räknas inte.
  */
+/**
+ * Nederbörd per timme, i ett eget fält direkt under marklinjen.
+ * Uppmätt: likely = possible = mätt mängd.
+ * Prognos (SMHI:s ensemble): likely = median (minst hälften av medlemmarna ger så mycket),
+ * possible = övre delen av spridningen (max av medel och max). SMHI:s min används inte –
+ * den kan vara 0,1 mm även när sannolikheten är några procent.
+ */
+export type PrecipHour = Span & { likely: number; possible: number; kind: PrecipKind; forecast: boolean };
+
 export type AccPt = { t: number; rainMm: number; snowCm: number };
 export type WaterSeries = { observed: AccPt[]; forecast: AccPt[] };
 /** Nysnö: ungefär 10 gånger vattnets höjd (1 mm vatten ≈ 1 cm snö). */
@@ -170,6 +179,7 @@ export type ChartData = {
   precipObserved: Precip[];
   precipForecast: Precip[];
   water: WaterSeries;
+  precipHours: PrecipHour[];
   wind: Arrow[];
   /** Dimma / sikt under 5 km */
   lowVis: Array<Mark & { severe: boolean }>;
@@ -402,6 +412,25 @@ export function buildChart(bundle: WeatherBundle, now: number): ChartData {
     }
   }
 
+  // Nederbörd per timme: uppmätt fram till senaste mätningen, därefter prognosen
+  const precipHours: PrecipHour[] = [];
+  for (const o of measured) {
+    const span = { t0: ts(o) - HOUR, t1: ts(o) };
+    if (span.t1 < now - PAST_HOURS * HOUR || o.precipitationMm! < 0.1) continue;
+    precipHours.push({ ...span, likely: o.precipitationMm!, possible: o.precipitationMm!, kind: kindOver(span, precipObserved), forecast: false });
+  }
+  const measuredUntil = measured.length ? ts(measured.at(-1)!) : -Infinity;
+  for (const p of fc) {
+    const t = ts(p);
+    const t0 = p.intervalStart ? Date.parse(p.intervalStart) : t - HOUR;
+    if (t <= now || t0 < measuredUntil || t - t0 > HOUR) continue;
+    const likely = p.precipitationMedianMm ?? p.precipitationMm ?? 0;
+    const possible = Math.max(likely, p.precipitationMm ?? 0, p.precipitationMaxMm ?? 0);
+    if (possible < 0.1) continue;
+    const span = { t0, t1: t };
+    precipHours.push({ ...span, likely: likely >= 0.1 ? likely : 0, possible, kind: kindOver(span, precipForecast), forecast: true });
+  }
+
   // Vind: en pil per timme
   const wind: Arrow[] = [];
   const windObs = stationFor(bundle, "wind")?.observations ?? [];
@@ -490,6 +519,7 @@ export function buildChart(bundle: WeatherBundle, now: number): ChartData {
     precipObserved,
     precipForecast,
     water,
+    precipHours,
     wind,
     lowVis,
     thunder,

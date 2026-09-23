@@ -197,6 +197,9 @@ GeekwxApp              – plats, datahämtning, auto-uppdatering (5 min när fl
     streckad kant). Summan i mm står vid ytans slut. 1 mm = 5 px upp till 4 mm, därefter
     komprimerad skala (max 20 px). Saknas nederbördsmätare börjar summan på noll vid NU. Antal streck efter mängd; regn streckat, snö prickat. Saknas
     molnbas börjar strecken uppifrån och tonas ned.
+  - **Nederbörd per timme** i ett eget fält direkt under marklinjen: stapel + mm. Uppmätt
+    (SMHI-mätare) heldraget; prognos som trolig mängd (mörk, SMHI-ensemblens median) och
+    möjlig mängd (ljus, max av medel och max). SMHI:s min används inte.
   - Dimma/dis: ljusgrått lager från marken (dimma ~150 m, dis/sikt under 5 km ~60 m). Åska markeras med ϟ.
 - Ingen förklaring (legend) och inga instruktionstexter under diagrammet.
 - **Tidsaxel direkt under diagrammet** (tim-streck, "09:00" var 3:e timme, veckodag vid midnatt).

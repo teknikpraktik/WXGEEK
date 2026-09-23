@@ -18,7 +18,9 @@ situation **now**, and the **forecast** for the next 12 hours, all on the same a
   filled from the bottom by the eighths of the sky covered. Precipitation falls as drops
   from the cloud base, and forecast drops are shaded by SMHI's probability of
   precipitation. The ground layer shows accumulated rain (mm) and estimated snow depth
-  (cm). Wind arrows run below the chart.
+  (cm). Directly under the ground line, each hour shows its precipitation in mm: measured,
+  or for the forecast the likely amount (dark, SMHI ensemble median) and the possible
+  amount (light, upper end of the spread). Wind arrows run below the chart.
 - Drag the chart, or use −1 h / Now / +1 h, to select a time within the fixed ±12 h window.
 - The forecast uses **TAF first** for wind, visibility, cloud and weather at the airport
   while the TAF is valid. **SMHI** covers temperature, precipitation, missing values and

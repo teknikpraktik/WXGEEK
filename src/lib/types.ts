@@ -82,6 +82,7 @@ export type ForecastPoint = {
   lowCloudCoverOktas?: number;
   precipitationMm?: number;
   precipitationMaxMm?: number;
+  precipitationMedianMm?: number;
   precipitationProbability?: number;
   thunderProbability?: number;
   symbolCode?: number;

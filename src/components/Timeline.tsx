@@ -10,6 +10,7 @@ import {
   type ChartData,
   type CloudBlock,
   type Precip,
+  type PrecipHour,
   type Pt,
 } from "@/lib/client/timeline";
 import { fmtDay, localHour, fmtTime } from "@/lib/format";
@@ -23,6 +24,7 @@ const snap5 = (t: number) => Math.round(t / 300_000) * 300_000;
 const TOP = 26; // NU / OBSERVERAT / PROGNOS
 const CHART_H = 210; // molnbas (vänster axel) + temperatur (höger axel) + nederbörd
 const GROUND_PAD = 6; // luft under marklinjen
+const PRECIP_H = 30; // mm per timme, direkt under marklinjen
 const WIND_H = 44;
 const AXIS_H = 26;
 const RIGHT_AXIS_W = 40;
@@ -60,7 +62,7 @@ export const Timeline = memo(function Timeline({ now, until, data, onCursor, rec
   const chartTop = TOP;
   const groundY = chartTop + CHART_H - GROUND_PAD;
   const chartBottom = chartTop + CHART_H;
-  const axisTop = chartBottom;
+  const axisTop = chartBottom + PRECIP_H;
   const windTop = axisTop + AXIS_H + 2;
   const H = windTop + WIND_H;
 
@@ -239,6 +241,11 @@ export const Timeline = memo(function Timeline({ now, until, data, onCursor, rec
             {m >= 1000 ? `${m / 1000} km` : m}
           </span>
         ))}
+        {data.precipHours.length > 0 && (
+          <span className="tl-lane" style={{ top: groundY + 3 }}>
+            Precip mm
+          </span>
+        )}
         <span className="tl-lane" style={{ top: windTop + 2 }}>
           Wind m/s
         </span>
@@ -403,6 +410,11 @@ export const Timeline = memo(function Timeline({ now, until, data, onCursor, rec
                 <path key={`to${i}`} d={pathOf(s)} className="tl-line obs" style={{ stroke: "url(#tempgrad)" }} />
               ),
             )}
+
+            {/* Nederbörd per timme direkt under marklinjen: trolig mängd mörk, möjlig ljus */}
+            {data.precipHours.map((p) => (
+              <PrecipHourBar key={`ph${p.t0}`} p={p} x={x} y={groundY} />
+            ))}
 
             {/* Vind under diagrammet: pil + m/s (+ byar) */}
             {data.wind.map((a) => (
@@ -623,6 +635,38 @@ function PrecipStreaks({
  * Ansamling vid marken: snölager (uppskattat snödjup, cm) underst och vatten (regn, mm)
  * ovanpå. Observerat heldraget fram till NU, prognos ljusare med streckad kant.
  */
+const PR_BAR_MAX = 10;
+const prBar = (mm: number) => (mm < 0.1 ? 0 : 2 + (PR_BAR_MAX - 2) * Math.min(1, Math.sqrt(mm / 5)));
+const fmtMm = (mm: number) => (mm < 10 ? mm.toFixed(1) : String(Math.round(mm)));
+/** En timmes nederbörd: stapel som hänger från marklinjen + mängd. Ljus del = möjlig, mörk = trolig. */
+function PrecipHourBar({ p, x, y }: { p: PrecipHour; x: (t: number) => number; y: number }) {
+  const x0 = x(p.t0) + 3;
+  const w = Math.max(1, x(p.t1) - x(p.t0) - 6);
+  const cx = (x(p.t0) + x(p.t1)) / 2;
+  const showPossible = p.forecast && fmtMm(p.possible) !== fmtMm(p.likely);
+  return (
+    <g className={`tl-prh ${p.kind === "snö" ? "snow" : "rain"}${p.forecast ? " fc" : ""}`}>
+      {showPossible && <rect x={x0} y={y + 1} width={w} height={prBar(p.possible)} className="possible" />}
+      {p.likely >= 0.1 && <rect x={x0} y={y + 1} width={w} height={prBar(p.likely)} className="likely" />}
+      {p.likely >= 0.1 && (
+        <text x={cx} y={y + PR_BAR_MAX + 11} textAnchor="middle" className="likely">
+          {fmtMm(p.likely)}
+        </text>
+      )}
+      {showPossible && (
+        <text x={cx} y={y + PR_BAR_MAX + 21} textAnchor="middle" className="possible">
+          {fmtMm(p.possible)}
+        </text>
+      )}
+      <title>
+        {p.forecast
+          ? `${p.likely >= 0.1 ? `Likely ${fmtMm(p.likely)} mm` : "Probably dry"}${showPossible ? `, possibly up to ${fmtMm(p.possible)} mm` : ""} (SMHI forecast)`
+          : `${fmtMm(p.likely)} mm measured`}
+      </title>
+    </g>
+  );
+}
+
 const ACC_MAX_PX = 20;
 function WaterLayer({ water, x, groundY }: { water: ChartData["water"]; x: (t: number) => number; groundY: number }) {
   const last = water.forecast.at(-1) ?? water.observed.at(-1);
