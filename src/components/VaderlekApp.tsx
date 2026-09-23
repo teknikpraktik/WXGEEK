@@ -227,8 +227,6 @@ export function VaderlekApp() {
 
           {bundle && snap && chart && (
             <>
-              <DataInfo bundle={bundle} snap={snap} />
-
               <Readout
                 snap={snap}
                 now={now}
@@ -264,6 +262,8 @@ export function VaderlekApp() {
                 </div>
               </section>
               </Readout>
+
+              <DataInfo bundle={bundle} snap={snap} />
 
               {error && <p className="inline-error">Uppdateringen misslyckades: {error}. Visar data från {new Date(bundle.generatedAt).toLocaleTimeString("sv-SE", { hour: "2-digit", minute: "2-digit" })}.</p>}
               {loading && <p className="muted small">Uppdaterar…</p>}

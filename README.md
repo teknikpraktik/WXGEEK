@@ -16,7 +16,7 @@ Väderlek behandlar **observerat väder som en förstklassig datatyp**.
 - Dra framåt och se prognosen på **samma** tidsaxel.
 - Ett diagram: molnbas (meter, vänster axel) och temperatur (°C, höger axel), med nederbörd som faller från molnbasen och vindpilar under.
 - Fokus på nuväder: prognosen sträcker sig bara till närmaste TAF:s slut (minst 6 h).
-- Rå METAR och TAF samt vilka stationer som använts står överst, i liten stil.
+- Nuvädret (temperatur, vind, sikt, molnbas) visas först; rå METAR och TAF finns under diagrammet i liten stil.
 - Observation (heldraget, tonad bakgrund) och prognos (streckat, skrafferad bakgrund) skiljs åt med stil, inte färg. Grön linje markerar NU.
 
 Väderlek kombinerar **METAR** (flygplatsobservationer), **SMHI:s observationer**,

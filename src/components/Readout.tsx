@@ -88,8 +88,6 @@ export function Readout({ snap, now, forecastCreated, children }: Props) {
         {!isFc && primary && <PrimarySrc o={primary} {...cellProps} />}
       </div>
 
-      {children}
-
       <dl className="readout-grid">
         <Cell label="Vind" r={snap.wind} {...cellProps} missing={isFc ? "–" : "Ingen aktuell vindmätning"}>
           {w && (
@@ -137,6 +135,8 @@ export function Readout({ snap, now, forecastCreated, children }: Props) {
           </Cell>
         )}
       </dl>
+
+      {children}
 
       {isFc && (
         <p className="readout-foot">

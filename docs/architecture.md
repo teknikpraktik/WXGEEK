@@ -121,11 +121,11 @@ Tre nivåer:
 ```
 VaderlekApp            – plats, datahämtning, auto-uppdatering (5 min när fliken syns), klocka
 ├─ PlacePicker         – "Använd min position" + ortsökning (sök vid submit, inte per tangent)
-├─ DataInfo            – överst, liten stil: rå METAR, rå TAF; källfel bara när en tjänst inte svarar
 ├─ Readout             – avläsning vid markörens tidpunkt: NU / OBSERVERAT / PROGNOS
 │  ├─ huvudvärde (temperatur) + primär källa (station, avstånd, ålder)
-│  ├─ Timeline         – kärnan: horisontellt scrollbart diagram −12 h … prognosfönstrets slut
-│  └─ rutnät           – vind (+ byar), sikt, molnbas, nederbörd (bara när det faller något)
+│  ├─ rutnät           – vind (+ byar), sikt, molnbas, nederbörd (bara när det faller något)
+│  └─ Timeline         – kärnan: horisontellt scrollbart diagram −12 h … prognosfönstrets slut
+├─ DataInfo            – under diagrammet, liten stil: rå METAR, rå TAF; källfel bara när en tjänst inte svarar
 └─ attribution
 ```
 
