@@ -304,8 +304,6 @@ export function WxgeekApp() {
                 </section>
               </Readout>
 
-              <Warnings warnings={bundle.warnings ?? []} alerts={alerts} />
-
               {story.length > 0 && (
                 <section className="story" aria-label="The weather explained">
                   <p>{story}</p>
@@ -316,6 +314,9 @@ export function WxgeekApp() {
               {loading && <p className="muted small">Updating…</p>}
 
               <DataInfo bundle={bundle} snap={snap} />
+
+              {/* Varningar längst ner, diskret */}
+              <Warnings warnings={bundle.warnings ?? []} alerts={alerts} />
             </>
           )}
         </main>

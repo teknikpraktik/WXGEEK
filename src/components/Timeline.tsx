@@ -22,7 +22,7 @@ const TOP = 26; // NU / OBSERVERAT / PROGNOS
 const CHART_H = 250; // temperatur (vänster axel) + droppar, dimma och vattenansamling vid marken
 const GROUND_PAD = 6; // luft under marklinjen
 const PRECIP_H = 30; // mm per timme
-const WIND_H = 44;
+const WIND_H = 50;
 const AXIS_H = 30;
 /** Molnsymbolen ritas så här högt över temperaturkurvan (symbolens mitt, px). */
 const SKY_LIFT = 17;
@@ -391,17 +391,17 @@ export const Timeline = memo(function Timeline({ now, until, data, onCursor, rec
           {data.wind.map((a) => (
             <g key={a.t} transform={`translate(${x(a.t)},0)`} className={a.forecast ? "tl-wind fc" : "tl-wind"}>
               {a.deg !== undefined && !a.variable ? (
-                <g transform={`translate(0,${windTop + 10}) rotate(${a.deg})`}>
+                <g transform={`translate(0,${windTop + 11}) rotate(${a.deg})`}>
                   <path d="M0,-7 L0,6 M-3.5,2.5 L0,7 L3.5,2.5" />
                 </g>
               ) : (
-                <circle cy={windTop + 10} r={2.5} className="tl-wind-vrb" />
+                <circle cy={windTop + 11} r={2.5} className="tl-wind-vrb" />
               )}
-              <text y={windTop + 29} textAnchor="middle" className="tl-wind-speed">
+              <text y={windTop + 34} textAnchor="middle" className="tl-wind-speed">
                 {Math.round(a.speed)}
               </text>
               {a.gust !== undefined && a.gust >= a.speed + 3 && (
-                <text y={windTop + 40} textAnchor="middle" className="tl-wind-gust">
+                <text y={windTop + 45} textAnchor="middle" className="tl-wind-gust">
                   {Math.round(a.gust)}
                 </text>
               )}
