@@ -6,7 +6,7 @@ import { buildChart, HOUR, snapshotAt } from "@/lib/client/timeline";
 import { ChartLegend, Timeline } from "./Timeline";
 import { Readout } from "./Readout";
 import { PlacePicker } from "./PlacePicker";
-import { DataInfo } from "./DataInfo";
+import { DataInfo, SourceLine } from "./DataInfo";
 
 const PLACE_KEY = "vaderlek:place";
 const REFRESH_MS = 5 * 60 * 1000;
@@ -43,6 +43,7 @@ export function VaderlekApp() {
   const [now, setNow] = useState(() => Date.now());
   const [cursor, setCursor] = useState<number | null>(null);
   const [recenter, setRecenter] = useState(0);
+  const [step, setStep] = useState<{ dir: -1 | 1; n: number }>({ dir: 1, n: 0 });
 
   // ---------------------------------------------------------------------------
   // Plats
@@ -172,6 +173,11 @@ export function VaderlekApp() {
   const snap = useMemo(() => (bundle ? snapshotAt(bundle, t, now) : null), [bundle, t, now]);
   const onCursor = useCallback((tt: number) => setCursor(tt), []);
   const awayFromNow = cursor !== null && Math.abs(cursor - now) > 10 * 60 * 1000;
+  // Stegknapparna begränsas till det fasta fönstret (12 h bakåt och framåt).
+  const winStart = Math.floor(now / HOUR) * HOUR - 12 * HOUR;
+  const winEnd = bundle ? Date.parse(bundle.forecastUntil) : now + 12 * HOUR;
+  const canBack = t - HOUR >= winStart - 1;
+  const canFwd = t + HOUR <= winEnd + 1;
 
 
   // ---------------------------------------------------------------------------
@@ -182,11 +188,15 @@ export function VaderlekApp() {
       <header className="top">
         <h1 className="wordmark">Väderlek</h1>
         {place && (
-          <button type="button" className="placebtn" onClick={() => setPickerOpen((v) => !v)} aria-expanded={pickerOpen}>
+          <button
+            type="button"
+            className="placebtn"
+            onClick={() => setPickerOpen((v) => !v)}
+            aria-expanded={pickerOpen}
+            aria-label={`Plats: ${place.name}. Byt plats`}
+          >
             <span className="placebtn-name">{place.name}</span>
-            <span className="placebtn-chev" aria-hidden>
-              ▾
-            </span>
+            <span className="placebtn-action">Byt plats</span>
           </button>
         )}
       </header>
@@ -227,31 +237,52 @@ export function VaderlekApp() {
 
           {bundle && snap && chart && (
             <>
-              <Readout
-                snap={snap}
-                now={now}
-                forecastCreated={bundle.forecast?.createdTime}>
-              <section className="timeline-wrap" aria-label="Tidslinje">
-                <Timeline
-                  now={now}
-                  until={Date.parse(bundle.forecastUntil)}
-                  data={chart}
-                  onCursor={onCursor}
-                  recenterSignal={recenter}
-                />
-
-                <div className="tl-footer">
+              <Readout snap={snap} now={now}>
+                <section className="timeline-wrap" aria-label="Tidslinje">
+                  <div className="tl-controls">
+                    <span className="tl-hint">Dra i grafen för att välja tid</span>
+                    <div className="tl-buttons" role="group" aria-label="Välj tid">
+                      <button
+                        type="button"
+                        className="btn btn-step"
+                        onClick={() => setStep((st) => ({ dir: -1, n: st.n + 1 }))}
+                        disabled={!canBack}
+                        aria-label="Föregående timme"
+                      >
+                        ◀ <span className="btn-label">Föregående</span>
+                      </button>
+                      {/* "Nu" behåller alltid sin plats, även när nu redan är valt */}
+                      <button
+                        type="button"
+                        className="btn btn-now"
+                        onClick={() => setRecenter((n) => n + 1)}
+                        disabled={!awayFromNow}
+                        aria-label="Välj aktuell tid"
+                      >
+                        Nu
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-step"
+                        onClick={() => setStep((st) => ({ dir: 1, n: st.n + 1 }))}
+                        disabled={!canFwd}
+                        aria-label="Nästa timme"
+                      >
+                        <span className="btn-label">Nästa</span> ▶
+                      </button>
+                    </div>
+                  </div>
+                  <Timeline
+                    now={now}
+                    until={Date.parse(bundle.forecastUntil)}
+                    data={chart}
+                    onCursor={onCursor}
+                    recenterSignal={recenter}
+                    stepSignal={step}
+                  />
                   <ChartLegend data={chart} />
-                  <button
-                    type="button"
-                    className={`btn btn-now${awayFromNow ? " visible" : ""}`}
-                    onClick={() => setRecenter((n) => n + 1)}
-                    tabIndex={awayFromNow ? 0 : -1}
-                  >
-                    Till NU
-                  </button>
-                </div>
-              </section>
+                  <SourceLine bundle={bundle} now={now} />
+                </section>
               </Readout>
 
               <DataInfo bundle={bundle} snap={snap} />

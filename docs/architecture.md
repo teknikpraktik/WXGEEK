@@ -36,7 +36,9 @@ datakälla påverkar bara en adapter och `sources.ts`.
 | `src/lib/server/geocode.ts` | Ortsökning och omvänd geokodning |
 | `src/lib/weather/stations.ts` | Regler och poängsättning för stationsval |
 | `src/lib/weather/phenomena.ts` | METAR-väderkoder, SMHI "rådande väder", SMHI-symboler → svenska fenomen |
-| `src/lib/client/timeline.ts` | Klientlogik: diagramdata, prognosfönster, avläsning vid en tidpunkt |
+| `src/lib/client/forecast.ts` | Prognosens källor: TAF-huvudprognos, BECMG, TEMPO/PROB, SMHI-komplettering, källa per variabel |
+| `src/lib/client/timeline.ts` | Klientlogik: diagramdata, avläsning vid en tidpunkt |
+| `*.test.ts` | Tester för tids-, TAF- och datalogik (`npm test`) |
 | `src/lib/format.ts` | Svensk formatering, avrundning mot falsk precision |
 | `src/app/api/*/route.ts` | API-routes |
 | `src/components/` | React-komponenter |
@@ -58,8 +60,7 @@ datakälla påverkar bara en adapter och `sources.ts`.
 5. **Normalisering** till `StationSeries[]`. SMHI-parametrar från samma station
    slås ihop per tidpunkt till `WeatherObservation`.
 6. **TAF**: närmaste giltiga TAF inom 50 km.
-   **Prognosfönster** (`forecastUntil`): TAF:s slut, men minst 6 h och högst 30 h
-   framåt (6 h om ingen TAF finns). Prognospunkter efter fönstret skickas inte.
+   **Prognosfönster** (`forecastUntil`): alltid NU + 12 h (fast fönster).
 7. **Källstatus** per källa med svenskt felmeddelande.
 
 ## Stationsval
@@ -129,13 +130,36 @@ VaderlekApp            – plats, datahämtning, auto-uppdatering (5 min när fl
 └─ sidfot            – © år Per Björkman · Teknikpraktik (+ varning om data är äldre än 2 h)
 ```
 
+### Prognosens källor (src/lib/client/forecast.ts)
+
+- **TAF först** för vind, sikt, moln och väder – bara under TAF:s giltighetstid och
+  bara för element TAF anger. Sista TAF-läget dras aldrig ut efter giltighetstiden.
+- **SMHI** (punktprognos för platsens koordinater) för temperatur, nederbördsmängd,
+  variabler TAF saknar och efter TAF:s slut. Utan TAF används SMHI för allt.
+- **Huvudprognos** = BASE/FM. **BECMG** ändrar bara de element gruppen anger (läses ur
+  rå-TAF); under övergångsintervallet gäller tidigare läge och övergången redovisas
+  som "någon gång under 16–18" – aldrig som ett exakt ögonblick.
+- **TEMPO/PROB** visas som kompletterande information i detaljvyn, med vad de gäller.
+  PROB40 blir aldrig en generell regnsannolikhet.
+- **CAVOK** = sikt ≥ 10 km, inga moln under 1 500 m, ingen CB/TCU, inget väder. Ingen
+  molnbas härleds. AWC:s avkodning tappar CAVOK och VV – de läses ur råtexten.
+- Källa och giltighet bevaras per variabel och tidpunkt. TAF gäller flygplatsen och SMHI
+  platsens koordinater; båda anges i källraden och i detaljvyn. Motsägelser (t.ex. TAF
+  utan nederbörd men SMHI med mängd) förklaras i stället för att jämnas ut.
+- I tidslinjen markeras var TAF slutar: "TAF ESGG slutar 02:00 · SMHI fortsätter".
+
 ### Tidslinjen
 
-- Grafen är bredare än skärmen (34 px/h) och scrollas horisontellt under en
-  **fast markör i mitten**. Tiden under markören styr avläsningen. Native scroll
-  på touch (momentum), musdrag och klick på desktop, piltangenter (±1 h, Shift ±6 h)
-  och `N` för NU.
-- Öppnar på NU och följer med NU så länge användaren står kvar där.
+- **Fast fönster**: 12 h bakåt och 12 h framåt, NU i mitten vid start.
+- Tid väljs genom att dra grafen under en **fast markör i mitten** (native scroll på
+  touch, musdrag på desktop). Klick flyttar inte grafen. Knapparna **◀ / Nu / ▶** stegar en
+  timme, begränsat till fönstret; "Nu" behåller alltid sin plats. Tangentbord: pilar
+  (±1 h, Shift ±6 h) och `N`.
+- **Vald tid** och **NU** har olika markörer som fungerar utan färgseende: NU är en
+  heldragen linje med etiketten "NU 17:12"; vald tid är en streckad linje med romb och
+  etiketten "Vald 18:00". Vald tid avrundas till 5 min.
+- Följer klockan när användaren står på NU, men flyttar aldrig grafen under en pågående
+  interaktion.
 - **Färger**: observerat och prognos har samma diskreta grå/svarta toner – skillnaden
   bärs av stil (heldraget vs streckat) och bakgrund (tonad vs skrafferad). **Grön**
   linje markerar NU. Färg används bara för vädret självt: temperatur (blått vid
@@ -184,9 +208,19 @@ VaderlekApp            – plats, datahämtning, auto-uppdatering (5 min när fl
 
 ### Avläsning
 
-- **NU**: senaste observation per parameter. Äldre än 90 min markeras "äldre";
-  äldre än maxåldern visas som saknad ("Ingen aktuell siktobservation").
-- **OBSERVERAT**: närmaste observation inom ±35 min (METAR) / ±40 min (SMHI).
-- **PROGNOS**: närmaste prognostimme, med text om att det är en modellberäkning.
-- Källrad visas i en ruta bara för SMHI-värden eller observationer äldre än 90 min;
-  METAR-station och tid syns redan i den råa METAR-raden.
+- Tre lägen i text (inte bara färg): **Senaste observation** (NU – visar faktisk
+  observationstid och ålder, t.ex. "Uppmätt 16:50 (23 min sedan) · klockan är 17:12"),
+  **Observerat** och **Prognos** (datum, lokal tid och relativ tid, "om 2 h 30 min").
+  Alla tider är lokala (Europe/Stockholm, sommartid hanteras).
+- Äldre än 90 min markeras "äldre observation"; äldre än maxåldern (METAR 2 h, SMHI 3 h)
+  visas som "Saknas" i stället för som en mätning nu.
+- **Sammanfattning**: alltid fem rutor i samma ordning (temperatur, vind, sikt, molnbas,
+  nederbörd) med reserverad höjd; 5 kolumner på desktop, 3 + 2 på mobil. Saknade uppgifter
+  = "Saknas"; saknad nederbördsmätare är inte noll. Nederbörd anges med intervall
+  ("0,1 mm under 19–20"); sannolikhet visas separat i detaljvyn.
+- **Väderläge** på en egen rad.
+- **Detaljvy** för vald tid: värde, tid/intervall och källa per variabel (METAR, SMHI-station,
+  TAF med giltighet, SMHI-prognos med koordinater), TEMPO/PROB/BECMG och förklaringar.
+  Ingen information kräver hover.
+- **Vind**: pilen visar vart vinden blåser; text "Från sydost · 4 m/s, byar 7 m/s";
+  "Vindstilla" under 0,5 m/s.

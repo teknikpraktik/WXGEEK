@@ -16,6 +16,8 @@ import { fmtDay, localHour, fmtTime } from "@/lib/format";
 
 const PX_PER_HOUR = 34;
 const MIN_OFFSET_H = -PAST_HOURS;
+/** Vald tid avrundas till 5 min – en pixel motsvarar knappt 2 minuter. */
+const snap5 = (t: number) => Math.round(t / 300_000) * 300_000;
 
 // Layout (px)
 const TOP = 26; // NU / OBSERVERAT / PROGNOS
@@ -35,9 +37,11 @@ type Props = {
   onCursor: (t: number) => void;
   /** Ökas för att be tidslinjen återgå till NU */
   recenterSignal: number;
+  /** Steg en timme bakåt (-1) eller framåt (+1); `n` ökas vid varje tryck */
+  stepSignal: { dir: -1 | 1; n: number };
 };
 
-export const Timeline = memo(function Timeline({ now, until, data, onCursor, recenterSignal }: Props) {
+export const Timeline = memo(function Timeline({ now, until, data, onCursor, recenterSignal, stepSignal }: Props) {
   const scroller = useRef<HTMLDivElement>(null);
   const [viewW, setViewW] = useState(0);
   const followNow = useRef(true);
@@ -95,10 +99,36 @@ export const Timeline = memo(function Timeline({ now, until, data, onCursor, rec
     prevStart.current = start;
   }, [start]);
 
-  // Starta på NU, och följ med NU så länge användaren står där.
+  // Pågående interaktion (drag/scroll) – då flyttar vi aldrig grafen programmässigt.
+  const interacting = useRef(false);
+  const interactTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const markInteraction = () => {
+    interacting.current = true;
+    clearTimeout(interactTimer.current);
+    interactTimer.current = setTimeout(() => (interacting.current = false), 1500);
+  };
+
+  // Starta på NU, och följ med NU så länge användaren står där och inte interagerar.
   useLayoutEffect(() => {
-    if (viewW && followNow.current) scrollToTime(now);
+    if (viewW && followNow.current && !interacting.current) scrollToTime(now);
   }, [viewW, now, scrollToTime]);
+
+  // Steg till föregående/nästa hela timme, begränsat till fönstret.
+  const firstStep = useRef(true);
+  useEffect(() => {
+    if (firstStep.current) {
+      firstStep.current = false;
+      return;
+    }
+    const el = scroller.current;
+    if (!el) return;
+    const t = tAt(el.scrollLeft);
+    const target =
+      stepSignal.dir > 0 ? Math.floor(t / HOUR + 1e-6) * HOUR + HOUR : Math.ceil(t / HOUR - 1e-6) * HOUR - HOUR;
+    followNow.current = false;
+    scrollToTime(Math.min(end, Math.max(start, target)), true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stepSignal]);
 
   const firstRecenter = useRef(true);
   useEffect(() => {
@@ -126,11 +156,15 @@ export const Timeline = memo(function Timeline({ now, until, data, onCursor, rec
     placeRightAxis();
   });
 
+  const cursorLabel = useRef<HTMLSpanElement>(null);
   const onScroll = () => {
     placeRightAxis();
     // Markörlinjen döljs vid NU (bara romben syns ovanpå den gröna NU-linjen).
     if (scroller.current) {
-      cursorEl.current?.classList.toggle("at-now", Math.abs(tAt(scroller.current.scrollLeft) - now) < 10 * 60 * 1000);
+      const t = tAt(scroller.current.scrollLeft);
+      const atNow = Math.abs(t - now) < 10 * 60 * 1000;
+      cursorEl.current?.classList.toggle("at-now", atNow);
+      if (cursorLabel.current) cursorLabel.current.textContent = `Vald ${fmtTime(snap5(t))}`;
     }
     cancelAnimationFrame(raf.current);
     raf.current = requestAnimationFrame(() => {
@@ -144,13 +178,14 @@ export const Timeline = memo(function Timeline({ now, until, data, onCursor, rec
         "aria-valuetext",
         offH === 0 ? "Nu" : offH < 0 ? `${-offH} timmar sedan, observerat` : `om ${offH} timmar, prognos`,
       );
-      onCursor(t);
+      onCursor(snap5(t));
     });
   };
 
   // Musdrag på desktop (touch använder native scroll).
   const drag = useRef<{ x: number; left: number; moved: boolean } | null>(null);
   const onPointerDown = (e: React.PointerEvent) => {
+    markInteraction();
     if (e.pointerType !== "mouse" || !scroller.current) return;
     drag.current = { x: e.clientX, left: scroller.current.scrollLeft, moved: false };
     (e.target as Element).setPointerCapture?.(e.pointerId);
@@ -161,14 +196,9 @@ export const Timeline = memo(function Timeline({ now, until, data, onCursor, rec
     if (Math.abs(dx) > 3) drag.current.moved = true;
     scroller.current.scrollLeft = drag.current.left - dx;
   };
-  const onPointerUp = (e: React.PointerEvent) => {
-    const d = drag.current;
+  // Tid väljs genom att dra – ett klick flyttar inte grafen.
+  const onPointerUp = () => {
     drag.current = null;
-    if (!d || d.moved || !scroller.current) return;
-    // Klick: centrera den klickade tidpunkten.
-    const rect = scroller.current.getBoundingClientRect();
-    const clickX = e.clientX - rect.left + scroller.current.scrollLeft - pad;
-    scrollToTime(start + (clickX / PX_PER_HOUR) * HOUR, true);
   };
 
   const onKeyDown = (e: React.KeyboardEvent) => {
@@ -201,8 +231,8 @@ export const Timeline = memo(function Timeline({ now, until, data, onCursor, rec
     <div className="tl" style={{ height: H }}>
       {/* Vänster axel: molnbas (m) */}
       <div className="tl-yaxis" aria-hidden>
-        <span className="tl-axtitle" style={{ top: chartTop + 2 }}>
-          moln m
+        <span className="tl-axtitle" style={{ top: 4 }}>
+          Molnbas m
         </span>
         {CLOUD_TICKS.filter((m) => m > 0).map((m) => (
           <span key={m} style={{ top: yCloud(m) }}>
@@ -210,12 +240,12 @@ export const Timeline = memo(function Timeline({ now, until, data, onCursor, rec
           </span>
         ))}
         <span className="tl-lane" style={{ top: windTop + 2 }}>
-          Vind
+          Vind m/s
         </span>
       </div>
       {/* Höger axel: temperatur (°C) */}
       <div className="tl-yaxis right" aria-hidden ref={rightAxis} style={{ width: RIGHT_AXIS_W }}>
-        <span className="tl-axtitle temp" style={{ top: chartTop + 2 }}>
+        <span className="tl-axtitle temp" style={{ top: 4 }}>
           °C
         </span>
         {data.temp.ticks.map((v) => (
@@ -322,8 +352,8 @@ export const Timeline = memo(function Timeline({ now, until, data, onCursor, rec
               <path
                 key={`co${i}`}
                 d={cloudPath(x(c.t0) + 0.5, x(c.t1) - 0.5, yCloud(c.baseM), CLOUD_H)}
-                className="tl-cloud"
-                style={{ fill: c.cover === "VV" ? "url(#vv)" : cloudFill(c.density) }}
+                className={c.cover === "MODEL" ? "tl-cloud unknown" : "tl-cloud"}
+                style={c.cover === "MODEL" ? undefined : { fill: c.cover === "VV" ? "url(#vv)" : cloudFill(c.density) }}
               >
                 <title>{`${c.cover === "MODEL" ? "Molnbas" : c.cover} ${Math.round(c.baseM)} m`}</title>
               </path>
@@ -409,6 +439,29 @@ export const Timeline = memo(function Timeline({ now, until, data, onCursor, rec
               </g>
             ))}
 
+            {/* Där TAF slutar och SMHI tar över */}
+            {data.tafEnd && (
+              <g className="tl-tafend">
+                <line x1={x(data.tafEnd.t)} x2={x(data.tafEnd.t)} y1={chartTop + 16} y2={axisTop} />
+                {(() => {
+                  // Nära högerkanten (där temperaturaxeln sitter) läggs texten till vänster om linjen.
+                  const nearEnd = x(data.tafEnd.t) > W - 150;
+                  const tx = x(data.tafEnd.t) + (nearEnd ? -4 : 4);
+                  const anchor = nearEnd ? "end" : "start";
+                  return (
+                    <>
+                      <text x={tx} y={chartTop + 26} textAnchor={anchor}>
+                        TAF {data.tafEnd.stationId} slutar {fmtTime(data.tafEnd.t)}
+                      </text>
+                      <text x={tx} y={chartTop + 38} textAnchor={anchor}>
+                        SMHI fortsätter
+                      </text>
+                    </>
+                  );
+                })()}
+              </g>
+            )}
+
             {/* NU */}
             <line x1={nowX} x2={nowX} y1={TOP - 6} y2={H} className="tl-now" />
             <text x={nowX} y={TOP - 11} className="tl-nowlabel" textAnchor="middle">
@@ -431,7 +484,11 @@ export const Timeline = memo(function Timeline({ now, until, data, onCursor, rec
       </div>
 
       {/* Fast markör i mitten */}
-      <div ref={cursorEl} className="tl-cursor at-now" style={{ top: TOP - 4, height: H - TOP + 4 }} aria-hidden />
+      <div ref={cursorEl} className="tl-cursor at-now" style={{ top: TOP - 4, height: H - TOP + 4 }} aria-hidden>
+        <span ref={cursorLabel} className="tl-cursor-label">
+          Vald {fmtTime(now)}
+        </span>
+      </div>
     </div>
   );
 });
@@ -530,7 +587,7 @@ export function ChartLegend({ data }: { data: ChartData }) {
   if (data.temp.observed.length || data.temp.forecast.length)
     items.push({
       key: "t",
-      label: "Temperatur",
+      label: "Temperatur (höger axel)",
       icon: icon(
         <>
           {grad}
@@ -542,7 +599,7 @@ export function ChartLegend({ data }: { data: ChartData }) {
   if (data.cloudsObserved.length || data.cloudsForecast.length)
     items.push({
       key: "cl",
-      label: "Moln vid molnbasen",
+      label: "Moln: höjd = molnbas, gråton = molnmängd",
       icon: icon(
         <>
           <path d={cloudPath(1, 10, 12, 10)} style={{ fill: cloudFill(0.3) }} />
@@ -550,10 +607,16 @@ export function ChartLegend({ data }: { data: ChartData }) {
         </>,
       ),
     });
+  if ([...data.cloudsObserved, ...data.cloudsForecast].some((c) => c.cover === "MODEL" && c.density === 0.6))
+    items.push({
+      key: "cu",
+      label: "Molnbas, molnmängd okänd",
+      icon: icon(<path d={cloudPath(4, 18, 12, 10)} className="tl-cloud unknown" />),
+    });
   if (precip.some((p) => p.kind === "regn"))
     items.push({
       key: "ra",
-      label: "Regn",
+      label: "Regn (tätare = mer)",
       icon: icon(
         <g className="tl-precip k-regn">
           <line x1={8} x2={6} y1={1} y2={13} />
@@ -606,7 +669,7 @@ export function ChartLegend({ data }: { data: ChartData }) {
   if (data.wind.length)
     items.push({
       key: "wi",
-      label: "Vind (m/s)",
+      label: "Vind: pilen visar vart vinden blåser",
       icon: icon(
         <g transform="translate(11,7) rotate(225)" className="tl-wind">
           <path d="M0,-6 L0,5 M-3,2 L0,6 L3,2" />
@@ -615,13 +678,19 @@ export function ChartLegend({ data }: { data: ChartData }) {
     });
 
   return (
-    <div className="legend" aria-hidden>
-      {items.map((it) => (
-        <span key={it.key} className="lgi">
-          {it.icon}
-          {it.label}
-        </span>
-      ))}
+    <div className="legend-wrap">
+      <div className="legend">
+        {items.map((it) => (
+          <span key={it.key} className="lgi">
+            {it.icon}
+            {it.label}
+          </span>
+        ))}
+      </div>
+      <p className="legend-note">
+        Heldraget = observerat, streckat = prognos. Molnbasskalan är komprimerad uppåt (kvadratrot) så att låga moln
+        syns tydligt. Nederbördsmängd per timme och källor finns i detaljerna nedan.
+      </p>
     </div>
   );
 }

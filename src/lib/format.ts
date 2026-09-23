@@ -1,4 +1,4 @@
-import { compass } from "./geo";
+import { compass, compassWord } from "./geo";
 
 const TZ = "Europe/Stockholm";
 
@@ -37,6 +37,15 @@ export function fmtTemp(c: number | undefined, decimals = true): string {
 }
 
 export const fmtWindSpeed = (ms: number | undefined) => (ms === undefined ? "–" : nf0.format(Math.round(ms)));
+
+/** "Från sydost · 4 m/s, byar 7 m/s", "Vindstilla", "Varierande 2 m/s" */
+export function fmtWindText(w: { deg?: number; variable?: boolean; speed?: number } | undefined, gust?: number): string {
+  if (!w || w.speed === undefined) return "Saknas";
+  if (w.speed < 0.5) return "Vindstilla";
+  const dir = w.variable ? "Varierande" : w.deg !== undefined ? `Från ${compassWord(w.deg)}` : "";
+  const g = gust !== undefined && gust >= w.speed + 1 ? `, byar ${fmtWindSpeed(gust)} m/s` : "";
+  return `${dir}${dir ? " · " : ""}${fmtWindSpeed(w.speed)} m/s${g}`;
+}
 
 export function fmtWindDir(deg: number | undefined, variable?: boolean): string {
   if (variable) return "Varierande";
@@ -81,11 +90,28 @@ export function fmtAge(ms: number): string {
   return m === 0 || h >= 3 ? `${h} h sedan` : `${h} h ${m} min sedan`;
 }
 
-/** "om 3 h", "för 2 h sedan" */
+/** "om 2 h 30 min", "för 45 min sedan", "nu" – avrundat till 5 min */
 export function fmtOffset(ms: number): string {
-  const h = Math.round(ms / 3_600_000);
-  if (h === 0) return "nu";
-  return h > 0 ? `om ${h} h` : `för ${-h} h sedan`;
+  const min = Math.round(Math.abs(ms) / 60000 / 5) * 5;
+  if (min === 0) return "nu";
+  const h = Math.floor(min / 60);
+  const m = min % 60;
+  const txt = h === 0 ? `${m} min` : m === 0 ? `${h} h` : `${h} h ${m} min`;
+  return ms > 0 ? `om ${txt}` : `för ${txt} sedan`;
+}
+
+const longDateFmt = new Intl.DateTimeFormat("sv-SE", { weekday: "short", day: "numeric", month: "short", timeZone: TZ });
+
+/** "ons 23 sep, 16:22" i lokal tid (Europe/Stockholm, hanterar sommartid). */
+export function fmtDateTime(t: number): string {
+  return `${longDateFmt.format(new Date(t)).replace(/\./g, "")}, ${fmtTime(t)}`;
+}
+
+/** Tidsintervall i lokal tid: "15–16" för hela timmar, annars "15:30–16:30". */
+export function fmtInterval(from: number, to: number): string {
+  const whole = (t: number) => fmtTime(t).endsWith(":00");
+  const f = (t: number) => (whole(from) && whole(to) ? fmtTime(t).slice(0, 2) : fmtTime(t));
+  return `${f(from)}–${f(to)}`;
 }
 
 export const COVER_LABEL: Record<string, string> = {

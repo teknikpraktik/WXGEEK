@@ -10,6 +10,16 @@ import type {
 } from "../types";
 import { PHENOMENON_GROUP, symbolLabel } from "../weather/phenomena";
 import { isDaylight } from "../sun";
+import {
+  mergedForecastAt,
+  smhiPointAt,
+  tafEndWithin,
+  tafMainAt,
+  tafSupplementsAt,
+  type FcSource,
+  type MergedForecast,
+  type TafTransition,
+} from "./forecast";
 
 export const HOUR = 3_600_000;
 export const PAST_HOURS = 12;
@@ -165,6 +175,8 @@ export type ChartData = {
   /** Klar himmel: CAVOK/SKC/CLR i METAR, eller 0 oktas i prognosen. Sol på dagen, måne på natten. */
   clear: Array<{ t: number; forecast: boolean; day: boolean; label: string }>;
   missing: { temp?: string; wind?: string; clouds?: string; forecast?: string };
+  /** Tidpunkt då TAF slutar inom fönstret – därefter fortsätter SMHI */
+  tafEnd?: { t: number; stationId: string };
 };
 
 /** Molnbasaxeln: kvadratrotsskala så att låga moln får mest utrymme. */
@@ -240,6 +252,16 @@ export function buildChart(bundle: WeatherBundle, now: number): ChartData {
     ),
   ];
   const tDomain = niceDomain([...tObs, ...tFc].map((p) => p.v), 6, 0.2);
+
+  // Prognos per timme med källa per variabel: TAF där den gäller, annars SMHI.
+  const merged: MergedForecast[] = fc.filter((p) => ts(p) >= now - 30 * 60 * 1000).map((p) => mergedForecastAt(bundle, ts(p), adjust));
+  /** Lägsta molnbas (ej FEW) i en sammanslagen prognospunkt. */
+  const fcBase = (m: MergedForecast): number | undefined => {
+    const c = m.clouds?.value;
+    if (!c) return undefined;
+    if (c.layers?.length) return c.layers.find((l) => l.cover !== "FEW")?.baseM;
+    return c.baseM;
+  };
   if (!stationFor(bundle, "temperature")) missing.temp = "Ingen temperaturmätning i närheten";
 
   // Moln
@@ -256,11 +278,15 @@ export function buildChart(bundle: WeatherBundle, now: number): ChartData {
     }
   }
   if (!cloudObs.length) missing.clouds = "Ingen molnobservation i närheten";
-  const cloudsForecast: CloudBlock[] = fc.flatMap((p) => {
-    if (p.cloudBaseM === undefined) return [];
-    const t = ts(p);
-    const oktas = Math.max(p.lowCloudCoverOktas ?? 0, p.cloudCoverOktas ?? 4);
-    return [{ t0: t - HOUR / 2, t1: t + HOUR / 2, baseM: p.cloudBaseM, cover: "MODEL" as const, density: Math.max(0.15, oktas / 8) }];
+  const cloudsForecast: CloudBlock[] = merged.flatMap((m): CloudBlock[] => {
+    const c = m.clouds?.value;
+    if (!c) return [];
+    const span = { t0: m.t - HOUR / 2, t1: m.t + HOUR / 2 };
+    // TAF: angivna lager med täckningsgrad. CAVOK/NSC ritar inga moln (ingen påhittad molnbas).
+    if (c.layers?.length) return c.layers.map((l) => ({ ...span, baseM: l.baseM, cover: l.cover, density: COVER_DENSITY[l.cover] }));
+    if (c.baseM === undefined) return [];
+    const oktas = c.oktas ?? 4;
+    return [{ ...span, baseM: c.baseM, cover: "MODEL" as const, density: Math.max(0.15, oktas / 8) }];
   });
 
   // Väderfenomen (observerat) – nederbördstyp, dimma, åska
@@ -293,17 +319,24 @@ export function buildChart(bundle: WeatherBundle, now: number): ChartData {
     if (precipObserved.some((b) => b.mm !== undefined && b.t0 < span.t1 && b.t1 > span.t0)) continue;
     precipObserved.push({ ...span, kind, ...source(cloudsObserved, span), label: p.label });
   }
-  const precipForecast: Precip[] = fc.flatMap((p) => {
-    const t1 = ts(p);
-    const t0 = p.intervalStart ? Date.parse(p.intervalStart) : t1 - HOUR;
-    if (t1 < now || p.precipitationMm === undefined || p.precipitationMm < 0.1) return [];
-    const kind = precipKindOf(p.phenomenon) ?? "regn";
-    // Prognosens moln för timmen ritas centrerat på t1 – dropparna täcker samma bredd.
+  const precipForecast: Precip[] = merged.flatMap((m) => {
+    if (m.t < now) return [];
+    const pr = m.precipitation?.value;
+    const wx = m.weather?.value ?? [];
+    const wxPrecip = wx.find((x) => precipKindOf(x));
+    const amount = pr && pr.mm >= 0.1 ? pr.mm : undefined;
+    // TAF anger nederbörd men SMHI ingen mängd: glesa droppar utan mängd.
+    if (amount === undefined && !(wxPrecip && m.weather?.source.kind === "TAF")) return [];
+    const kind = precipKindOf(wxPrecip) ?? "regn";
+    const base = fcBase(m);
+    const t0 = pr?.from ?? m.t - HOUR;
+    const t1 = pr?.to ?? m.t;
+    // Prognosens moln för timmen ritas centrerat på tidssteget – dropparna täcker samma bredd.
     const from =
-      p.cloudBaseM !== undefined
-        ? { fromM: p.cloudBaseM, atT: t1, drawT0: t1 - HOUR / 2, drawT1: t1 + HOUR / 2 }
+      base !== undefined
+        ? { fromM: base, atT: m.t, drawT0: m.t - HOUR / 2, drawT1: m.t + HOUR / 2 }
         : { atT: (t0 + t1) / 2, drawT0: t0, drawT1: t1 };
-    return [{ t0, t1, kind, mm: p.precipitationMm, ...from, label: p.phenomenon?.label ?? (kind === "snö" ? "Snö" : "Regn") }];
+    return [{ t0, t1, kind, mm: amount, ...from, label: wxPrecip?.label ?? (kind === "snö" ? "Snö" : "Regn") }];
   });
 
   // Nederbörd vid minusgrader är snö, oavsett vad väderkoden säger.
@@ -380,11 +413,11 @@ export function buildChart(bundle: WeatherBundle, now: number): ChartData {
     wind.push({ t, deg: x.windDirectionDeg, variable: x.windVariable, speed: x.windSpeedMs, gust: g?.windGustMs, forecast: false });
     lastT = t;
   }
-  for (const p of fc) {
-    const t = ts(p);
-    if (t < now || p.windSpeedMs === undefined || t - lastT < 55 * 60 * 1000) continue;
-    wind.push({ t, deg: p.windDirectionDeg, speed: p.windSpeedMs, gust: p.windGustMs, forecast: true });
-    lastT = t;
+  for (const m of merged) {
+    const w = m.wind?.value;
+    if (m.t < now || !w || m.t - lastT < 55 * 60 * 1000) continue;
+    wind.push({ t: m.t, deg: w.deg, variable: w.variable, speed: w.speed, gust: w.gust, forecast: true });
+    lastT = m.t;
   }
 
   // Låg sikt / dimma och åska
@@ -402,11 +435,17 @@ export function buildChart(bundle: WeatherBundle, now: number): ChartData {
     clear.push({ t, forecast: false, day: isDaylight(lat, lon, t), label: `Klart (${code})` });
     lastClear = t;
   }
-  for (const p of fc) {
-    const t = ts(p);
-    if (p.cloudCoverOktas !== 0 || t - lastClear < 55 * 60 * 1000) continue;
-    clear.push({ t, forecast: true, day: isDaylight(lat, lon, t), label: "Klart (prognos)" });
-    lastClear = t;
+  for (const m of merged) {
+    const c = m.clouds?.value;
+    const isClear = c?.cavok || (m.clouds?.source.kind === "SMHI-PROGNOS" && c?.oktas === 0);
+    if (!isClear || m.t - lastClear < 55 * 60 * 1000) continue;
+    clear.push({
+      t: m.t,
+      forecast: true,
+      day: isDaylight(lat, lon, m.t),
+      label: c?.cavok ? "CAVOK enligt TAF – inga moln under 1 500 m" : "Klart enligt SMHI-prognos",
+    });
+    lastClear = m.t;
   }
   const visObs = stationFor(bundle, "visibility")?.observations ?? [];
   const visStep = stepOf(visObs);
@@ -425,18 +464,21 @@ export function buildChart(bundle: WeatherBundle, now: number): ChartData {
     }
     if (p?.kind === "åska") thunder.push({ ...span, forecast: false, label: p.label });
   }
-  for (const p of fc) {
-    const t = ts(p);
-    const span = { t0: t - HOUR / 2, t1: t + HOUR / 2 };
-    if ((p.visibilityM !== undefined && p.visibilityM < 5000) || p.phenomenon?.kind === "dimma") {
+  for (const m of merged) {
+    const span = { t0: m.t - HOUR / 2, t1: m.t + HOUR / 2 };
+    const vis = m.visibility?.value.m;
+    const wx = m.weather?.value ?? [];
+    const fog = wx.find((x) => x.kind === "dimma" || x.kind === "dis");
+    if ((vis !== undefined && vis < 5000) || fog) {
       lowVis.push({
         ...span,
         forecast: true,
-        severe: (p.visibilityM ?? 5000) < 1000 || p.phenomenon?.kind === "dimma",
-        label: p.phenomenon?.label ?? "Nedsatt sikt",
+        severe: (vis ?? 5000) < 1000 || fog?.kind === "dimma",
+        label: fog?.label ?? `Sikt ${vis} m`,
       });
     }
-    if (p.phenomenon?.kind === "åska") thunder.push({ ...span, forecast: true, label: p.phenomenon.label });
+    const ts_ = wx.find((x) => x.kind === "åska");
+    if (ts_) thunder.push({ ...span, forecast: true, label: ts_.label });
   }
 
   return {
@@ -451,6 +493,10 @@ export function buildChart(bundle: WeatherBundle, now: number): ChartData {
     thunder,
     clear,
     missing,
+    tafEnd: (() => {
+      const t = tafEndWithin(bundle, now, Date.parse(bundle.forecastUntil));
+      return t && bundle.taf ? { t, stationId: bundle.taf.stationId } : undefined;
+    })(),
   };
 }
 
@@ -458,12 +504,23 @@ export function buildChart(bundle: WeatherBundle, now: number): ChartData {
 // Avläsning vid en tidpunkt
 // ---------------------------------------------------------------------------
 
+/**
+ * Varifrån ett värde kommer. Observationer har station och tid; TAF har flygplats och
+ * giltighetsperiod; SMHI-prognos har platsens koordinater, tidssteg och ev. intervall.
+ */
 export type Origin = {
-  kind: "METAR" | "SMHI" | "PROGNOS";
+  kind: "METAR" | "SMHI" | "TAF" | "SMHI-PROGNOS";
   stationId?: string;
   stationName?: string;
   distanceKm?: number;
+  /** Observationstid eller prognosens tidssteg */
   timestamp: number;
+  /** TAF: period som värdet gäller */
+  validFrom?: number;
+  validTo?: number;
+  /** SMHI-prognos: koordinater */
+  latitude?: number;
+  longitude?: number;
 };
 
 export type Reading<T> = { value: T; origin: Origin } | null;
@@ -473,15 +530,23 @@ export type Snapshot = {
   time: number;
   temperature: Reading<number>;
   wind: Reading<{ deg?: number; variable?: boolean; speed?: number }>;
+  /** Byvind. value undefined = METAR utan G-grupp (inga kraftiga byar rapporterade). */
   gust: Reading<number | undefined>;
   visibility: Reading<{ m: number; atLeast?: boolean }>;
-  cloud: Reading<{ baseM?: number; layers?: CloudLayer[]; nsc?: boolean; oktas?: number }>;
-  precipitation: Reading<{ mm: number; probability?: number }>;
+  cloud: Reading<{ baseM?: number; layers?: CloudLayer[]; nsc?: boolean; oktas?: number; cavok?: boolean }>;
+  /** Nederbördsmängd under intervallet from–to. Sannolikhet hålls separat. */
+  precipitation: Reading<{ mm: number; from: number; to: number }>;
+  precipProbability?: { value: number; origin: Origin };
   phenomena: Reading<Phenomenon[]>;
-  /** Symboltext från prognosen, t.ex. "Halvklart" */
+  /** Symboltext från SMHI-prognosen, t.ex. "Halvklart" */
   forecastSummary?: string;
   metar?: { raw: string; stationId: string; timestamp: number };
-  taf: TafPeriod[];
+  /** TAF: TEMPO/PROB som gäller vid vald tid (kompletterande information) */
+  supplements: TafPeriod[];
+  /** TAF: pågående BECMG-övergång */
+  transition?: TafTransition;
+  /** Förklaring när källorna säger olika saker */
+  note?: string;
 };
 
 const TOL: Record<"METAR" | "SMHI", number> = { METAR: 35 * 60 * 1000, SMHI: 40 * 60 * 1000 };
@@ -502,7 +567,7 @@ function pickObs<T>(
   if (mode === "now") {
     for (let i = s.observations.length - 1; i >= 0; i--) {
       const o = s.observations[i];
-      if (get(o) !== undefined) {
+      if (ts(o) <= t && get(o) !== undefined) {
         best = o;
         break;
       }
@@ -531,20 +596,23 @@ function pickObs<T>(
   };
 }
 
-function pickForecast(bundle: WeatherBundle, t: number): ForecastPoint | undefined {
-  let best: ForecastPoint | undefined;
-  let bestD = Infinity;
-  for (const p of bundle.forecast?.points ?? []) {
-    const d = Math.abs(ts(p) - t);
-    if (d < bestD) {
-      best = p;
-      bestD = d;
-    }
-  }
-  return bestD <= 40 * 60 * 1000 ? best : undefined;
+function originOf(src: FcSource): Origin {
+  return src.kind === "TAF"
+    ? {
+        kind: "TAF",
+        stationId: src.stationId,
+        stationName: src.stationName,
+        distanceKm: src.distanceKm,
+        timestamp: src.validFrom,
+        validFrom: src.validFrom,
+        validTo: src.validTo,
+      }
+    : { kind: "SMHI-PROGNOS", latitude: src.latitude, longitude: src.longitude, timestamp: src.time, validFrom: src.intervalFrom };
 }
 
-const def = <T,>(v: T | undefined, origin: Origin): Reading<T> => (v === undefined ? null : { value: v, origin });
+function read<T, U>(s: { value: T; source: FcSource } | undefined, map: (v: T) => U): Reading<U> {
+  return s ? { value: map(s.value), origin: originOf(s.source) } : null;
+}
 
 /** Rå METAR närmast tidpunkten (senaste vid NU och i prognosläget). */
 function metarAt(bundle: WeatherBundle, t: number, mode: Snapshot["mode"]): Snapshot["metar"] {
@@ -559,36 +627,37 @@ function metarAt(bundle: WeatherBundle, t: number, mode: Snapshot["mode"]): Snap
   return o?.raw ? { raw: o.raw, stationId: o.stationId, timestamp: ts(o) } : undefined;
 }
 
+/** Läge för en tidpunkt: nära NU = senaste observation, före = observerat, efter = prognos. */
+export function modeAt(t: number, now: number): Snapshot["mode"] {
+  return Math.abs(t - now) < 10 * 60 * 1000 ? "now" : t < now ? "observed" : "forecast";
+}
+
 export function snapshotAt(bundle: WeatherBundle, t: number, now: number): Snapshot {
-  const mode: Snapshot["mode"] = Math.abs(t - now) < 10 * 60 * 1000 ? "now" : t < now ? "observed" : "forecast";
-  const taf = (bundle.taf?.periods ?? []).filter(
-    (p) => p.change !== "BASE" && p.change !== "FM" && Date.parse(p.from) <= t && t < Date.parse(p.to),
-  );
+  const mode = modeAt(t, now);
   const metar = metarAt(bundle, t, mode);
 
   if (mode === "forecast") {
-    const p = pickForecast(bundle, t);
-    const origin: Origin = { kind: "PROGNOS", timestamp: p ? ts(p) : t };
+    const { adjust } = tempAdjuster(bundle, now);
+    const m = mergedForecastAt(bundle, t, adjust);
+    const p = smhiPointAt(bundle, t);
+    const pr = m.precipitation;
     return {
       mode,
       time: t,
-      // Samma justering mot senaste observation som i diagrammet.
-      temperature: def(
-        p?.temperatureC === undefined ? undefined : Math.round(tempAdjuster(bundle, now).adjust(ts(p), p.temperatureC) * 10) / 10,
-        origin,
-      ),
-      wind: p?.windSpeedMs !== undefined ? { value: { deg: p.windDirectionDeg, speed: p.windSpeedMs }, origin } : null,
-      gust: p ? def(p.windGustMs, origin) : null,
-      visibility: p?.visibilityM !== undefined ? { value: { m: p.visibilityM, atLeast: p.visibilityM >= 10000 }, origin } : null,
-      cloud: p ? { value: { baseM: p.cloudBaseM, oktas: p.cloudCoverOktas }, origin } : null,
-      precipitation:
-        p?.precipitationMm !== undefined && p.precipitationMm > 0
-          ? { value: { mm: p.precipitationMm, probability: p.precipitationProbability }, origin }
-          : null,
-      phenomena: p?.phenomenon ? { value: [p.phenomenon], origin } : null,
-      forecastSummary: symbolLabel(p?.symbolCode),
+      temperature: read(m.temperature, (v) => v),
+      wind: read(m.wind, (v) => ({ deg: v.deg, variable: v.variable, speed: v.speed })),
+      gust: read(m.wind, (v) => v.gust),
+      visibility: read(m.visibility, (v) => v),
+      cloud: read(m.clouds, (v) => v),
+      precipitation: read(pr, (v) => ({ mm: v.mm, from: v.from, to: v.to })),
+      precipProbability:
+        pr?.value.probability !== undefined ? { value: pr.value.probability, origin: originOf(pr.source) } : undefined,
+      phenomena: read(m.weather, (v) => v),
+      forecastSummary: m.clouds?.source.kind === "SMHI-PROGNOS" ? symbolLabel(p?.symbolCode) : undefined,
       metar,
-      taf,
+      supplements: m.supplements,
+      transition: m.transition,
+      note: m.note,
     };
   }
 
@@ -602,6 +671,11 @@ export function snapshotAt(bundle: WeatherBundle, t: number, now: number): Snaps
       : pickObs(bundle, "gust", t, mode, (o) => o.windGustMs);
   if (gust && Number.isNaN(gust.value)) gust.value = undefined;
 
+  // Nederbörd: SMHI:s timsumma avser timmen före tidsstämpeln.
+  const precip = pickObs(bundle, "precipitation", t, mode, (o) =>
+    o.precipitationMm === undefined ? undefined : { mm: o.precipitationMm, from: ts(o) - HOUR, to: ts(o) },
+  );
+
   return {
     mode,
     time: t,
@@ -613,17 +687,18 @@ export function snapshotAt(bundle: WeatherBundle, t: number, now: number): Snaps
     ),
     cloud: pickObs(bundle, "cloudBase", t, mode, (o) =>
       o.cloudLayers?.length || o.noSignificantCloud || o.cloudBaseM !== undefined
-        ? { baseM: o.cloudBaseM, layers: o.cloudLayers, nsc: o.noSignificantCloud }
-        : o.source === "METAR"
-          ? { nsc: true }
-          : undefined,
+        ? {
+            baseM: o.cloudBaseM,
+            layers: o.cloudLayers,
+            nsc: o.noSignificantCloud,
+            cavok: o.raw ? /\bCAVOK\b/.test(o.raw) : undefined,
+          }
+        : undefined,
     ),
-    precipitation: pickObs(bundle, "precipitation", t, mode, (o) =>
-      // Nollvärden behålls – annars skulle NU kunna visa ett äldre regnvärde.
-      o.precipitationMm === undefined ? undefined : { mm: o.precipitationMm },
-    ),
+    precipitation: precip,
     phenomena: pickObs(bundle, "phenomena", t, mode, (o) => o.weatherPhenomena),
     metar,
-    taf: mode === "now" ? taf : [],
+    supplements: mode === "now" ? tafSupplementsAt(bundle.taf, t) : [],
+    transition: mode === "now" && bundle.taf ? (tafMainAt(bundle.taf, t)?.transition ?? undefined) : undefined,
   };
 }

@@ -7,7 +7,7 @@ sammanhängande förlopp genom tiden. Vanliga väderappar är prognosappar –
 Väderlek behandlar **observerat väder som en förstklassig datatyp**.
 
 ```
-−12 h ←──────── NU ────────→ TAF:s slut
+−12 h ←──────── NU ────────→ +12 h
   observerat          prognos
 ```
 
@@ -15,8 +15,9 @@ Väderlek behandlar **observerat väder som en förstklassig datatyp**.
 - Dra tidslinjen bakåt ~12 timmar och se hur vädret faktiskt utvecklats.
 - Dra framåt och se prognosen på **samma** tidsaxel.
 - Ett diagram: molnbas (meter, vänster axel) och temperatur (°C, höger axel), med nederbörd som faller från molnbasen och vindpilar under.
-- Fokus på nuväder: prognosen sträcker sig bara till närmaste TAF:s slut (minst 6 h).
-- Nuvädret (temperatur, vind, sikt, molnbas) visas först; rå METAR och TAF finns under diagrammet i liten stil.
+- Fast fönster: 12 h observationer bakåt och 12 h prognos framåt. Välj tid genom att dra i grafen eller med knapparna ◀ Nu ▶.
+- Prognosen använder **TAF först** (vind, sikt, moln, väder vid flygplatsen under TAF:s giltighetstid) och **SMHI** för temperatur, nederbördsmängd, saknade värden och resten av perioden – med källa per värde.
+- Nuvädret (temperatur, vind, sikt, molnbas, nederbörd) visas först i ett stabilt rutnät; detaljvyn visar exakta värden, tider och källor för vald tid; rå METAR och TAF finns under "Visa flygväderdata".
 - Observation (heldraget, tonad bakgrund) och prognos (streckat, skrafferad bakgrund) skiljs åt med stil, inte färg. Grön linje markerar NU.
 
 Väderlek kombinerar **METAR** (flygplatsobservationer), **SMHI:s observationer**,
@@ -44,6 +45,7 @@ npm run dev
 ```bash
 npm run lint       # ESLint
 npm run typecheck  # TypeScript
+npm test           # tester för tids-, TAF- och datalogik (node:test via tsx)
 npm run build      # produktionsbygge
 npm start          # kör produktionsbygget
 ```

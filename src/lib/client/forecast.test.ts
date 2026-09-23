@@ -4,7 +4,6 @@ import { normalizeTaf, splitTafGroups, type AwcTaf } from "../adapters/taf";
 import { mergedForecastAt, tafMainAt, tafSupplementsAt, tafEndWithin } from "./forecast";
 import type { ForecastPoint, WeatherBundle } from "../types";
 
-const H = 3_600_000;
 const T = (d: number, h: number) => Date.UTC(2026, 8, d, h) / 1000;
 const iso = (s: number) => new Date(s * 1000).toISOString();
 
