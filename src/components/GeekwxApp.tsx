@@ -302,7 +302,7 @@ export function GeekwxApp() {
 
       <footer className="foot">
         <span>
-          Data: SMHI (CC BY 4.0) · NOAA Aviation Weather Center · © OpenStreetMap contributors. Not for flight planning.
+          Data: SMHI (CC BY 4.0) · NOAA Aviation Weather Center · © OpenStreetMap contributors
         </span>
         <span>
           © {new Date(now).getFullYear()} Per Björkman · Teknikpraktik
