@@ -40,7 +40,7 @@ datakälla påverkar bara en adapter och `sources.ts`.
 | `src/lib/weather/stations.ts` | Regler och poängsättning för stationsval |
 | `src/lib/weather/phenomena.ts` | METAR-väderkoder, SMHI "rådande väder", SMHI-symboler → svenska fenomen |
 | `src/lib/client/forecast.ts` | Prognosens källor: TAF-huvudprognos, BECMG, TEMPO/PROB, SMHI-komplettering, källa per variabel |
-| `src/lib/client/alerts.ts` | Betydande väder ur senaste METAR och TAF (åska, CB/TCU, underkylt, dimma, sikt < 1 500 m, vind/byar ≥ 13 m/s, tak < 150 m) |
+| `src/lib/client/alerts.ts` | Varningar ur senaste METAR och TAF, bara väder med samhällspåverkan (åska, CB, medelvind ≥ 14 m/s eller byar ≥ 20 m/s, kraftig eller underkyld nederbörd, hagel, iskorn, yrsnö) – inte dimma, sikt eller låga moln |
 | `src/lib/client/timeline.ts` | Klientlogik: diagramdata, avläsning vid en tidpunkt |
 | `*.test.ts` | Tester för tids-, TAF- och datalogik (`npm test`) |
 | `src/lib/format.ts` | Engelsk formatering (en-GB, Europe/Stockholm), avrundning mot falsk precision |

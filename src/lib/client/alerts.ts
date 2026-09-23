@@ -1,13 +1,13 @@
 import type { CloudLayer, Phenomenon, TafPeriod, WeatherBundle } from "../types";
 import { tafMainStates } from "./forecast";
-import { fmtCloudBase, fmtDateTime, fmtInterval, fmtTime, fmtVisibility, fmtWindSpeed } from "../format";
+import { fmtCloudBase, fmtDateTime, fmtInterval, fmtTime, fmtWindSpeed } from "../format";
 
 // ---------------------------------------------------------------------------
-// Significant weather from METAR and TAF, shown as text under the chart.
-// Criteria (aviation-style, conservative):
-//   thunderstorm, CB/TCU, freezing precipitation, hail, heavy precipitation, fog,
-//   visibility < 1,500 m, gusts or mean wind ≥ 13 m/s (~25 kt),
-//   sky obscured (VV) or broken/overcast cloud below 150 m (~500 ft).
+// Warnings from METAR and TAF, shown at the bottom of the page. Only weather that can
+// affect society: thunderstorm, CB, strong wind (mean ≥ 14 m/s or gusts ≥ 20 m/s),
+// heavy or freezing precipitation, hail, ice pellets and blowing snow.
+// Not warnings: fog, low visibility, low cloud / vertical visibility, TCU, small hail
+// and light or moderate precipitation.
 // ---------------------------------------------------------------------------
 
 export type AviationAlert = {
@@ -22,9 +22,9 @@ export type AviationAlert = {
   to?: number;
 };
 
-const WIND_LIMIT_MS = 13;
-const VIS_LIMIT_M = 1500;
-const LOW_CLOUD_M = 150;
+/** Hård vind (medelvind) respektive kraftiga byar, m/s. */
+const WIND_MEAN_LIMIT_MS = 14;
+const GUST_LIMIT_MS = 20;
 
 type Elements = {
   phenomena?: Phenomenon[];
@@ -38,16 +38,22 @@ type Elements = {
 export function significantItems(e: Elements): string[] {
   const out: string[] = [];
   for (const p of e.phenomena ?? []) {
-    if (p.kind === "åska" || p.kind === "underkylt" || p.kind === "hagel" || p.kind === "dimma" || p.intensity === "kraftig")
+    const code = p.code ?? "";
+    // Småhagel (GS) utan hagel är vanligt i skurar och räknas inte.
+    const smallHailOnly = code.includes("GS") && !code.includes("GR") && p.intensity !== "kraftig";
+    if (
+      p.kind === "åska" ||
+      p.kind === "underkylt" ||
+      (p.kind === "hagel" && !smallHailOnly) ||
+      code.includes("BLSN") ||
+      (p.intensity === "kraftig" && p.kind !== "dimma" && p.kind !== "dis")
+    )
       out.push(p.label);
   }
-  if (e.visibilityM !== undefined && e.visibilityM < VIS_LIMIT_M) out.push(`Visibility ${fmtVisibility(e.visibilityM)}`);
-  if (e.windGustMs !== undefined && e.windGustMs >= WIND_LIMIT_MS) out.push(`Gusts ${fmtWindSpeed(e.windGustMs)} m/s`);
-  else if (e.windSpeedMs !== undefined && e.windSpeedMs >= WIND_LIMIT_MS) out.push(`Wind ${fmtWindSpeed(e.windSpeedMs)} m/s`);
+  if (e.windGustMs !== undefined && e.windGustMs >= GUST_LIMIT_MS) out.push(`Gusts ${fmtWindSpeed(e.windGustMs)} m/s`);
+  else if (e.windSpeedMs !== undefined && e.windSpeedMs >= WIND_MEAN_LIMIT_MS) out.push(`Wind ${fmtWindSpeed(e.windSpeedMs)} m/s`);
   for (const l of e.cloudLayers ?? []) {
-    if (l.type) out.push(`${l.type} at ${fmtCloudBase(l.baseM)}`);
-    else if (l.cover === "VV") out.push(`Sky obscured, vertical visibility ${fmtCloudBase(l.baseM)}`);
-    else if ((l.cover === "BKN" || l.cover === "OVC") && l.baseM < LOW_CLOUD_M) out.push(`${l.cover} at ${fmtCloudBase(l.baseM)}`);
+    if (l.type === "CB") out.push(`CB at ${fmtCloudBase(l.baseM)}`);
   }
   return [...new Set(out)];
 }

@@ -34,28 +34,54 @@ const bundle = (taf: AwcTaf | null): WeatherBundle =>
     sources: [],
   }) as unknown as WeatherBundle;
 
-test("significant items: thunderstorm, CB, low visibility, strong gusts, low ceiling", () => {
+test("warnings only for weather with societal impact: TS, CB, strong wind, heavy/freezing precipitation", () => {
   assert.deepEqual(
     significantItems({
-      phenomena: [{ kind: "åska", label: "Thunderstorm with rain" }],
+      phenomena: [
+        { kind: "åska", label: "Thunderstorm with rain" },
+        { kind: "regn", label: "Heavy rain", intensity: "kraftig", code: "+RA" },
+        { kind: "underkylt", label: "Freezing drizzle", intensity: "måttlig", code: "FZDZ" },
+      ],
       visibilityM: 800,
       windSpeedMs: 9,
-      windGustMs: 15,
-      cloudLayers: [{ cover: "BKN", baseM: 120 }, { cover: "SCT", baseM: 900, type: "CB" }],
+      windGustMs: 22,
+      cloudLayers: [
+        { cover: "BKN", baseM: 120 },
+        { cover: "SCT", baseM: 900, type: "CB" },
+        { cover: "BKN", baseM: 1200, type: "TCU" },
+      ],
     }),
-    ["Thunderstorm with rain", "Visibility 800 m", "Gusts 15 m/s", "BKN at 120 m", "CB at 900 m"],
+    ["Thunderstorm with rain", "Heavy rain", "Freezing drizzle", "Gusts 22 m/s", "CB at 900 m"],
   );
-  assert.deepEqual(significantItems({ visibilityM: 8000, windSpeedMs: 4, cloudLayers: [{ cover: "BKN", baseM: 600 }] }), []);
+  assert.deepEqual(significantItems({ windSpeedMs: 15 }), ["Wind 15 m/s"]);
 });
 
-test("TAF: low main-forecast ceiling and TEMPO with CB become alerts with their validity", () => {
+test("fog, low visibility, low cloud, moderate precipitation and fresh wind are not warnings", () => {
+  assert.deepEqual(
+    significantItems({
+      phenomena: [
+        { kind: "dimma", label: "Fog", code: "FG" },
+        { kind: "regn", label: "Rain", intensity: "måttlig", code: "RA" },
+        { kind: "hagel", label: "Small hail showers", intensity: "måttlig", code: "SHGS" },
+      ],
+      visibilityM: 300,
+      windSpeedMs: 12,
+      windGustMs: 18,
+      cloudLayers: [
+        { cover: "OVC", baseM: 120 },
+        { cover: "VV", baseM: 60 },
+      ],
+    }),
+    [],
+  );
+});
+
+test("TAF: a low ceiling is not a warning, TEMPO with CB is – with its validity", () => {
   const alerts = aviationAlerts(bundle(ESGG), T(23, 16) * 1000, T(24, 3) * 1000);
-  assert.equal(alerts.length, 2);
-  // OVC003 = 300 ft ≈ 90 m is a low ceiling.
-  assert.equal(alerts[0].when, "TAF until Thu 24 Sep, 17:00");
-  assert.ok(alerts[0].items.includes("OVC at 90 m"));
-  assert.equal(alerts[1].when, "TAF TEMPO 19–01");
-  assert.ok(alerts[1].items.includes("CB at 610 m"));
+  // OVC003 (≈ 90 m) in the main forecast gives no warning.
+  assert.equal(alerts.length, 1);
+  assert.equal(alerts[0].when, "TAF TEMPO 19–01");
+  assert.deepEqual(alerts[0].items, ["CB at 610 m"]);
 });
 
 test("no TAF, no METAR → no alerts", () => {

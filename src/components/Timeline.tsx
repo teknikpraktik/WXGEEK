@@ -421,7 +421,7 @@ export const Timeline = memo(function Timeline({ now, until, data, onCursor, rec
               ))}
 
             {/* NU */}
-            <line x1={nowX} x2={nowX} y1={TOP - 6} y2={H} className="tl-now" />
+            <line x1={nowX} x2={nowX} y1={TOP - 6} y2={H} className="tl-now" shapeRendering="crispEdges" />
             <text ref={nowLabel} x={nowX} y={TOP - 11} className="tl-nowlabel" textAnchor="middle">
               NOW {fmtTime(now)}
             </text>
@@ -523,7 +523,8 @@ function PrecipHourBar({ p, x, base, max }: { p: PrecipHour; x: (t: number) => n
         // Troligen uppehåll men nederbörd möjlig: visa övre gränsen som "upp till".
         p.possible > 0 && (
           <text x={cx} y={top - 2} textAnchor="middle" className="possible">
-            {`≤${fmtMm(p.possible)}`}
+            <tspan className="le">≤</tspan>
+            {fmtMm(p.possible)}
           </text>
         )
       )}

@@ -41,9 +41,10 @@ situation **now**, and the **forecast** for the next 24 hours, all on the same a
   the rest of the window.
 - Raw METAR and TAF are printed at the bottom of the page, followed by discreet warnings:
   SMHI weather warnings (meteorological only – not water shortage, high flows, flooding,
-  sea level or fire risk), SIGMETs and significant weather in METAR/TAF. Significant weather
-  covers thunderstorms, CB/TCU, freezing precipitation, fog, visibility below 1,500 m, wind
-  or gusts of 13 m/s or more, and ceilings below 150 m.
+  sea level or fire risk), SIGMETs and warnings from METAR/TAF. METAR/TAF warnings cover only
+  weather that can affect society: thunderstorms, CB, strong wind (mean ≥ 14 m/s or gusts
+  ≥ 20 m/s), heavy or freezing precipitation, hail, ice pellets and blowing snow – not fog,
+  low visibility or low cloud.
 
 WXGEEK never implies more precision than the sources support: it interpolates no values,
 and it shows missing data as missing.

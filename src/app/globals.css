@@ -528,10 +528,11 @@ main {
   stroke-width: 3px;
   stroke-linejoin: round;
 }
-/* NU: tunn heldragen linje i mörk blågrå med etiketten "NOW hh:mm" */
+/* NU: heldragen linje i mörk blågrå med etiketten "NOW hh:mm". 2 px med skarpa kanter –
+   samma tyngd och skärpa som den streckade markören för vald tid. */
 .tl-now {
   stroke: var(--now);
-  stroke-width: 1.5;
+  stroke-width: 2;
 }
 .tl-nowlabel {
   font-family: var(--font-num);
@@ -1330,6 +1331,8 @@ main {
 /* Siffrorna i en mörkare nederbördsblå för kontrast; "≤" (möjlig mängd) i normal vikt */
 .tl-prh text.likely { fill: var(--precip-text); font-weight: 600; }
 .tl-prh text.possible { fill: var(--precip-text); font-weight: 400; }
+/* "≤" mindre än siffrorna (tecknet ritas annars större än sifferhöjden) */
+.tl-prh text .le { font-size: 7.5px; }
 .tl-prh.snow text { fill: var(--snow-text); }
 
 
