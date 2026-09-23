@@ -1298,8 +1298,20 @@ main {
   margin: 8px 0 2px;
 }
 .tl-controls {
-  justify-content: flex-end;
+  display: block;
   margin-top: 2px;
+}
+/* "Now" exakt i mitten, över markören (som sitter på 50 % av .tl) */
+.tl-buttons {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+}
+.tl-buttons .btn-step:first-child {
+  justify-self: end;
+}
+.tl-buttons .btn-step:last-child {
+  justify-self: start;
 }
 
 /* Warnings under the chart */
