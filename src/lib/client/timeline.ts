@@ -59,6 +59,55 @@ function obsPoints(bundle: WeatherBundle, param: ParamKey, get: (o: WeatherObser
 }
 
 /** Prognospunkter från NU fram till prognosfönstrets slut (närmaste TAF). */
+// ---------------------------------------------------------------------------
+// Sammanfogning av observerad temperatur och prognos
+//
+// Prognosen justeras så att den startar i senaste observerade värde: skillnaden
+// mellan observation och (interpolerad) prognos vid observationstiden läggs på
+// prognosen och klingar av linjärt under BLEND_MS. Samma justering används i
+// diagrammet och i avläsningen.
+// ---------------------------------------------------------------------------
+
+const BLEND_MS = 3 * HOUR;
+/** Äldre observationer än så här används inte för att justera prognosen. */
+const BLEND_MAX_AGE = 2 * HOUR;
+
+/** Senaste observerade temperatur (inom BLEND_MAX_AGE före now). */
+function lastObservedTemp(bundle: WeatherBundle, now: number): Pt | undefined {
+  const s = stationFor(bundle, "temperature");
+  const last = s?.observations.filter((o) => o.temperatureC !== undefined && ts(o) <= now).at(-1);
+  if (!last || now - ts(last) > BLEND_MAX_AGE) return undefined;
+  return { t: ts(last), v: last.temperatureC! };
+}
+
+/** Prognostemperatur linjärt interpolerad vid tidpunkt t (ojusterad). */
+function forecastTempAt(bundle: WeatherBundle, t: number): number | undefined {
+  const pts = (bundle.forecast?.points ?? []).filter((p) => p.temperatureC !== undefined);
+  if (!pts.length) return undefined;
+  if (t <= ts(pts[0])) return pts[0].temperatureC;
+  for (let i = 1; i < pts.length; i++) {
+    const a = pts[i - 1];
+    const b = pts[i];
+    if (t <= ts(b)) {
+      const f = (t - ts(a)) / (ts(b) - ts(a));
+      return a.temperatureC! + (b.temperatureC! - a.temperatureC!) * f;
+    }
+  }
+  return pts.at(-1)!.temperatureC;
+}
+
+/** Returnerar en funktion som justerar en prognostemperatur vid tid t mot senaste observation. */
+function tempAdjuster(bundle: WeatherBundle, now: number): { anchor?: Pt; adjust: (t: number, v: number) => number } {
+  const anchor = lastObservedTemp(bundle, now);
+  const fcAtAnchor = anchor ? forecastTempAt(bundle, anchor.t) : undefined;
+  if (!anchor || fcAtAnchor === undefined) return { adjust: (_t, v) => v };
+  const offset = anchor.v - fcAtAnchor;
+  return {
+    anchor,
+    adjust: (t, v) => v + offset * Math.max(0, 1 - (t - anchor.t) / BLEND_MS),
+  };
+}
+
 function forecastWindow(bundle: WeatherBundle, now: number): ForecastPoint[] {
   const until = Date.parse(bundle.forecastUntil);
   return (bundle.forecast?.points ?? []).filter((p) => {
@@ -154,7 +203,17 @@ export function buildChart(bundle: WeatherBundle, now: number): ChartData {
 
   // Temperatur
   const tObs = obsPoints(bundle, "temperature", (x) => x.temperatureC);
-  const tFc = fc.flatMap((p) => (p.temperatureC === undefined ? [] : [{ t: ts(p), v: p.temperatureC }]));
+  // Prognoskurvan börjar i senaste observerade punkt (streckad fram till NU och vidare),
+  // så att observerat och prognos sitter ihop utan hopp.
+  const { anchor, adjust } = tempAdjuster(bundle, now);
+  const tFc = [
+    ...(anchor && bundle.forecast ? [anchor] : []),
+    ...fc.flatMap((p) =>
+      p.temperatureC === undefined || (anchor && ts(p) <= anchor.t)
+        ? []
+        : [{ t: ts(p), v: Math.round(adjust(ts(p), p.temperatureC) * 10) / 10 }],
+    ),
+  ];
   const tDomain = niceDomain([...tObs, ...tFc].map((p) => p.v), 6, 0.2);
   if (!stationFor(bundle, "temperature")) missing.temp = "Ingen temperaturmätning i närheten";
 
@@ -218,6 +277,23 @@ export function buildChart(bundle: WeatherBundle, now: number): ChartData {
     const from = p.cloudBaseM !== undefined ? { fromM: p.cloudBaseM, atT: t1 } : { atT: (t0 + t1) / 2 };
     return [{ t0, t1, kind, mm: p.precipitationMm, ...from, label: p.phenomenon?.label ?? (kind === "snö" ? "Snö" : "Regn") }];
   });
+
+  // Nederbörd vid minusgrader är snö, oavsett vad väderkoden säger.
+  const tempNear = (t: number): number | undefined => {
+    let best: Pt | undefined;
+    for (const p of [...tObs, ...tFc]) {
+      if (Math.abs(p.t - t) <= 45 * 60 * 1000 && (!best || Math.abs(p.t - t) < Math.abs(best.t - t))) best = p;
+    }
+    return best?.v;
+  };
+  for (const p of [...precipObserved, ...precipForecast]) {
+    const temp = tempNear(p.atT);
+    if (p.kind === "regn" && temp !== undefined && temp < 0) {
+      p.kind = "snö";
+      p.label = p.label.replace(/regnskurar/i, "Snöbyar").replace(/regn/i, "snö");
+      if (!/snö/i.test(p.label)) p.label = "Snö";
+    }
+  }
 
   // Vind: en pil per timme
   const wind: Arrow[] = [];
@@ -404,7 +480,11 @@ export function snapshotAt(bundle: WeatherBundle, t: number, now: number): Snaps
     return {
       mode,
       time: t,
-      temperature: def(p?.temperatureC, origin),
+      // Samma justering mot senaste observation som i diagrammet.
+      temperature: def(
+        p?.temperatureC === undefined ? undefined : Math.round(tempAdjuster(bundle, now).adjust(ts(p), p.temperatureC) * 10) / 10,
+        origin,
+      ),
       wind: p?.windSpeedMs !== undefined ? { value: { deg: p.windDirectionDeg, speed: p.windSpeedMs }, origin } : null,
       gust: p ? def(p.windGustMs, origin) : null,
       visibility: p?.visibilityM !== undefined ? { value: { m: p.visibilityM, atLeast: p.visibilityM >= 10000 }, origin } : null,

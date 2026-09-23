@@ -501,10 +501,19 @@ export function ChartLegend({ data }: { data: ChartData }) {
       </linearGradient>
     </defs>
   );
-  if (data.temp.observed.length)
-    items.push({ key: "to", label: "Temperatur, observerad", icon: icon(<>{grad}<line x1={1} x2={21} y1={7} y2={7} className="lg-line" style={{ stroke: "url(#lg-temp)" }} /></>) });
-  if (data.temp.forecast.length)
-    items.push({ key: "tf", label: "Temperatur, prognos", icon: icon(<>{grad}<line x1={1} x2={21} y1={7} y2={7} className="lg-line dashed" style={{ stroke: "url(#lg-temp)" }} /></>) });
+  // En rad för temperaturen: heldraget = observerat, streckat = prognos (som i diagrammet).
+  if (data.temp.observed.length || data.temp.forecast.length)
+    items.push({
+      key: "t",
+      label: "Temperatur",
+      icon: icon(
+        <>
+          {grad}
+          <line x1={1} x2={11} y1={7} y2={7} className="lg-line" style={{ stroke: "url(#lg-temp)" }} />
+          <line x1={13} x2={21} y1={7} y2={7} className="lg-line dashed" style={{ stroke: "url(#lg-temp)" }} />
+        </>,
+      ),
+    });
   if (data.cloudsObserved.length || data.cloudsForecast.length)
     items.push({
       key: "cl",

@@ -148,6 +148,11 @@ VaderlekApp            – plats, datahämtning, auto-uppdatering (5 min när fl
     Gråare ju större del av himlen som täcks; prognosmoln något ljusare.
   - **Höger axel – temperatur (°C)**, skalan färgad blå/röd. Axeln sitter dikt an mot
     diagrammets högerkant (där datat slutar) och stannar vid vyns kant när man scrollar bakåt.
+  - **Observerat och prognos sitter ihop**: prognoskurvan (streckad) börjar i senaste
+    observerade punkten. Skillnaden mellan observation och prognos där läggs på prognosen
+    och klingar av linjärt under 3 h, så att kurvan blir sammanhängande. Samma justering
+    används för prognostemperaturen i avläsningen. Observationer äldre än 2 h används inte.
+  - Nederbörd vid minusgrader (enligt kurvan vid samma tid) visas som snö.
   - Temperaturkurvan:, heldragen (observerat) / streckad (prognos) kurva, färgad efter temperaturen.
   - **Nederbörd faller från molnets mitt**: streck från lägsta molnlagret (SCT/BKN/OVC)
     ned till marken. Antal streck efter mängd; regn streckat, snö prickat. Saknas
