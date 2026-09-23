@@ -22,7 +22,7 @@ const snap5 = (t: number) => Math.round(t / 300_000) * 300_000;
 
 // Layout (px)
 const TOP = 26; // NU / OBSERVERAT / PROGNOS
-const CHART_H = 210; // molnbas (vänster axel) + temperatur (höger axel) + nederbörd
+const CHART_H = 290; // molnbas (vänster axel) + temperatur (höger axel) + nederbörd
 const GROUND_PAD = 6; // luft under marklinjen
 const PRECIP_H = 30; // mm per timme, direkt under marklinjen
 const WIND_H = 44;
@@ -68,7 +68,7 @@ export const Timeline = memo(function Timeline({ now, until, data, onCursor, rec
 
   // Skalor: molnbas (m, kvadratrot) och temperatur (°C, linjär) delar ytan
   const plotH = CHART_H - GROUND_PAD - 22;
-  const yCloud = (m: number) => groundY - Math.sqrt(Math.min(1, Math.max(0, m / CLOUD_TOP_M))) * plotH;
+  const yCloud = (m: number) => groundY - Math.min(1, Math.max(0, m / CLOUD_TOP_M)) * plotH;
   const [t0, t1] = data.temp.domain;
   const yTemp = useCallback((v: number) => groundY - 6 - ((v - t0) / (t1 - t0)) * (plotH - 6), [t0, t1, groundY, plotH]);
 
@@ -227,18 +227,22 @@ export const Timeline = memo(function Timeline({ now, until, data, onCursor, rec
 
   const pathOf = (pts: Pt[]) => pts.map((p, i) => `${i ? "L" : "M"}${x(p.t).toFixed(1)},${yTemp(p.v).toFixed(1)}`).join("");
   const nowX = x(now);
+  // Aktuell temperatur (senaste observation, annars första prognospunkten) färgar °C-rubriken.
+  const nowTemp = data.temp.observed.at(-1)?.at(-1)?.v ?? data.temp.forecast[0]?.[0]?.v;
   const span = (a: number, b: number, inset = 0) => ({ x: x(a) + inset, width: Math.max(1, x(b) - x(a) - inset * 2) });
 
   return (
     <div className="tl" style={{ height: H }}>
       {/* Vänster axel: molnbas (m) */}
       <div className="tl-yaxis" aria-hidden>
-        <span className="tl-axtitle" style={{ top: 4 }}>
-          Cloud base m
+        <span className={`tl-axtitle temp ${tempSign(nowTemp)}`} style={{ top: 4 }}>
+          °C
         </span>
-        {CLOUD_TICKS.filter((m) => m > 0).map((m) => (
-          <span key={m} style={{ top: yCloud(m) }}>
-            {m >= 1000 ? `${m / 1000} km` : m}
+        <i className="tl-taxis warm" style={{ top: yTemp(t1), height: yTemp(0) - yTemp(t1) }} />
+        <i className="tl-taxis cold" style={{ top: yTemp(0), height: yTemp(t0) - yTemp(0) }} />
+        {data.temp.ticks.map((v) => (
+          <span key={v} className={`tl-ttick ${tempSign(v)}`} style={{ top: yTemp(v) }}>
+            {`${v}°`.replace("-", "−")}
           </span>
         ))}
         {data.precipHours.length > 0 && (
@@ -252,12 +256,12 @@ export const Timeline = memo(function Timeline({ now, until, data, onCursor, rec
       </div>
       {/* Höger axel: temperatur (°C) */}
       <div className="tl-yaxis right" aria-hidden ref={rightAxis} style={{ width: RIGHT_AXIS_W }}>
-        <span className="tl-axtitle temp" style={{ top: 4 }}>
-          °C
+        <span className="tl-axtitle cloud" style={{ top: 4 }}>
+          Cloud base m
         </span>
-        {data.temp.ticks.map((v) => (
-          <span key={v} style={{ top: yTemp(v), color: tempColor(v) }}>
-            {`${v}°`.replace("-", "−")}
+        {CLOUD_TICKS.filter((m) => m > 0).map((m) => (
+          <span key={m} style={{ top: yCloud(m) }}>
+            {m}
           </span>
         ))}
       </div>
@@ -289,8 +293,8 @@ export const Timeline = memo(function Timeline({ now, until, data, onCursor, rec
             <defs>
               {/* Temperatur: blått under noll, rött över – intensivare ju längre från noll */}
               <linearGradient id="tempgrad" gradientUnits="userSpaceOnUse" x1={0} x2={0} y1={yTemp(t0)} y2={yTemp(t1)}>
-                {tempStops(t0, t1).map((s) => (
-                  <stop key={s.offset} offset={s.offset} stopColor={s.color} />
+                {tempStops(t0, t1).map((s, i) => (
+                  <stop key={i} offset={s.offset} stopColor={s.color} />
                 ))}
               </linearGradient>
               <linearGradient id="fog" x1={0} x2={0} y1={0} y2={1}>
@@ -330,7 +334,7 @@ export const Timeline = memo(function Timeline({ now, until, data, onCursor, rec
 
             {/* Dimma / dis: ljusgrått marknära lager (dimma högre och tätare än dis) */}
             {data.lowVis.map((v, i) => {
-              const top = yCloud(v.severe ? 150 : 60);
+              const top = groundY - (v.severe ? 30 : 14);
               return (
                 <rect
                   key={`lv${i}`}
@@ -488,6 +492,9 @@ export const Timeline = memo(function Timeline({ now, until, data, onCursor, rec
     </div>
   );
 });
+
+/** Axelfärg: rött över noll, blått under. */
+const tempSign = (v: number | undefined) => (v === undefined || v === 0 ? "zero" : v > 0 ? "warm" : "cold");
 
 /** Temperaturfärg: blått vid kyla, rött vid värme, tydligt skifte vid 0 °C. */
 export function tempColor(v: number): string {

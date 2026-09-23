@@ -14,7 +14,8 @@ situation **now**, and the **forecast** for the next 12 hours, all on the same a
 - The header shows temperature, wind (m/s, direction in whole tens of degrees),
   visibility and cloud base with cover type and oktas. Precipitation appears only
   when data exists for the selected time.
-- One chart: cloud base (m, left axis) and temperature (°C, right axis). Cloud icons are
+- One chart: temperature (°C, left axis, fixed −20 … +35, red above zero and blue below)
+  and cloud base (m, right axis, linear 0–3,000 m). Cloud icons are
   filled from the bottom by the eighths of the sky covered. Precipitation falls as drops
   from the cloud base, and forecast drops are shaded by SMHI's probability of
   precipitation. The ground layer shows accumulated rain (mm) and estimated snow depth

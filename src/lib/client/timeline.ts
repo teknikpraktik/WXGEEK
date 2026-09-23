@@ -191,29 +191,12 @@ export type ChartData = {
   tafEnd?: { t: number; stationId: string };
 };
 
-/** Molnbasaxeln: kvadratrotsskala så att låga moln får mest utrymme. */
+/** Molnbasaxeln (höger): linjär 0–3 000 m. */
 export const CLOUD_TOP_M = 3000;
-export const CLOUD_TICKS = [0, 300, 1000, 2000, 3000];
-
-function niceDomain(values: number[], minSpan: number, pad = 0.1): [number, number] {
-  if (values.length === 0) return [0, minSpan];
-  let lo = Math.min(...values);
-  let hi = Math.max(...values);
-  const span = Math.max(hi - lo, minSpan);
-  const mid = (lo + hi) / 2;
-  lo = mid - (span / 2) * (1 + pad);
-  hi = mid + (span / 2) * (1 + pad);
-  return [lo, hi];
-}
-
-function niceTicks([lo, hi]: [number, number], count = 4): number[] {
-  const raw = (hi - lo) / count;
-  const mag = 10 ** Math.floor(Math.log10(raw));
-  const step = Math.max(1, [1, 2, 5, 10].map((m) => m * mag).find((s) => s >= raw) ?? raw);
-  const out: number[] = [];
-  for (let v = Math.ceil(lo / step) * step; v <= hi + 1e-9; v += step) out.push(Math.round(v * 1000) / 1000);
-  return out;
-}
+export const CLOUD_TICKS = [0, 500, 1000, 1500, 2000, 2500, 3000];
+/** Temperaturaxeln (vänster): fast −20 … +35 °C. */
+export const TEMP_DOMAIN: [number, number] = [-20, 35];
+export const TEMP_TICKS = [-20, -10, 0, 10, 20, 30];
 
 const OBS_GAP = 100 * 60 * 1000;
 const FCST_GAP = 3 * HOUR + 1;
@@ -263,7 +246,6 @@ export function buildChart(bundle: WeatherBundle, now: number): ChartData {
         : [{ t: ts(p), v: Math.round(adjust(ts(p), p.temperatureC) * 10) / 10 }],
     ),
   ];
-  const tDomain = niceDomain([...tObs, ...tFc].map((p) => p.v), 6, 0.2);
 
   // Prognos per timme med källa per variabel: TAF där den gäller, annars SMHI.
   const merged: MergedForecast[] = fc.filter((p) => ts(p) >= now - 30 * 60 * 1000).map((p) => mergedForecastAt(bundle, ts(p), adjust));
@@ -513,7 +495,7 @@ export function buildChart(bundle: WeatherBundle, now: number): ChartData {
   }
 
   return {
-    temp: { observed: segments(tObs, OBS_GAP), forecast: segments(tFc, FCST_GAP), domain: tDomain, ticks: niceTicks(tDomain) },
+    temp: { observed: segments(tObs, OBS_GAP), forecast: segments(tFc, FCST_GAP), domain: TEMP_DOMAIN, ticks: TEMP_TICKS },
     cloudsObserved,
     cloudsForecast,
     precipObserved,

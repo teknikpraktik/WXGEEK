@@ -170,12 +170,12 @@ GeekwxApp              – plats, datahämtning, auto-uppdatering (5 min när fl
   gråskala efter täckningsgrad och dimma som ljusgrått marknära lager.
   Linjer dras aldrig över luckor i data.
 - **Ett diagram med två y-axlar**:
-  - **Vänster axel – molnbas (m)**, kvadratrotsskala 0–3 km så att låga moln får
-    mest utrymme. Molnlager ritas som molnformer med platt underkant vid molnbasen;
+  - **Höger axel – molnbas (m)**, linjär 0–3 000 m. Molnlager ritas som molnformer med platt underkant vid molnbasen;
     angränsande block på samma höjd slås ihop. Molnikonen fylls nerifrån med andelen åttondelar som täcks
     (FEW 2/8, SCT 4/8, BKN 6/8, OVC 8/8; SMHI-oktas direkt) via SVG-gradienter `cov0`…`cov8`.
-  - **Höger axel – temperatur (°C)**, skalan färgad blå/röd. Axeln sitter dikt an mot
-    diagrammets högerkant (där datat slutar) och stannar vid vyns kant när man scrollar bakåt.
+  - **Vänster axel – temperatur (°C)**, fast −20 … +35. Axellinje och värden röda över noll,
+    blåa under; °C-rubriken färgas efter aktuell temperatur. Molnbasaxeln (höger) sitter dikt
+    an mot diagrammets högerkant och stannar vid vyns kant när man scrollar bakåt.
   - **Observerat och prognos sitter ihop**: prognoskurvan (streckad) börjar i senaste
     observerade punkten. Skillnaden mellan observation och prognos där läggs på prognosen
     och klingar av linjärt under 3 h, så att kurvan blir sammanhängande. Samma justering
@@ -200,7 +200,7 @@ GeekwxApp              – plats, datahämtning, auto-uppdatering (5 min när fl
   - **Nederbörd per timme** i ett eget fält direkt under marklinjen: stapel + mm. Uppmätt
     (SMHI-mätare) heldraget; prognos som trolig mängd (mörk, SMHI-ensemblens median) och
     möjlig mängd (ljus, max av medel och max). SMHI:s min används inte.
-  - Dimma/dis: ljusgrått lager från marken (dimma ~150 m, dis/sikt under 5 km ~60 m). Åska markeras med ϟ.
+  - Dimma/dis: ljusgrått lager från marken (fast höjd i px: dimma 30, dis/sikt under 5 km 14). Åska markeras med ϟ.
 - Ingen förklaring (legend) och inga instruktionstexter under diagrammet.
 - **Tidsaxel direkt under diagrammet** (tim-streck, "09:00" var 3:e timme, veckodag vid midnatt).
   Vänsteraxeln har solid bakgrund så att moln tonar bort innan de når etiketterna.
