@@ -1,7 +1,16 @@
 "use client";
 
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { CLOUD_TICKS, CLOUD_TOP_M, HOUR, PAST_HOURS, type ChartData, type Precip, type Pt } from "@/lib/client/timeline";
+import {
+  CLOUD_TICKS,
+  CLOUD_TOP_M,
+  HOUR,
+  PAST_HOURS,
+  type ChartData,
+  type CloudBlock,
+  type Precip,
+  type Pt,
+} from "@/lib/client/timeline";
 import { fmtDay, localHour, fmtTime } from "@/lib/format";
 
 const PX_PER_HOUR = 34;
@@ -14,6 +23,8 @@ const GROUND_PAD = 6; // luft under marklinjen
 const WIND_H = 44;
 const AXIS_H = 28;
 const GAP = 6;
+const RIGHT_AXIS_W = 40;
+const CLOUD_H = 12;
 
 type Props = {
   now: number;
@@ -100,7 +111,22 @@ export const Timeline = memo(function Timeline({ now, until, data, onCursor, rec
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [recenterSignal]);
 
+  // Temperaturaxeln sitter dikt an mot diagrammets högerkant; när kanten är utanför
+  // vyn stannar den vid vyns högerkant.
+  const rightAxis = useRef<HTMLDivElement>(null);
+  const placeRightAxis = useCallback(() => {
+    const el = scroller.current;
+    const ax = rightAxis.current;
+    if (!el || !ax) return;
+    const chartEnd = pad + W - el.scrollLeft;
+    ax.style.transform = `translateX(${Math.round(Math.min(el.clientWidth - RIGHT_AXIS_W, chartEnd + 4))}px)`;
+  }, [pad, W]);
+  useLayoutEffect(() => {
+    placeRightAxis();
+  });
+
   const onScroll = () => {
+    placeRightAxis();
     cancelAnimationFrame(raf.current);
     raf.current = requestAnimationFrame(() => {
       const el = scroller.current;
@@ -183,12 +209,12 @@ export const Timeline = memo(function Timeline({ now, until, data, onCursor, rec
         </span>
       </div>
       {/* Höger axel: temperatur (°C) */}
-      <div className="tl-yaxis right" aria-hidden>
-        <span className="tl-axtitle" style={{ top: chartTop + 2 }}>
+      <div className="tl-yaxis right" aria-hidden ref={rightAxis} style={{ width: RIGHT_AXIS_W }}>
+        <span className="tl-axtitle temp" style={{ top: chartTop + 2 }}>
           °C
         </span>
         {data.temp.ticks.map((v) => (
-          <span key={v} style={{ top: yTemp(v) }}>
+          <span key={v} style={{ top: yTemp(v), color: tempColor(v) }}>
             {`${v}°`.replace("-", "−")}
           </span>
         ))}
@@ -279,30 +305,32 @@ export const Timeline = memo(function Timeline({ now, until, data, onCursor, rec
                 p={p}
                 forecast={"fc" in p}
                 x={x}
-                fromY={p.fromM !== undefined ? yCloud(p.fromM) + 4 : chartTop + 18}
+                fromY={p.fromM !== undefined ? yCloud(p.fromM) + 1 : chartTop + 18}
                 toY={groundY - 1}
                 unknownBase={p.fromM === undefined}
               />
             ))}
 
             {/* Moln */}
-            {data.cloudsObserved.map((c, i) => (
-              <rect
+            {mergeClouds(data.cloudsObserved).map((c, i) => (
+              <path
                 key={`co${i}`}
-                {...span(c.t0, c.t1, 0.5)}
-                y={yCloud(c.baseM) - 3.5}
-                height={7}
-                rx={1.5}
-                className={c.cover === "VV" ? "tl-cloud vv" : "tl-cloud"}
-                style={c.cover === "VV" ? undefined : { fill: cloudFill(c.density) }}
+                d={cloudPath(x(c.t0) + 0.5, x(c.t1) - 0.5, yCloud(c.baseM), CLOUD_H)}
+                className="tl-cloud"
+                style={{ fill: c.cover === "VV" ? "url(#vv)" : cloudFill(c.density) }}
               >
                 <title>{`${c.cover === "MODEL" ? "Molnbas" : c.cover} ${Math.round(c.baseM)} m`}</title>
-              </rect>
+              </path>
             ))}
-            {data.cloudsForecast.map((c, i) => (
-              <rect key={`cf${i}`} {...span(c.t0, c.t1, 1)} y={yCloud(c.baseM) - 3.5} height={7} rx={1.5} className="tl-cloud fc" style={{ fill: cloudFill(c.density) }}>
+            {mergeClouds(data.cloudsForecast).map((c, i) => (
+              <path
+                key={`cf${i}`}
+                d={cloudPath(x(c.t0) + 1, x(c.t1) - 1, yCloud(c.baseM), CLOUD_H)}
+                className="tl-cloud fc"
+                style={{ fill: cloudFill(c.density) }}
+              >
                 <title>{`Molnbas ${Math.round(c.baseM)} m (prognos)`}</title>
-              </rect>
+              </path>
             ))}
             {data.thunder.map((m, i) => (
               <text key={`th${i}`} x={(x(m.t0) + x(m.t1)) / 2} y={chartTop + 30} textAnchor="middle" className={`tl-thunder${m.forecast ? " fc" : ""}`}>
@@ -413,6 +441,130 @@ function tempStops(lo: number, hi: number) {
   return out;
 }
 
+/**
+ * Molnform: platt underkant vid molnbasen (yb) och två–tre rundade toppar ovanför.
+ * Mittersta toppen är högst.
+ */
+export function cloudPath(x0: number, x1: number, yb: number, h: number): string {
+  const w = x1 - x0;
+  if (w < 5) return `M${x0},${yb}h${w}v${-h * 0.6}h${-w}Z`;
+  const n = Math.max(2, Math.round(w / 12));
+  const shoulder = yb - h * 0.38;
+  const seg = w / n;
+  // Toppar i varierande höjd – högst i mitten, lägre mot kanterna.
+  const PATTERN = [0.62, 0.5, 0.7, 0.55, 0.66, 0.48];
+  let d = `M${x0.toFixed(1)},${yb.toFixed(1)} L${x0.toFixed(1)},${shoulder.toFixed(1)}`;
+  for (let i = 0; i < n; i++) {
+    const xe = x0 + seg * (i + 1);
+    const edge = i === 0 || i === n - 1 ? 0.8 : 1;
+    const ry = (h * PATTERN[i % PATTERN.length] * edge).toFixed(1);
+    d += ` A${(seg / 2).toFixed(1)},${ry} 0 0 1 ${xe.toFixed(1)},${shoulder.toFixed(1)}`;
+  }
+  return `${d} L${x1.toFixed(1)},${yb.toFixed(1)} Z`;
+}
+
+/** Slår ihop angränsande molnblock på samma höjd och med samma täthet till ett längre moln. */
+function mergeClouds(blocks: CloudBlock[]): CloudBlock[] {
+  const sorted = [...blocks].sort((a, b) => a.baseM - b.baseM || a.t0 - b.t0);
+  const out: CloudBlock[] = [];
+  for (const b of sorted) {
+    const prev = out.find(
+      (o) =>
+        o.cover === b.cover &&
+        Math.abs(o.density - b.density) < 0.01 &&
+        Math.abs(o.baseM - b.baseM) <= 20 &&
+        b.t0 - o.t1 <= 60 * 1000 &&
+        b.t0 >= o.t0,
+    );
+    if (prev) prev.t1 = Math.max(prev.t1, b.t1);
+    else out.push({ ...b });
+  }
+  return out;
+}
+
+/** Förklaring som bara visar det som faktiskt finns i diagrammet, med samma symboler. */
+export function ChartLegend({ data }: { data: ChartData }) {
+  const precip = [...data.precipObserved, ...data.precipForecast];
+  const items: Array<{ key: string; label: string; icon: React.ReactNode }> = [];
+  const icon = (children: React.ReactNode) => (
+    <svg width={22} height={14} viewBox="0 0 22 14" aria-hidden>
+      {children}
+    </svg>
+  );
+  const grad = (
+    <defs>
+      <linearGradient id="lg-temp" gradientUnits="userSpaceOnUse" x1={1} x2={21} y1={0} y2={0}>
+        <stop offset={0} stopColor={tempColor(-10)} />
+        <stop offset={0.45} stopColor={tempColor(0)} />
+        <stop offset={0.55} stopColor={tempColor(1)} />
+        <stop offset={1} stopColor={tempColor(20)} />
+      </linearGradient>
+    </defs>
+  );
+  if (data.temp.observed.length)
+    items.push({ key: "to", label: "Temperatur, observerad", icon: icon(<>{grad}<line x1={1} x2={21} y1={7} y2={7} className="lg-line" style={{ stroke: "url(#lg-temp)" }} /></>) });
+  if (data.temp.forecast.length)
+    items.push({ key: "tf", label: "Temperatur, prognos", icon: icon(<>{grad}<line x1={1} x2={21} y1={7} y2={7} className="lg-line dashed" style={{ stroke: "url(#lg-temp)" }} /></>) });
+  if (data.cloudsObserved.length || data.cloudsForecast.length)
+    items.push({
+      key: "cl",
+      label: "Moln vid molnbasen",
+      icon: icon(
+        <>
+          <path d={cloudPath(1, 10, 12, 10)} style={{ fill: cloudFill(0.3) }} />
+          <path d={cloudPath(11, 21, 12, 10)} style={{ fill: cloudFill(1) }} />
+        </>,
+      ),
+    });
+  if (precip.some((p) => p.kind === "regn"))
+    items.push({
+      key: "ra",
+      label: "Regn",
+      icon: icon(
+        <g className="tl-precip k-regn">
+          <line x1={8} x2={6} y1={1} y2={13} />
+          <line x1={14} x2={12} y1={1} y2={13} />
+        </g>,
+      ),
+    });
+  if (precip.some((p) => p.kind === "snö"))
+    items.push({
+      key: "sn",
+      label: "Snö",
+      icon: icon(
+        <g className="tl-precip k-sno">
+          <line x1={8} x2={6} y1={1} y2={13} />
+          <line x1={14} x2={12} y1={1} y2={13} />
+        </g>,
+      ),
+    });
+  if (data.lowVis.length)
+    items.push({ key: "fg", label: "Dimma / dis", icon: icon(<rect x={1} y={3} width={20} height={10} className="lg-fog" />) });
+  if (data.thunder.length)
+    items.push({ key: "th", label: "Åska", icon: icon(<text x={11} y={12} textAnchor="middle" className="tl-thunder">ϟ</text>) });
+  if (data.wind.length)
+    items.push({
+      key: "wi",
+      label: "Vind (m/s)",
+      icon: icon(
+        <g transform="translate(11,7) rotate(225)" className="tl-wind">
+          <path d="M0,-6 L0,5 M-3,2 L0,6 L3,2" />
+        </g>,
+      ),
+    });
+
+  return (
+    <div className="legend" aria-hidden>
+      {items.map((it) => (
+        <span key={it.key} className="lgi">
+          {it.icon}
+          {it.label}
+        </span>
+      ))}
+    </div>
+  );
+}
+
 /** Molnfärg: ljust för få moln, mörkare grått ju mer av himlen som täcks. */
 const cloudFill = (density: number) =>
   `color-mix(in srgb, var(--cloud-dense) ${Math.round(15 + density * 85)}%, var(--cloud-thin))`;
@@ -433,17 +585,17 @@ function PrecipStreaks({
   toY: number;
   unknownBase: boolean;
 }) {
-  const x0 = x(p.t0);
-  const w = x(p.t1) - x0;
-  const perHour = p.mm === undefined ? 1.5 : p.mm < 0.5 ? 1 : p.mm < 2 ? 2 : p.mm < 5 ? 3 : 5;
-  const n = Math.max(1, Math.round((w / PX_PER_HOUR) * perHour));
+  const cx = x(p.atT);
+  // Antal streck efter mängd; okänd mängd (bara väderkod) = två streck.
+  const n = p.mm === undefined ? 2 : p.mm < 0.5 ? 1 : p.mm < 2 ? 2 : p.mm < 5 ? 3 : 4;
+  const gap = 4.5;
   const cls = `tl-precip k-${p.kind === "snö" ? "sno" : "regn"}${forecast ? " fc" : ""}${unknownBase ? " nobase" : ""}`;
   if (toY - fromY < 4) return null;
   return (
     <g className={cls}>
       {Array.from({ length: n }, (_, i) => {
-        const xx = x0 + (w * (i + 0.5)) / n;
-        return <line key={i} x1={xx} x2={xx - 3} y1={fromY + (i % 2) * 5} y2={toY} />;
+        const xx = cx + (i - (n - 1) / 2) * gap;
+        return <line key={i} x1={xx} x2={xx - 3} y1={fromY + (i % 2) * 3} y2={toY} />;
       })}
       <title>
         {`${p.label}${p.mm !== undefined ? ` ${p.mm.toFixed(1).replace(".", ",")} mm` : ""}${forecast ? " (prognos)" : " (observerat)"}${unknownBase ? " – molnbas okänd" : ""}`}

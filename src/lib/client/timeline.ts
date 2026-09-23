@@ -76,7 +76,11 @@ export type PrecipKind = "regn" | "snö";
 /** density 0–1: hur stor del av himlen som täcks (FEW → OVC, eller oktas/8). */
 export type CloudBlock = Span & { baseM: number; cover: CloudLayer["cover"] | "MODEL"; density: number };
 /** Nederbörd som faller från molnbasen. mm saknas när bara väderkoden säger att det regnar. */
-export type Precip = Span & { kind: PrecipKind; mm?: number; fromM?: number; label: string };
+/**
+ * Nederbörd som faller från ett moln. `fromM` = molnbasen, `atT` = molnets mitt (tid),
+ * så att strecken ritas under molnet de kommer ifrån.
+ */
+export type Precip = Span & { kind: PrecipKind; mm?: number; fromM?: number; atT: number; label: string };
 export type Arrow = { t: number; deg?: number; variable?: boolean; speed: number; gust?: number; forecast: boolean };
 export type Mark = Span & { forecast: boolean; label: string };
 
@@ -128,13 +132,19 @@ const precipKindOf = (p: Phenomenon | undefined): PrecipKind | null => {
   return g === "snö" ? "snö" : g === "regn" || g === "åska" ? "regn" : null;
 };
 
-/** Lägsta molnbas som överlappar ett tidsintervall. */
-function baseAt(blocks: CloudBlock[], span: Span): number | undefined {
-  let best: number | undefined;
+/** Lägsta molnlager (ej FEW) som överlappar ett tidsintervall. */
+function cloudAt(blocks: CloudBlock[], span: Span): CloudBlock | undefined {
+  let best: CloudBlock | undefined;
   for (const b of blocks) {
-    if (b.t0 < span.t1 && b.t1 > span.t0 && b.cover !== "FEW" && (best === undefined || b.baseM < best)) best = b.baseM;
+    if (b.t0 < span.t1 && b.t1 > span.t0 && b.cover !== "FEW" && (!best || b.baseM < best.baseM)) best = b;
   }
   return best;
+}
+
+/** Var nederbörden faller ifrån: mitten av molnet ovanför, annars mitten av intervallet. */
+function source(blocks: CloudBlock[], span: Span): { fromM?: number; atT: number } {
+  const c = cloudAt(blocks, span);
+  return c ? { fromM: c.baseM, atT: (c.t0 + c.t1) / 2 } : { atT: (span.t0 + span.t1) / 2 };
 }
 
 export function buildChart(bundle: WeatherBundle, now: number): ChartData {
@@ -188,7 +198,7 @@ export function buildChart(bundle: WeatherBundle, now: number): ChartData {
     if (x.precipitationMm === undefined || x.precipitationMm <= 0) continue;
     const span = { t0: ts(x) - HOUR, t1: ts(x) };
     const kind = kindNear(span.t0 + HOUR / 2) ?? "regn";
-    precipObserved.push({ ...span, kind, mm: x.precipitationMm, fromM: baseAt(cloudsObserved, span), label: kind === "snö" ? "Snö" : "Regn" });
+    precipObserved.push({ ...span, kind, mm: x.precipitationMm, ...source(cloudsObserved, span), label: kind === "snö" ? "Snö" : "Regn" });
   }
   for (const o of phenObs) {
     const p = o.weatherPhenomena?.[0];
@@ -197,14 +207,16 @@ export function buildChart(bundle: WeatherBundle, now: number): ChartData {
     const t = ts(o);
     const span = { t0: t - phenStep / 2, t1: t + phenStep / 2 };
     if (precipObserved.some((b) => b.mm !== undefined && b.t0 < span.t1 && b.t1 > span.t0)) continue;
-    precipObserved.push({ ...span, kind, fromM: baseAt(cloudsObserved, span), label: p.label });
+    precipObserved.push({ ...span, kind, ...source(cloudsObserved, span), label: p.label });
   }
   const precipForecast: Precip[] = fc.flatMap((p) => {
     const t1 = ts(p);
     const t0 = p.intervalStart ? Date.parse(p.intervalStart) : t1 - HOUR;
     if (t1 < now || p.precipitationMm === undefined || p.precipitationMm < 0.1) return [];
     const kind = precipKindOf(p.phenomenon) ?? "regn";
-    return [{ t0, t1, kind, mm: p.precipitationMm, fromM: p.cloudBaseM, label: p.phenomenon?.label ?? (kind === "snö" ? "Snö" : "Regn") }];
+    // Prognosens moln för timmen ritas centrerat på t1.
+    const from = p.cloudBaseM !== undefined ? { fromM: p.cloudBaseM, atT: t1 } : { atT: (t0 + t1) / 2 };
+    return [{ t0, t1, kind, mm: p.precipitationMm, ...from, label: p.phenomenon?.label ?? (kind === "snö" ? "Snö" : "Regn") }];
   });
 
   // Vind: en pil per timme

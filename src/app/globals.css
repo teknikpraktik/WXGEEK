@@ -341,40 +341,6 @@ main {
   letter-spacing: 0.04em;
 }
 
-.readout-main {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 4px 16px;
-  margin: 8px 0 10px;
-}
-.readout-temp {
-  display: flex;
-  align-items: flex-start;
-}
-.big {
-  font-size: 56px;
-  font-weight: 400;
-  line-height: 0.95;
-  letter-spacing: -0.03em;
-}
-.big-unit {
-  font-size: 20px;
-  margin: 4px 0 0 4px;
-  color: var(--ink-2);
-}
-.readout-forecast .big,
-.readout-forecast .big-unit {
-  color: var(--ink);
-}
-.readout-headline {
-  font-size: 17px;
-  font-weight: 500;
-}
-.readout-main > .src {
-  flex-basis: 100%;
-}
-
 .cell {
   padding: 7px 10px 7px 0;
   border-bottom: 1px solid var(--rule-2);
@@ -635,20 +601,6 @@ main {
   font-size: 12px;
   color: var(--ink-2);
 }
-.lg {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
-.lg::before {
-  content: "";
-  width: 18px;
-  height: 0;
-  border-top: 2.25px solid var(--obs);
-}
-.lg-fc::before {
-  border-top: 2px dashed var(--fc);
-}
 
 .btn-now {
   white-space: nowrap;
@@ -741,30 +693,6 @@ main {
 .tl-thunder.fc {
   opacity: 0.6;
 }
-.lg-regn::before,
-.lg-sno::before,
-.lg-fog::before {
-  width: 10px;
-  height: 8px;
-  border: 0;
-  border-radius: 2px;
-}
-.lg-regn::before {
-  background: var(--ev-regn);
-}
-.lg-sno::before {
-  background: var(--ev-sno);
-}
-.lg-fog::before {
-  background: linear-gradient(to top, var(--fog), color-mix(in srgb, var(--fog) 30%, transparent));
-}
-.lg-temp::before {
-  width: 18px;
-  height: 3px;
-  border: 0;
-  border-radius: 2px;
-  background: linear-gradient(to right, #1e3a8a, #60a5fa 45%, #f59e0b 55%, #dc2626);
-}
 .small-b {
   font-size: 13px !important;
 }
@@ -843,14 +771,22 @@ main {
 /* ------------------------------------------------------------------------- */
 
 .tl-yaxis.right {
-  left: auto;
-  right: 0;
-  text-align: right;
-  background: linear-gradient(to left, var(--bg) 60%, transparent);
+  left: 0;
+  right: auto;
+  background: linear-gradient(to right, transparent, var(--bg) 35%);
+  will-change: transform;
 }
 .tl-yaxis.right span {
-  left: auto;
-  right: 16px;
+  left: 6px;
+  right: auto;
+  font-weight: 500;
+}
+.tl-yaxis .tl-axtitle.temp {
+  background: linear-gradient(to right, #2563eb, #dc2626);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  font-weight: 600;
 }
 .tl-yaxis .tl-axtitle {
   transform: none;
@@ -861,9 +797,6 @@ main {
 
 .tl-cloud {
   fill: var(--cloud);
-}
-.tl-cloud.vv {
-  fill: url(#vv);
 }
 .tl-vv {
   stroke: var(--cloud);
@@ -892,14 +825,6 @@ main {
 /* Molnbas okänd: strecken börjar uppifrån och tonas */
 .tl-precip.nobase {
   opacity: 0.4;
-}
-
-.lg-cloud::before {
-  width: 12px;
-  height: 7px;
-  border: 0;
-  border-radius: 1.5px;
-  background: linear-gradient(to right, var(--cloud-thin), var(--cloud-dense));
 }
 
 /* ------------------------------------------------------------------------- */
@@ -948,4 +873,58 @@ main {
   font-size: 11px;
   color: var(--muted);
   margin-top: 20px;
+}
+
+/* Förklaring – samma symboler som i diagrammet */
+.lgi {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.lgi svg {
+  flex: none;
+}
+.lg-line {
+  stroke-width: 2.25;
+  stroke-linecap: round;
+}
+.lg-line.dashed {
+  stroke-dasharray: 4 3;
+}
+.lg-fog {
+  fill: var(--fog);
+  opacity: 0.9;
+}
+
+/* Nuväder: temperatur, vind, sikt, molnbas som likvärdiga värden på en rad */
+.readout-grid {
+  grid-template-columns: repeat(auto-fit, minmax(76px, 1fr));
+  margin-top: 8px;
+}
+.cell .val {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 3px;
+  white-space: nowrap;
+}
+.cell .val b {
+  font-size: clamp(22px, 6.4vw, 34px);
+  font-weight: 400;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+}
+.cell .val .unit {
+  font-size: 12px;
+  color: var(--ink-2);
+}
+.cell .val .windarrow {
+  align-self: center;
+  margin-right: 1px;
+}
+.cell .sub {
+  font-size: 11.5px;
+  line-height: 1.3;
+}
+.cell .missing {
+  font-size: 12px;
 }

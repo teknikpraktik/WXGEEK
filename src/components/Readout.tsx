@@ -69,65 +69,64 @@ export function Readout({ snap, now, forecastCreated, children }: Props) {
         {status}
       </div>
 
-      <div className="readout-main">
-        <div className="readout-temp">
-          {snap.temperature ? (
-            <>
-              <span className="big mono">{fmtTemp(snap.temperature.value)}</span>
-              <span className="big-unit">°C</span>
-            </>
-          ) : (
-            <span className="missing">
-              {isFc ? "Ingen temperaturprognos" : "Ingen aktuell temperaturmätning"}
-            </span>
-          )}
-        </div>
-        <div className="readout-headline">
-          {phen && <span className="headline-phen">{phen}</span>}
-        </div>
-      </div>
-
+      {/* Nuväder: fyra likvärdiga värden på en rad */}
       <dl className="readout-grid">
-        <Cell label="Vind" r={snap.wind} {...cellProps} missing={isFc ? "–" : "Ingen aktuell vindmätning"}>
+        <Cell label="Temperatur" r={snap.temperature} {...cellProps} missing={isFc ? "–" : "Ingen aktuell mätning"}>
+          {snap.temperature && (
+            <>
+              <Val v={fmtTemp(snap.temperature.value)} unit="°C" />
+              {phen && <span className="sub">{phen}</span>}
+            </>
+          )}
+        </Cell>
+        <Cell label="Vind" r={snap.wind} {...cellProps} missing={isFc ? "–" : "Ingen aktuell mätning"}>
           {w && (
             <>
-              {w.deg !== undefined && !w.variable && <WindArrow deg={w.deg} />}
-              {fmtWindDir(w.deg, w.variable)} <b className="mono">{fmtWindSpeed(w.speed)}</b> m/s
-              {gust !== undefined && gust >= (w.speed ?? 0) + 1 && (
-                <span className="sub">
-                  byar <b className="mono small-b">{fmtWindSpeed(gust)}</b> m/s
-                </span>
-              )}
+              <Val
+                v={fmtWindSpeed(w.speed)}
+                unit="m/s"
+                icon={w.deg !== undefined && !w.variable ? <WindArrow deg={w.deg} size={18} /> : undefined}
+              />
+              <span className="sub">
+                {w.variable ? "Varierande" : w.deg !== undefined ? `från ${fmtWindDir(w.deg)}` : ""}
+                {gust !== undefined && gust >= (w.speed ?? 0) + 1 ? ` · byar ${fmtWindSpeed(gust)}` : ""}
+              </span>
             </>
           )}
         </Cell>
-        <Cell label="Sikt" r={snap.visibility} {...cellProps} missing={isFc ? "–" : "Ingen aktuell siktobservation"}>
-          {snap.visibility && <b className="mono">{fmtVisibility(snap.visibility.value.m, snap.visibility.value.atLeast)}</b>}
+        <Cell label="Sikt" r={snap.visibility} {...cellProps} missing={isFc ? "–" : "Ingen aktuell observation"}>
+          {snap.visibility && <Val {...splitUnit(fmtVisibility(snap.visibility.value.m, snap.visibility.value.atLeast))} />}
         </Cell>
-        <Cell label="Molnbas" r={snap.cloud} {...cellProps} missing={isFc ? "–" : "Ingen molnbasobservation"}>
+        <Cell label="Molnbas" r={snap.cloud} {...cellProps} missing={isFc ? "–" : "Ingen observation"}>
           {cloud &&
             (lowest ? (
               <>
-                <b className="mono">{fmtCloudBase(lowest.baseM)}</b>
+                <Val {...splitUnit(fmtCloudBase(lowest.baseM))} />
                 <span className="sub">
                   {COVER_LABEL[lowest.cover]}
-                  {lowest.type === "CB" ? " · bymoln (CB)" : lowest.type === "TCU" ? " · tornande cumulus" : ""}
+                  {lowest.type === "CB" ? " · CB" : lowest.type === "TCU" ? " · TCU" : ""}
                 </span>
               </>
             ) : cloud.baseM !== undefined ? (
               <>
-                <b className="mono">{fmtCloudBase(cloud.baseM)}</b>
+                <Val {...splitUnit(fmtCloudBase(cloud.baseM))} />
                 {cloud.oktas !== undefined && <span className="sub">{fmtOktas(cloud.oktas)}</span>}
               </>
             ) : cloud.nsc || cloud.oktas === 0 ? (
-              <span className="note">Inga betydande moln</span>
+              <>
+                <Val v="–" unit="" />
+                <span className="sub">Inga betydande moln</span>
+              </>
             ) : cloud.oktas !== undefined ? (
-              <span className="note">{fmtOktas(cloud.oktas)}</span>
+              <>
+                <Val v="–" unit="" />
+                <span className="sub">{fmtOktas(cloud.oktas)}</span>
+              </>
             ) : null)}
         </Cell>
         {snap.precipitation && snap.precipitation.value.mm > 0 && (
-          <Cell label={isFc ? "Nederbörd" : "Nederbörd, 1 h"} r={snap.precipitation} {...cellProps} missing="–">
-            <b className="mono">{fmtPrecip(snap.precipitation.value.mm)}</b>
+          <Cell label={isFc ? "Nederbörd" : "Nederbörd 1 h"} r={snap.precipitation} {...cellProps} missing="–">
+            <Val {...splitUnit(fmtPrecip(snap.precipitation.value.mm))} />
             {isFc && snap.precipitation.value.probability !== undefined && snap.precipitation.value.probability > 0 && (
               <span className="sub">{Math.round(snap.precipitation.value.probability)} % risk</span>
             )}
@@ -165,6 +164,24 @@ export function Readout({ snap, now, forecastCreated, children }: Props) {
       )}
     </section>
   );
+}
+
+/** Värde + enhet, samma typografi för alla mått. */
+function Val({ v, unit, icon }: { v: string; unit: string; icon?: ReactNode }) {
+  return (
+    <span className="val">
+      {icon}
+      <b className="mono">{v}</b>
+      {unit && <span className="unit">{unit}</span>}
+    </span>
+  );
+}
+
+/** "≥ 10 km" → { v: "≥ 10", unit: "km" } */
+function splitUnit(s: string): { v: string; unit: string } {
+  const i = s.lastIndexOf(" ");
+  const v = (i < 0 ? s : s.slice(0, i)).replace("≥ ", "≥");
+  return { v, unit: i < 0 ? "" : s.slice(i + 1) };
 }
 
 function Cell<T>({

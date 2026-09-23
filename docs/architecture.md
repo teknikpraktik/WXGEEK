@@ -122,8 +122,7 @@ Tre nivåer:
 VaderlekApp            – plats, datahämtning, auto-uppdatering (5 min när fliken syns), klocka
 ├─ PlacePicker         – "Använd min position" + ortsökning (sök vid submit, inte per tangent)
 ├─ Readout             – avläsning vid markörens tidpunkt: NU / OBSERVERAT / PROGNOS
-│  ├─ huvudvärde (temperatur) + väderfenomen
-│  ├─ rutnät           – vind (+ byar), sikt, molnbas, nederbörd (bara när det faller något)
+│  ├─ nuväder          – temperatur, vind, sikt, molnbas (+ nederbörd) på en rad, samma storlek och typografi
 │  └─ Timeline         – kärnan: horisontellt scrollbart diagram −12 h … prognosfönstrets slut
 ├─ DataInfo            – under diagrammet, liten stil: rå METAR, rå TAF, källa för huvudvärdet (ESOK · 11 km · 26 min sedan); källfel bara när en tjänst inte svarar
 └─ attribution
@@ -144,13 +143,18 @@ VaderlekApp            – plats, datahämtning, auto-uppdatering (5 min när fl
   Linjer dras aldrig över luckor i data.
 - **Ett diagram med två y-axlar**:
   - **Vänster axel – molnbas (m)**, kvadratrotsskala 0–3 km så att låga moln får
-    mest utrymme. Molnlager ritas som block; täthet = täckningsgrad (FEW → OVC).
+    mest utrymme. Molnlager ritas som molnformer med platt underkant vid molnbasen;
+    angränsande block på samma höjd slås ihop. Täthet = täckningsgrad (FEW → OVC).
     Gråare ju större del av himlen som täcks; prognosmoln något ljusare.
-  - **Höger axel – temperatur (°C)**, heldragen (observerat) / streckad (prognos) kurva, färgad efter temperaturen.
-  - **Nederbörd faller från molnbasen**: streck från lägsta molnlagret (BKN/SCT/OVC)
+  - **Höger axel – temperatur (°C)**, skalan färgad blå/röd. Axeln sitter dikt an mot
+    diagrammets högerkant (där datat slutar) och stannar vid vyns kant när man scrollar bakåt.
+  - Temperaturkurvan:, heldragen (observerat) / streckad (prognos) kurva, färgad efter temperaturen.
+  - **Nederbörd faller från molnets mitt**: streck från lägsta molnlagret (SCT/BKN/OVC)
     ned till marken. Antal streck efter mängd; regn streckat, snö prickat. Saknas
     molnbas börjar strecken uppifrån och tonas ned.
   - Dimma/dis: ljusgrått lager från marken (dimma ~150 m, dis/sikt under 5 km ~60 m). Åska markeras med ϟ.
+- **Förklaringen** byggs från datat och visar bara det som faktiskt finns i diagrammet,
+  med samma symboler.
 - **Vind under diagrammet**: en pil per timme (varifrån det blåser) med m/s under;
   byar visas under när de är minst 3 m/s högre.
 - Lufttryck och luftfuktighet visas inte (och hämtas inte).

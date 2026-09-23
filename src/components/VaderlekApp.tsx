@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Place, WeatherBundle } from "@/lib/types";
 import { buildChart, HOUR, snapshotAt } from "@/lib/client/timeline";
-import { Timeline } from "./Timeline";
+import { ChartLegend, Timeline } from "./Timeline";
 import { Readout } from "./Readout";
 import { PlacePicker } from "./PlacePicker";
 import { DataInfo } from "./DataInfo";
@@ -241,15 +241,7 @@ export function VaderlekApp() {
                 />
 
                 <div className="tl-footer">
-                  <div className="legend" aria-hidden>
-                    <span className="lg lg-obs">Observerat</span>
-                    <span className="lg lg-fc">Prognos</span>
-                    <span className="lg lg-temp">Temperatur</span>
-                    <span className="lg lg-cloud">Moln (kraftigare = tätare)</span>
-                    <span className="lg lg-regn">Regn</span>
-                    <span className="lg lg-sno">Snö</span>
-                    <span className="lg lg-fog">Dimma</span>
-                  </div>
+                  <ChartLegend data={chart} />
                   <button
                     type="button"
                     className={`btn btn-now${awayFromNow ? " visible" : ""}`}
