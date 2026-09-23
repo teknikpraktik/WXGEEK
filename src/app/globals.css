@@ -1019,3 +1019,27 @@ main {
 .tl-water-label.fc {
   opacity: 0.8;
 }
+
+/* Snölager vid marken (uppskattat snödjup) */
+.snow-fill {
+  fill: #ffffff;
+  stroke: none;
+}
+.snow-fill.fc {
+  fill: #ffffff;
+  opacity: 0.75;
+}
+.snow-top {
+  fill: none;
+  stroke: var(--ev-sno);
+  stroke-width: 1.25;
+}
+.snow-top.fc {
+  stroke-dasharray: 3 2;
+}
+@media (prefers-color-scheme: dark) {
+  .snow-fill,
+  .snow-fill.fc {
+    fill: #dfe4ee;
+  }
+}

@@ -161,6 +161,9 @@ VaderlekApp            – plats, datahämtning, auto-uppdatering (5 min när fl
   - **Nederbörd som droppar**: korta droppar (regn) eller prickar (snö) från lägsta
     molnlagret (SCT/BKN/OVC) ned till marken, spridda över hela molnets bredd under
     regnperioden. Tätare ju mer det regnar.
+  - **Snö som snödjup**: nederbörd som faller som snö räknas som uppskattat nysnödjup
+    (1 mm vatten ≈ 1 cm nysnö, utan smältning/sättning) och ritas som ett vitt lager
+    underst; regn läggs som vatten ovanpå. Etiketten visar t.ex. "4,0 mm · ≈ 6,0 cm snö".
   - **Vattenansamling vid marken**: en vattenyta som växer med ackumulerad nederbörd –
     uppmätt (SMHI, heldragen) fram till NU och därefter prognosens mängder (ljusare,
     streckad kant). Summan i mm står vid ytans slut. 1 mm = 5 px upp till 4 mm, därefter

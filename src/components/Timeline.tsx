@@ -6,6 +6,7 @@ import {
   CLOUD_TOP_M,
   HOUR,
   PAST_HOURS,
+  type AccPt,
   type ChartData,
   type CloudBlock,
   type Precip,
@@ -571,14 +572,26 @@ export function ChartLegend({ data }: { data: ChartData }) {
         </g>,
       ),
     });
-  if (Math.max(data.water.observed.at(-1)?.v ?? 0, data.water.forecast.at(-1)?.v ?? 0) >= 0.1)
+  const acc = [...data.water.observed, ...data.water.forecast];
+  if (acc.some((p) => p.rainMm >= 0.1))
     items.push({
       key: "wa",
-      label: "Nederbörd, summa (mm)",
+      label: "Regn, summa (mm)",
       icon: icon(
         <g className="tl-water">
           <path d="M1,13 L7,11 L14,9 L21,7 L21,13 Z" className="water-fill" />
           <path d="M1,13 L7,11 L14,9 L21,7" className="water-top" />
+        </g>,
+      ),
+    });
+  if (acc.some((p) => p.snowCm >= 0.1))
+    items.push({
+      key: "sd",
+      label: "Snödjup, uppskattat (cm)",
+      icon: icon(
+        <g className="tl-water">
+          <path d="M1,13 L7,11 L14,9 L21,7 L21,13 Z" className="snow-fill" />
+          <path d="M1,13 L7,11 L14,9 L21,7" className="snow-top" />
         </g>,
       ),
     });
@@ -682,46 +695,67 @@ function PrecipStreaks({
   );
 }
 
-/** Vattenyta vid marken som växer med ackumulerad nederbörd. */
-const WATER_MAX_PX = 20;
+/**
+ * Ansamling vid marken: snölager (uppskattat snödjup, cm) underst och vatten (regn, mm)
+ * ovanpå. Observerat heldraget fram till NU, prognos ljusare med streckad kant.
+ */
+const ACC_MAX_PX = 20;
 function WaterLayer({ water, x, groundY }: { water: ChartData["water"]; x: (t: number) => number; groundY: number }) {
-  const total = Math.max(water.observed.at(-1)?.v ?? 0, water.forecast.at(-1)?.v ?? 0);
-  if (total < 0.1) return null;
-  // 1 mm = 5 px upp till 4 mm, därefter komprimeras skalan så att ytan ryms (max 20 px).
-  const scale = WATER_MAX_PX / Math.max(4, total);
-  const y = (mm: number) => groundY - mm * scale;
-  const area = (pts: Pt[]) =>
+  const last = water.forecast.at(-1) ?? water.observed.at(-1);
+  const maxRain = Math.max(0, ...[...water.observed, ...water.forecast].map((p) => p.rainMm));
+  const maxSnow = Math.max(0, ...[...water.observed, ...water.forecast].map((p) => p.snowCm));
+  if (!last || (maxRain < 0.1 && maxSnow < 0.1)) return null;
+  // Egna skalor: regn 5 px/mm upp till 4 mm, snö 2 px/cm upp till 10 cm; därefter komprimerat.
+  const half = maxRain >= 0.1 && maxSnow >= 0.1 ? ACC_MAX_PX / 2 : ACC_MAX_PX;
+  const rainPx = (mm: number) => mm * (half / Math.max(4, maxRain));
+  const snowPx = (cm: number) => cm * (half / Math.max(10, maxSnow));
+  const ySnow = (p: AccPt) => groundY - snowPx(p.snowCm);
+  const yRain = (p: AccPt) => ySnow(p) - rainPx(p.rainMm);
+  const band = (pts: AccPt[], top: (p: AccPt) => number, bottom: (p: AccPt) => number) =>
     pts.length < 2
       ? ""
-      : `M${x(pts[0].t).toFixed(1)},${groundY} ` +
-        pts.map((p) => `L${x(p.t).toFixed(1)},${y(p.v).toFixed(1)}`).join(" ") +
-        ` L${x(pts.at(-1)!.t).toFixed(1)},${groundY} Z`;
-  const top = (pts: Pt[]) => pts.map((p, i) => `${i ? "L" : "M"}${x(p.t).toFixed(1)},${y(p.v).toFixed(1)}`).join(" ");
-  const label = (p: Pt | undefined, cls: string) =>
-    p && p.v >= 0.1 ? (
-      <text x={x(p.t) + 3} y={y(p.v) - 3} className={`tl-water-label ${cls}`}>
-        {`${p.v.toFixed(1).replace(".", ",")} mm`}
+      : pts.map((p, i) => `${i ? "L" : "M"}${x(p.t).toFixed(1)},${top(p).toFixed(1)}`).join(" ") +
+        " " +
+        [...pts].reverse().map((p) => `L${x(p.t).toFixed(1)},${bottom(p).toFixed(1)}`).join(" ") +
+        " Z";
+  const edge = (pts: AccPt[], top: (p: AccPt) => number) =>
+    pts.map((p, i) => `${i ? "L" : "M"}${x(p.t).toFixed(1)},${top(p).toFixed(1)}`).join(" ");
+  const fmt = (n: number) => n.toFixed(1).replace(".", ",");
+  const labelFor = (p: AccPt | undefined, cls: string) => {
+    if (!p) return null;
+    const parts = [
+      p.rainMm >= 0.1 ? `${fmt(p.rainMm)} mm` : "",
+      p.snowCm >= 0.1 ? `≈ ${fmt(p.snowCm)} cm snö` : "",
+    ].filter(Boolean);
+    if (!parts.length) return null;
+    return (
+      <text x={x(p.t) + 3} y={yRain(p) - 3} className={`tl-water-label ${cls}`}>
+        {parts.join(" · ")}
       </text>
-    ) : null;
+    );
+  };
   const obsEnd = water.observed.at(-1);
   const fcEnd = water.forecast.at(-1);
+  const same = (a?: AccPt, b?: AccPt) =>
+    !!a && !!b && Math.abs(a.rainMm - b.rainMm) < 0.1 && Math.abs(a.snowCm - b.snowCm) < 0.1;
+  const layer = (pts: AccPt[], fc: boolean) =>
+    pts.length > 1 && (
+      <>
+        {maxSnow >= 0.1 && <path d={band(pts, ySnow, () => groundY)} className={`snow-fill${fc ? " fc" : ""}`} />}
+        {maxRain >= 0.1 && <path d={band(pts, yRain, ySnow)} className={`water-fill${fc ? " fc" : ""}`} />}
+        {maxSnow >= 0.1 && <path d={edge(pts, ySnow)} className={`snow-top${fc ? " fc" : ""}`} />}
+        {maxRain >= 0.1 && <path d={edge(pts, yRain)} className={`water-top${fc ? " fc" : ""}`} />}
+      </>
+    );
   return (
     <g className="tl-water">
-      {water.observed.length > 1 && (
-        <>
-          <path d={area(water.observed)} className="water-fill" />
-          <path d={top(water.observed)} className="water-top" />
-        </>
-      )}
-      {water.forecast.length > 1 && (
-        <>
-          <path d={area(water.forecast)} className="water-fill fc" />
-          <path d={top(water.forecast)} className="water-top fc" />
-        </>
-      )}
-      {obsEnd && (!fcEnd || Math.abs((fcEnd.v ?? 0) - obsEnd.v) >= 0.1) && label(obsEnd, "obs")}
-      {label(fcEnd, "fc")}
-      <title>{`Nederbörd, summa: ${obsEnd ? `${obsEnd.v.toFixed(1).replace(".", ",")} mm uppmätt` : "ingen mätning"}${fcEnd ? `, ${fcEnd.v.toFixed(1).replace(".", ",")} mm med prognosen` : ""}`}</title>
+      {layer(water.observed, false)}
+      {layer(water.forecast, true)}
+      {!same(obsEnd, fcEnd) && labelFor(obsEnd, "obs")}
+      {labelFor(fcEnd, "fc")}
+      <title>
+        {`Nederbörd, summa: ${obsEnd ? `${fmt(obsEnd.rainMm)} mm regn, ≈ ${fmt(obsEnd.snowCm)} cm snö uppmätt` : "ingen mätning"}${fcEnd ? `; med prognosen ${fmt(fcEnd.rainMm)} mm regn, ≈ ${fmt(fcEnd.snowCm)} cm snö` : ""}. Snödjup uppskattat (1 mm vatten ≈ 1 cm nysnö).`}
+      </title>
     </g>
   );
 }

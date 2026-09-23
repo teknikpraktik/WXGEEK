@@ -140,8 +140,14 @@ export type Precip = Span & {
   label: string;
 };
 
-/** Ackumulerad nederbörd (mm) – vattenansamling vid marken. */
-export type WaterSeries = { observed: Pt[]; forecast: Pt[] };
+/**
+ * Ackumulerad nederbörd vid marken. Regn som vatten (mm); snö som uppskattat nysnödjup (cm)
+ * med tumregeln 1 mm vatten ≈ 1 cm nysnö. Smältning och sättning räknas inte.
+ */
+export type AccPt = { t: number; rainMm: number; snowCm: number };
+export type WaterSeries = { observed: AccPt[]; forecast: AccPt[] };
+/** Nysnö: ungefär 10 gånger vattnets höjd (1 mm vatten ≈ 1 cm snö). */
+export const SNOW_CM_PER_MM = 1;
 export type Arrow = { t: number; deg?: number; variable?: boolean; speed: number; gust?: number; forecast: boolean };
 export type Mark = Span & { forecast: boolean; label: string };
 
@@ -300,34 +306,6 @@ export function buildChart(bundle: WeatherBundle, now: number): ChartData {
     return [{ t0, t1, kind, mm: p.precipitationMm, ...from, label: p.phenomenon?.label ?? (kind === "snö" ? "Snö" : "Regn") }];
   });
 
-  // Vattenansamling: löpande summa av uppmätt nederbörd, sedan prognosens mängder.
-  const water: WaterSeries = { observed: [], forecast: [] };
-  const measured = (stationFor(bundle, "precipitation")?.observations ?? []).filter(
-    (o) => o.precipitationMm !== undefined && ts(o) <= now,
-  );
-  let sum = 0;
-  if (measured.length) {
-    water.observed.push({ t: ts(measured[0]) - HOUR, v: 0 });
-    for (const o of measured) {
-      sum += o.precipitationMm!;
-      water.observed.push({ t: ts(o), v: Math.round(sum * 10) / 10 });
-    }
-  }
-  // Prognosen fortsätter från observerad summa om mätningen är färsk, annars från noll vid NU.
-  const lastMeasured = water.observed.at(-1);
-  const startV = lastMeasured && now - lastMeasured.t <= 2 * HOUR ? lastMeasured.v : 0;
-  const startT = lastMeasured && now - lastMeasured.t <= 2 * HOUR ? lastMeasured.t : now;
-  if (bundle.forecast) {
-    let acc = startV;
-    water.forecast.push({ t: startT, v: acc });
-    for (const p of fc) {
-      const t = ts(p);
-      if (t <= startT || p.precipitationMm === undefined) continue;
-      acc += p.precipitationMm;
-      water.forecast.push({ t, v: Math.round(acc * 10) / 10 });
-    }
-  }
-
   // Nederbörd vid minusgrader är snö, oavsett vad väderkoden säger.
   const tempNear = (t: number): number | undefined => {
     let best: Pt | undefined;
@@ -342,6 +320,50 @@ export function buildChart(bundle: WeatherBundle, now: number): ChartData {
       p.kind = "snö";
       p.label = p.label.replace(/regnskurar/i, "Snöbyar").replace(/regn/i, "snö");
       if (!/snö/i.test(p.label)) p.label = "Snö";
+    }
+  }
+
+  // Ansamling vid marken: regn som vatten (mm), snö som uppskattat nysnödjup (cm).
+  // Typ per intervall hämtas från nederbördsobjekten ovan (efter snö-omklassningen).
+  const kindOver = (span: Span, list: Precip[]): PrecipKind => {
+    const hit = list.find((p) => p.t0 < span.t1 && p.t1 > span.t0);
+    if (hit) return hit.kind;
+    const temp = tempNear((span.t0 + span.t1) / 2);
+    return temp !== undefined && temp < 0 ? "snö" : "regn";
+  };
+  const water: WaterSeries = { observed: [], forecast: [] };
+  const measured = (stationFor(bundle, "precipitation")?.observations ?? []).filter(
+    (o) => o.precipitationMm !== undefined && ts(o) <= now,
+  );
+  let rain = 0;
+  let snow = 0;
+  const pt = (t: number): AccPt => ({ t, rainMm: Math.round(rain * 10) / 10, snowCm: Math.round(snow * SNOW_CM_PER_MM * 10) / 10 });
+  if (measured.length) {
+    water.observed.push(pt(ts(measured[0]) - HOUR));
+    for (const o of measured) {
+      const span = { t0: ts(o) - HOUR, t1: ts(o) };
+      if (kindOver(span, precipObserved) === "snö") snow += o.precipitationMm!;
+      else rain += o.precipitationMm!;
+      water.observed.push(pt(ts(o)));
+    }
+  }
+  // Prognosen fortsätter från observerad summa om mätningen är färsk, annars från noll vid NU.
+  const lastMeasured = water.observed.at(-1);
+  const fresh = !!lastMeasured && now - lastMeasured.t <= 2 * HOUR;
+  if (!fresh) {
+    rain = 0;
+    snow = 0;
+  }
+  const startT = fresh ? lastMeasured!.t : now;
+  if (bundle.forecast) {
+    water.forecast.push(pt(startT));
+    for (const p of fc) {
+      const t = ts(p);
+      if (t <= startT || p.precipitationMm === undefined) continue;
+      const t0 = p.intervalStart ? Date.parse(p.intervalStart) : t - HOUR;
+      if (kindOver({ t0, t1: t }, precipForecast) === "snö") snow += p.precipitationMm;
+      else rain += p.precipitationMm;
+      water.forecast.push(pt(t));
     }
   }
 
