@@ -21,8 +21,7 @@ const TOP = 26; // NU / OBSERVERAT / PROGNOS
 const CHART_H = 210; // molnbas (vänster axel) + temperatur (höger axel) + nederbörd
 const GROUND_PAD = 6; // luft under marklinjen
 const WIND_H = 44;
-const AXIS_H = 28;
-const GAP = 6;
+const AXIS_H = 26;
 const RIGHT_AXIS_W = 40;
 const CLOUD_H = 12;
 
@@ -56,9 +55,9 @@ export const Timeline = memo(function Timeline({ now, until, data, onCursor, rec
   const chartTop = TOP;
   const groundY = chartTop + CHART_H - GROUND_PAD;
   const chartBottom = chartTop + CHART_H;
-  const windTop = chartBottom + GAP;
-  const axisTop = windTop + WIND_H + GAP;
-  const H = axisTop + AXIS_H;
+  const axisTop = chartBottom;
+  const windTop = axisTop + AXIS_H + 2;
+  const H = windTop + WIND_H;
 
   // Skalor: molnbas (m, kvadratrot) och temperatur (°C, linjär) delar ytan
   const plotH = CHART_H - GROUND_PAD - 22;
@@ -114,6 +113,7 @@ export const Timeline = memo(function Timeline({ now, until, data, onCursor, rec
   // Temperaturaxeln sitter dikt an mot diagrammets högerkant; när kanten är utanför
   // vyn stannar den vid vyns högerkant.
   const rightAxis = useRef<HTMLDivElement>(null);
+  const cursorEl = useRef<HTMLDivElement>(null);
   const placeRightAxis = useCallback(() => {
     const el = scroller.current;
     const ax = rightAxis.current;
@@ -127,6 +127,10 @@ export const Timeline = memo(function Timeline({ now, until, data, onCursor, rec
 
   const onScroll = () => {
     placeRightAxis();
+    // Markörlinjen döljs vid NU (bara romben syns ovanpå den gröna NU-linjen).
+    if (scroller.current) {
+      cursorEl.current?.classList.toggle("at-now", Math.abs(tAt(scroller.current.scrollLeft) - now) < 10 * 60 * 1000);
+    }
     cancelAnimationFrame(raf.current);
     raf.current = requestAnimationFrame(() => {
       const el = scroller.current;
@@ -264,21 +268,19 @@ export const Timeline = memo(function Timeline({ now, until, data, onCursor, rec
             </defs>
 
             {/* Bakgrund: observerat vs prognos */}
-            <rect x={0} y={chartTop} width={nowX} height={axisTop - chartTop} className="tl-bg-obs" />
-            <rect x={nowX} y={chartTop} width={Math.max(0, W - nowX)} height={axisTop - chartTop} fill="url(#hatch)" />
+            <rect x={0} y={chartTop} width={nowX} height={H - chartTop} className="tl-bg-obs" />
+            <rect x={nowX} y={chartTop} width={Math.max(0, W - nowX)} height={H - chartTop} fill="url(#hatch)" />
 
             {/* Rutnät: molnbasens nivåer, marklinje, fältgränser, dygnsgränser */}
             {CLOUD_TICKS.filter((m) => m > 0).map((m) => (
               <line key={m} x1={0} x2={W} y1={yCloud(m)} y2={yCloud(m)} className="tl-grid" />
             ))}
             <line x1={0} x2={W} y1={groundY} y2={groundY} className="tl-ground" />
-            {[windTop].map((yy) => (
-              <line key={yy} x1={0} x2={W} y1={yy - GAP / 2} y2={yy - GAP / 2} className="tl-lanesep" />
-            ))}
+            <line x1={0} x2={W} y1={windTop - 1} y2={windTop - 1} className="tl-lanesep" />
             {hours
               .filter((h) => h.h === 0)
               .map((h) => (
-                <line key={h.t} x1={x(h.t)} x2={x(h.t)} y1={chartTop} y2={axisTop + 14} className="tl-midnight" />
+                <line key={h.t} x1={x(h.t)} x2={x(h.t)} y1={chartTop} y2={H} className="tl-midnight" />
               ))}
 
             {/* Dimma / dis: ljusgrått marknära lager (dimma högre och tätare än dis) */}
@@ -383,20 +385,28 @@ export const Timeline = memo(function Timeline({ now, until, data, onCursor, rec
               </g>
             ))}
 
-            {/* Tidsaxel */}
+            {/* Tidsaxel direkt under diagrammet */}
+            <rect x={0} y={axisTop} width={W} height={AXIS_H} className="tl-axisband" />
+            <line x1={0} x2={W} y1={axisTop} y2={axisTop} className="tl-axisline" />
             {hours.map((h) => (
               <g key={h.t}>
-                <line x1={x(h.t)} x2={x(h.t)} y1={axisTop} y2={axisTop + (h.h % 3 === 0 ? 6 : 3)} className="tl-tick" />
+                <line
+                  x1={x(h.t)}
+                  x2={x(h.t)}
+                  y1={axisTop}
+                  y2={axisTop + (h.h % 3 === 0 ? 5 : 3)}
+                  className={h.h % 3 === 0 ? "tl-tick major" : "tl-tick"}
+                />
                 {h.h % 3 === 0 && (
-                  <text x={x(h.t)} y={axisTop + 17} className="tl-hour" textAnchor="middle">
-                    {h.h === 0 ? fmtDay(h.t + HOUR) : String(h.h).padStart(2, "0")}
+                  <text x={x(h.t)} y={axisTop + 18} className={h.h === 0 ? "tl-hour day" : "tl-hour"} textAnchor="middle">
+                    {h.h === 0 ? fmtDay(h.t) : `${String(h.h).padStart(2, "0")}:00`}
                   </text>
                 )}
               </g>
             ))}
 
             {/* NU */}
-            <line x1={nowX} x2={nowX} y1={TOP - 6} y2={axisTop} className="tl-now" />
+            <line x1={nowX} x2={nowX} y1={TOP - 6} y2={H} className="tl-now" />
             <text x={nowX} y={TOP - 11} className="tl-nowlabel" textAnchor="middle">
               NU {fmtTime(now)}
             </text>
@@ -417,7 +427,7 @@ export const Timeline = memo(function Timeline({ now, until, data, onCursor, rec
       </div>
 
       {/* Fast markör i mitten */}
-      <div className="tl-cursor" style={{ top: TOP - 4, height: axisTop - TOP + 4 }} aria-hidden />
+      <div ref={cursorEl} className="tl-cursor at-now" style={{ top: TOP - 4, height: H - TOP + 4 }} aria-hidden />
     </div>
   );
 });

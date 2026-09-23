@@ -124,8 +124,9 @@ VaderlekApp            – plats, datahämtning, auto-uppdatering (5 min när fl
 ├─ Readout             – avläsning vid markörens tidpunkt: NU / OBSERVERAT / PROGNOS
 │  ├─ nuväder          – temperatur, vind, sikt, molnbas (+ nederbörd) på en rad, samma storlek och typografi
 │  └─ Timeline         – kärnan: horisontellt scrollbart diagram −12 h … prognosfönstrets slut
-├─ DataInfo            – under diagrammet, liten stil: rå METAR, rå TAF, källa för huvudvärdet (ESOK · 11 km · 26 min sedan); källfel bara när en tjänst inte svarar
-└─ attribution
+├─ DataInfo            – under diagrammet, liten stil: rå METAR, rå TAF; källfel bara när en tjänst inte svarar
+├─ attribution
+└─ sidfot            – © år Per Björkman · Teknikpraktik (+ varning om data är äldre än 2 h)
 ```
 
 ### Tidslinjen
@@ -163,7 +164,10 @@ VaderlekApp            – plats, datahämtning, auto-uppdatering (5 min när fl
   - Dimma/dis: ljusgrått lager från marken (dimma ~150 m, dis/sikt under 5 km ~60 m). Åska markeras med ϟ.
 - **Förklaringen** byggs från datat och visar bara det som faktiskt finns i diagrammet,
   med samma symboler.
-- **Vind under diagrammet**: en pil per timme (varifrån det blåser) med m/s under;
+- **Tidsaxel direkt under diagrammet** (tim-streck, "09:00" var 3:e timme, veckodag vid midnatt).
+  Vänsteraxeln har solid bakgrund så att moln tonar bort innan de når etiketterna.
+- **Markören** är mörkgrön; NU-linjen mellangrön. När markören står på NU syns bara romben.
+- **Vind under tidsaxeln**: en pil per timme (varifrån det blåser) med m/s under;
   byar visas under när de är minst 3 m/s högre.
 - Lufttryck och luftfuktighet visas inte (och hämtas inte).
 - TAF ritas inte i diagrammet (för plottrigt). Den styr prognosfönstrets längd,
@@ -176,4 +180,5 @@ VaderlekApp            – plats, datahämtning, auto-uppdatering (5 min när fl
   äldre än maxåldern visas som saknad ("Ingen aktuell siktobservation").
 - **OBSERVERAT**: närmaste observation inom ±35 min (METAR) / ±40 min (SMHI).
 - **PROGNOS**: närmaste prognostimme, med text om att det är en modellberäkning.
-- Varje värde har källa. Källa visas en gång (primär) och per cell endast när den avviker.
+- Källrad visas i en ruta bara för SMHI-värden eller observationer äldre än 90 min;
+  METAR-station och tid syns redan i den råa METAR-raden.

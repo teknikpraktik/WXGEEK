@@ -59,9 +59,7 @@ export function Readout({ snap, now, forecastCreated, children }: Props) {
   const gust = snap.gust?.value;
   const cloud = snap.cloud?.value;
   const lowest = cloud?.layers?.[0];
-  // Primär källa = temperaturens. Andra celler visar bara källa när den avviker.
-  const primary = snap.temperature?.origin ?? snap.wind?.origin;
-  const cellProps = { now, mode, primary };
+  const cellProps = { now, mode };
 
   return (
     <section className={`readout readout-${mode}`}>
@@ -159,7 +157,6 @@ export function Readout({ snap, now, forecastCreated, children }: Props) {
               {fmtTime(p.from)}–{fmtTime(p.to)}: {p.summary}
             </div>
           ))}
-          <span className="muted small">Enligt flygplatsprognos (TAF)</span>
         </div>
       )}
     </section>
@@ -190,14 +187,12 @@ function Cell<T>({
   now,
   mode,
   missing,
-  primary,
   children,
 }: {
   label: string;
   r: Reading<T>;
   now: number;
   mode: Snapshot["mode"];
-  primary?: Origin;
   missing: string;
   children: ReactNode;
 }) {
@@ -206,30 +201,18 @@ function Cell<T>({
       <dt>{label}</dt>
       <dd>
         {r ? children : <span className="missing">{missing}</span>}
-        {r && mode !== "forecast" && !sameOrigin(r.origin, primary) && <Src r={r} now={now} mode={mode} />}
+        {r && mode !== "forecast" && showSource(r.origin, now, mode) && <Src r={r} now={now} mode={mode} />}
       </dd>
     </div>
   );
 }
 
-function sameOrigin(a: Origin, b?: Origin) {
-  return !!b && a.kind === b.kind && a.stationId === b.stationId && Math.abs(a.timestamp - b.timestamp) < 15 * 60 * 1000;
-}
-
-/** Källa för huvudvärdet: "ESOK · 11 km · 26 min sedan". Visas under rådata. */
-export function PrimarySrc({ o, now, mode }: { o: Origin; now: number; mode: Snapshot["mode"] }) {
-  const age = now - o.timestamp;
-  const stale = mode === "now" && age > STALE_MS;
-  return (
-    <span className={`src src-primary${stale ? " stale" : ""}`}>
-      <span className={`src-id src-${o.kind.toLowerCase()}`} title={o.stationName}>
-        {o.kind === "METAR" ? o.stationId : "SMHI"}
-      </span>
-      {o.distanceKm !== undefined && <span>{fmtDistance(o.distanceKm)}</span>}
-      <span>{mode === "now" ? fmtAge(age) : fmtTime(o.timestamp)}</span>
-      {stale && <span className="stale-flag">äldre</span>}
-    </span>
-  );
+/**
+ * Källrad i en ruta bara när informationen inte syns någon annanstans:
+ * SMHI-värden (METAR-station och tid står i METAR-raden) eller gamla observationer.
+ */
+function showSource(o: Origin, now: number, mode: Snapshot["mode"]): boolean {
+  return o.kind === "SMHI" || (mode === "now" && now - o.timestamp > STALE_MS);
 }
 
 function Src({ r, now, mode }: { r: { origin: Origin }; now: number; mode: Snapshot["mode"] }) {

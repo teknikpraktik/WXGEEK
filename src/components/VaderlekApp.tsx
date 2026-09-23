@@ -254,7 +254,7 @@ export function VaderlekApp() {
               </section>
               </Readout>
 
-              <DataInfo bundle={bundle} snap={snap} now={now} />
+              <DataInfo bundle={bundle} snap={snap} />
 
               {error && <p className="inline-error">Uppdateringen misslyckades: {error}. Visar data från {new Date(bundle.generatedAt).toLocaleTimeString("sv-SE", { hour: "2-digit", minute: "2-digit" })}.</p>}
               {loading && <p className="muted small">Uppdaterar…</p>}
@@ -270,10 +270,10 @@ export function VaderlekApp() {
       )}
 
       <footer className="foot">
-        <span className="muted">
-          {bundle ? `Hämtat ${new Date(bundle.generatedAt).toLocaleTimeString("sv-SE", { hour: "2-digit", minute: "2-digit" })}` : ""}
-          {bundle && Math.abs(now - Date.parse(bundle.generatedAt)) > 2 * HOUR ? " · data kan vara inaktuell" : ""}
-        </span>
+        <span>© {new Date(now).getFullYear()} Per Björkman · Teknikpraktik</span>
+        {bundle && Math.abs(now - Date.parse(bundle.generatedAt)) > 2 * HOUR && (
+          <span className="stale-note">Data kan vara inaktuell</span>
+        )}
       </footer>
     </div>
   );
