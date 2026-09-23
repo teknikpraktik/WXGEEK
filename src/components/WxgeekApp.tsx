@@ -7,7 +7,7 @@ import { aviationAlerts } from "@/lib/client/alerts";
 import { Timeline } from "./Timeline";
 import { Readout } from "./Readout";
 import { PlacePicker } from "./PlacePicker";
-import { DataInfo, Warnings } from "./DataInfo";
+import { DataInfo, SourceNote, Warnings } from "./DataInfo";
 import { Logo } from "./Logo";
 
 const PLACE_KEY = "wxgeek:place";
@@ -189,6 +189,8 @@ export function WxgeekApp() {
   );
   const t = cursor ?? now;
   const snap = useMemo(() => (bundle ? snapshotAt(bundle, t, now) : null), [bundle, t, now]);
+  // Värdena vid NU (oberoende av vald tid) – deras källor visas i sidfoten.
+  const nowSnap = useMemo(() => (bundle ? snapshotAt(bundle, now, now) : null), [bundle, now]);
   const onCursor = useCallback((tt: number) => setCursor(tt), []);
   const awayFromNow = cursor !== null && Math.abs(cursor - now) > 10 * 60 * 1000;
 
@@ -289,6 +291,7 @@ export function WxgeekApp() {
       )}
 
       <footer className="foot">
+        {bundle && nowSnap && <SourceNote bundle={bundle} nowSnap={nowSnap} now={now} />}
         <span>
           Data: SMHI (CC BY 4.0) · NOAA Aviation Weather Center · © OpenStreetMap contributors
         </span>

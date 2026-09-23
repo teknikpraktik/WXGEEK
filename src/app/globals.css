@@ -10,12 +10,14 @@
   --muted: #5e6772; /* sekundärtext (#626b76 något mörkare för AA mot observerad bakgrund) */
   --rule: #d8d5cc;
   --rule-2: #e6e3db;
+  --grid: rgba(32, 37, 43, 0.09); /* stödlinjer – syns på både observerad och prognosbakgrund */
   --obs: #20252b;
   --obs-bg: rgba(32, 37, 43, 0.035);
   --fc: #5e6772;
   --fc-soft: rgba(94, 103, 114, 0.14);
   --now: #334155; /* nutidsmarkering */
   --now-text: #334155;
+  --now-line: rgba(51, 65, 85, 0.6); /* NU- och vald tid-linjerna, nedtonade mot övriga linjer */
   --on-now: #ffffff;
   --accent: #365f83; /* interaktiv accent (fokusmarkering) */
   --accent-line: #365f83;
@@ -48,12 +50,14 @@
     --muted: #8a8f97;
     --rule: #2a2e35;
     --rule-2: #1e2228;
+    --grid: rgba(255, 255, 255, 0.08);
     --obs: #eef0f2;
     --obs-bg: rgba(255, 255, 255, 0.035);
     --fc: #8d939c;
     --fc-soft: rgba(141, 147, 156, 0.18);
     --now: #cbd5e1;
     --now-text: #cbd5e1;
+    --now-line: rgba(203, 213, 225, 0.55);
     --on-now: #0d0f12;
     --accent: #4a7aa5;
     --accent-line: #7fa7cc;
@@ -486,7 +490,7 @@ main {
   fill: var(--obs-bg);
 }
 .tl-grid {
-  stroke: var(--rule-2);
+  stroke: var(--grid);
   stroke-width: 1;
 }
 .tl-axisband {
@@ -528,10 +532,10 @@ main {
   stroke-width: 3px;
   stroke-linejoin: round;
 }
-/* NU: heldragen linje i mörk blågrå med etiketten "NOW hh:mm". 2 px med skarpa kanter –
-   samma tyngd och skärpa som den streckade markören för vald tid. */
+/* NU: heldragen linje med etiketten "NOW hh:mm". 2 px med skarpa kanter men nedtonad
+   (--now-line) – samma tyngd som den streckade markören för vald tid. */
 .tl-now {
-  stroke: var(--now);
+  stroke: var(--now-line);
   stroke-width: 2;
 }
 .tl-nowlabel {
@@ -635,10 +639,6 @@ main {
   font-family: var(--font-num);
   font-size: 9px;
   fill: var(--muted);
-}
-.tl-ground {
-  stroke: var(--rule);
-  stroke-width: 1;
 }
 .tl-thunder {
   font-size: 13px;
@@ -827,6 +827,13 @@ main {
 
 .foot .stale-note {
   color: var(--warn);
+}
+/* Källor (observerat, nu, prognos) ovanför copyrightraderna, i samma diskreta stil */
+.source-note {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-bottom: 6px;
 }
 
 .cell .val .val-prefix {
@@ -1017,7 +1024,7 @@ main {
   left: 50%;
   width: 0;
   margin-left: -1px;
-  border-left: 2px dashed var(--now);
+  border-left: 2px dashed var(--now-line);
   pointer-events: none;
   z-index: 3;
 }
@@ -1338,6 +1345,8 @@ main {
 
 /* Temperaturaxeln: neutral skiffergrå för siffror, enhet och axellinje */
 .tl-yaxis .tl-ttick { font-weight: 600; color: var(--muted); }
+/* Lägsta värdet står på fältgränsen – etiketten ovanför linjen, så att den inte krockar med "Precip" */
+.tl-yaxis .tl-ttick.bottom { transform: translateY(-100%); }
 .tl-yaxis .tl-axtitle.temp {
   font-size: 11px;
   font-weight: 600;

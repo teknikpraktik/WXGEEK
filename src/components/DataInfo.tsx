@@ -1,9 +1,9 @@
 "use client";
 
-import type { WeatherBundle, WeatherWarning } from "@/lib/types";
-import type { Snapshot } from "@/lib/client/timeline";
+import type { ParamKey, StationRef, WeatherBundle, WeatherWarning } from "@/lib/types";
+import type { Origin, Reading, Snapshot } from "@/lib/client/timeline";
 import type { AviationAlert } from "@/lib/client/alerts";
-import { fmtDateTime } from "@/lib/format";
+import { fmtDateTime, fmtTime } from "@/lib/format";
 
 const LEVEL_LABEL: Record<WeatherWarning["level"], string> = {
   RED: "Red warning",
@@ -83,5 +83,87 @@ export function DataInfo({ bundle, snap }: { bundle: WeatherBundle; snap: Snapsh
         </p>
       )}
     </section>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Källor i sidfoten: var observationerna, värdena vid NU och prognosen kommer ifrån.
+// ---------------------------------------------------------------------------
+
+const PARAMS: Array<[ParamKey, string]> = [
+  ["temperature", "temperature"],
+  ["wind", "wind"],
+  ["gust", "gusts"],
+  ["visibility", "visibility"],
+  ["cloudBase", "cloud"],
+  ["phenomena", "weather"],
+  ["precipitation", "precipitation"],
+];
+
+const stationName = (s: StationRef) => (s.source === "METAR" ? `METAR ${s.stationId} ${s.stationName}` : `SMHI ${s.stationName}`);
+
+function originName(o: Origin): string {
+  if (o.kind === "METAR") return `METAR ${o.stationId} ${fmtTime(o.timestamp)}`;
+  if (o.kind === "SMHI") return `SMHI ${o.stationName ?? o.stationId} ${fmtTime(o.timestamp)}`;
+  if (o.kind === "TAF") return `TAF ${o.stationId}`;
+  return `SMHI forecast ${fmtTime(o.timestamp)}`;
+}
+
+/** Discreet source lines in the footer: observed, now and forecast. */
+export function SourceNote({ bundle, nowSnap, now }: { bundle: WeatherBundle; nowSnap: Snapshot; now: number }) {
+  // Observerat: vald station per parameter, grupperat per station.
+  const byStation = new Map<string, { station: StationRef; params: string[] }>();
+  const missing: string[] = [];
+  for (const [key, label] of PARAMS) {
+    const sel = bundle.selections?.[key];
+    if (!sel?.stationKey || !sel.station) {
+      missing.push(label);
+      continue;
+    }
+    const e = byStation.get(sel.stationKey) ?? { station: sel.station, params: [] };
+    e.params.push(label);
+    byStation.set(sel.stationKey, e);
+  }
+  const observed = [
+    ...[...byStation.values()].map((e) => `${stationName(e.station)}, ${Math.round(e.station.distanceKm)} km (${e.params.join(", ")})`),
+    ...(missing.length ? [`no ${missing.join(" or ")} observation nearby`] : []),
+  ].join(" · ");
+
+  // Nu: källan för varje värde vid NU, grupperat per källa och tid.
+  const readings: Array<[string, Reading<unknown>]> = [
+    ["temperature", nowSnap.temperature],
+    ["wind", nowSnap.wind],
+    ["gusts", nowSnap.gust],
+    ["visibility", nowSnap.visibility],
+    ["cloud", nowSnap.cloud],
+    ["weather", nowSnap.phenomena],
+    ["precipitation", nowSnap.precipitation],
+  ];
+  const byOrigin = new Map<string, string[]>();
+  for (const [label, r] of readings) {
+    if (!r) continue;
+    const k = originName(r.origin);
+    byOrigin.set(k, [...(byOrigin.get(k) ?? []), label]);
+  }
+  const nowText = [...byOrigin].map(([o, ps]) => `${o} (${ps.join(", ")})`).join(" · ");
+
+  // Prognos: TAF där den gäller, SMHI:s punktprognos för resten.
+  const taf = bundle.taf && Date.parse(bundle.taf.validTo) > now ? bundle.taf : null;
+  const f = bundle.forecast;
+  const forecast = [
+    ...(taf
+      ? [`TAF ${taf.stationId}, ${Math.round(taf.distanceKm)} km, until ${fmtTime(Date.parse(taf.validTo))} (wind, visibility, cloud, weather)`]
+      : []),
+    ...(f
+      ? [`SMHI point forecast ${f.model}, issued ${fmtTime(Date.parse(f.referenceTime))} (${taf ? "temperature, precipitation and the rest" : "all values"})`]
+      : []),
+  ].join(" · ");
+
+  return (
+    <div className="source-note">
+      <span>Observed: {observed || "no station nearby"}</span>
+      <span>Now: {nowText || "no current observation"}</span>
+      <span>Forecast: {forecast || "not available"}</span>
+    </div>
   );
 }

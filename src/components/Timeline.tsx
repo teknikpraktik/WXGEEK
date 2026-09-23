@@ -19,8 +19,7 @@ const snap5 = (t: number) => Math.round(t / 300_000) * 300_000;
 
 // Layout (px)
 const TOP = 26; // NU / OBSERVERAT / PROGNOS
-const CHART_H = 250; // temperatur (vänster axel) + droppar, dimma och vattenansamling vid marken
-const GROUND_PAD = 6; // luft under marklinjen
+const CHART_H = 250; // temperatur (vänster axel) med molnsymboler och regn på kurvan
 const PRECIP_H = 30; // mm per timme
 const WIND_H = 50;
 const AXIS_H = 30;
@@ -63,22 +62,20 @@ export const Timeline = memo(function Timeline({ now, until, data, onCursor, rec
 
   // Layout
   const chartTop = TOP;
-  const groundY = chartTop + CHART_H - GROUND_PAD;
   const chartBottom = chartTop + CHART_H;
   const precipTop = chartBottom;
   const axisTop = precipTop + PRECIP_H;
   const windTop = axisTop + AXIS_H + 2;
   const H = windTop + WIND_H;
 
-  // Temperaturskala (°C, linjär); molnighet, nederbörd och vind ligger utanför ritytan.
-  // Skalan fyller hela ritytan upp till överkanten, så att axeln följer bakgrunden.
-  const plotH = CHART_H - GROUND_PAD;
+  // Temperaturskala (°C, linjär) över hela ritytan: högsta värdet i överkanten, lägsta i
+  // nederkanten – där fältgränsen mot nederbörden också är skalans nedersta linje.
   const [t0, t1] = data.temp.domain;
   // Symbolrad: varannan timme, var tredje på smala skärmar.
   const skyEvery = viewW > 0 && viewW < 520 ? 3 : 2;
   // Nederbördens skala: 0 till ett jämnt värde (minst 2 mm) över fönstrets största mängd.
   const precipMax = Math.max(2, Math.ceil(Math.max(0, ...data.precipHours.map((p) => p.possible))));
-  const yTemp = useCallback((v: number) => groundY - 6 - ((v - t0) / (t1 - t0)) * (plotH - 6), [t0, t1, groundY, plotH]);
+  const yTemp = useCallback((v: number) => chartBottom - ((v - t0) / (t1 - t0)) * CHART_H, [t0, t1, chartBottom]);
 
   // Mät vyn
   useLayoutEffect(() => {
@@ -276,7 +273,7 @@ export const Timeline = memo(function Timeline({ now, until, data, onCursor, rec
         </span>
         <i className="tl-taxis" style={{ top: yTemp(t1), height: yTemp(t0) - yTemp(t1) }} />
         {data.temp.ticks.map((v) => (
-          <span key={v} className="tl-ttick" style={{ top: yTemp(v) }}>
+          <span key={v} className={v === t0 ? "tl-ttick bottom" : "tl-ttick"} style={{ top: yTemp(v) }}>
             {`${v}°`.replace("-", "−")}
           </span>
         ))}
@@ -331,12 +328,13 @@ export const Timeline = memo(function Timeline({ now, until, data, onCursor, rec
             <rect x={0} y={chartTop} width={nowX} height={H - chartTop} className="tl-bg-obs" />
             <rect x={nowX} y={chartTop} width={Math.max(0, W - nowX)} height={H - chartTop} fill="url(#hatch)" />
 
-            {/* Rutnät: molnbasens nivåer, marklinje, fältgränser, dygnsgränser */}
-            {/* Diskreta stödlinjer per 5 °C; 0 °C något tydligare */}
-            {data.temp.ticks.map((v) => (
-              <line key={`tg${v}`} x1={0} x2={W} y1={yTemp(v)} y2={yTemp(v)} className={v === 0 ? "tl-grid zero" : "tl-grid"} />
-            ))}
-            <line x1={0} x2={W} y1={groundY} y2={groundY} className="tl-ground" />
+            {/* Diskreta stödlinjer per 5 °C; 0 °C något tydligare. Den lägsta sammanfaller med
+                fältgränsen nedan och ritas inte separat – en linje i nederkanten. */}
+            {data.temp.ticks
+              .filter((v) => v !== t0)
+              .map((v) => (
+                <line key={`tg${v}`} x1={0} x2={W} y1={yTemp(v)} y2={yTemp(v)} className={v === 0 ? "tl-grid zero" : "tl-grid"} />
+              ))}
             <line x1={0} x2={W} y1={precipTop} y2={precipTop} className="tl-lanesep" />
             <line x1={0} x2={W} y1={windTop - 1} y2={windTop - 1} className="tl-lanesep" />
 
