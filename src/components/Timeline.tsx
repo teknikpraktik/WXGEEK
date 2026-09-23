@@ -332,6 +332,17 @@ export const Timeline = memo(function Timeline({ now, until, data, onCursor, rec
                 <title>{`Molnbas ${Math.round(c.baseM)} m (prognos)`}</title>
               </path>
             ))}
+            {/* Klar himmel: sol på dagen, måne på natten */}
+            {data.clear.map((c) => (
+              <g
+                key={`sun${c.t}`}
+                transform={`translate(${x(c.t)},${yCloud(1800)})`}
+                className={`tl-sky${c.forecast ? " fc" : ""}`}
+              >
+                {c.day ? <SunIcon /> : <MoonIcon />}
+                <title>{c.label}</title>
+              </g>
+            ))}
             {data.thunder.map((m, i) => (
               <text key={`th${i}`} x={(x(m.t0) + x(m.t1)) / 2} y={chartTop + 30} textAnchor="middle" className={`tl-thunder${m.forecast ? " fc" : ""}`}>
                 ϟ<title>{m.label}</title>
@@ -551,6 +562,10 @@ export function ChartLegend({ data }: { data: ChartData }) {
     items.push({ key: "fg", label: "Dimma / dis", icon: icon(<rect x={1} y={3} width={20} height={10} className="lg-fog" />) });
   if (data.thunder.length)
     items.push({ key: "th", label: "Åska", icon: icon(<text x={11} y={12} textAnchor="middle" className="tl-thunder">ϟ</text>) });
+  if (data.clear.some((c) => c.day))
+    items.push({ key: "su", label: "Klart", icon: icon(<g transform="translate(11,7) scale(0.8)"><SunIcon /></g>) });
+  if (data.clear.some((c) => !c.day))
+    items.push({ key: "mo", label: "Klart, natt", icon: icon(<g transform="translate(11,7) scale(0.8)"><MoonIcon /></g>) });
   if (data.wind.length)
     items.push({
       key: "wi",
@@ -572,6 +587,22 @@ export function ChartLegend({ data }: { data: ChartData }) {
       ))}
     </div>
   );
+}
+
+function SunIcon() {
+  return (
+    <g className="sun">
+      <circle r={4.5} />
+      {Array.from({ length: 8 }, (_, i) => {
+        const a = (i * Math.PI) / 4;
+        return <line key={i} x1={Math.cos(a) * 6.5} y1={Math.sin(a) * 6.5} x2={Math.cos(a) * 9} y2={Math.sin(a) * 9} />;
+      })}
+    </g>
+  );
+}
+
+function MoonIcon() {
+  return <path className="moon" d="M2.5,-6.5 A7,7 0 1,0 6.5,3.5 A5.5,5.5 0 1,1 2.5,-6.5 Z" />;
 }
 
 /** Molnfärg: ljust för få moln, mörkare grått ju mer av himlen som täcks. */

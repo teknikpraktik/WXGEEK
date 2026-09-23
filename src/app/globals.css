@@ -930,3 +930,19 @@ main {
 .cell .missing {
   font-size: 12px;
 }
+
+/* Klar himmel */
+.sun circle {
+  fill: #f5b301;
+}
+.sun line {
+  stroke: #f5b301;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+}
+.moon {
+  fill: #b9bfd0;
+}
+.tl-sky.fc {
+  opacity: 0.55;
+}

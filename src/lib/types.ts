@@ -57,6 +57,8 @@ export type WeatherObservation = {
   cloudLayers?: CloudLayer[];
   /** CAVOK / NSC / inga moln rapporterade */
   noSignificantCloud?: boolean;
+  /** Klar himmel enligt METAR: CAVOK, SKC eller CLR */
+  clearSky?: boolean;
 
   precipitationMm?: number;
 

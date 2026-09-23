@@ -9,6 +9,7 @@ import type {
   WeatherObservation,
 } from "../types";
 import { PHENOMENON_GROUP, symbolLabel } from "../weather/phenomena";
+import { isDaylight } from "../sun";
 
 export const HOUR = 3_600_000;
 export const PAST_HOURS = 12;
@@ -143,6 +144,8 @@ export type ChartData = {
   /** Dimma / sikt under 5 km */
   lowVis: Array<Mark & { severe: boolean }>;
   thunder: Mark[];
+  /** Klar himmel: CAVOK/SKC/CLR i METAR, eller 0 oktas i prognosen. Sol på dagen, måne på natten. */
+  clear: Array<{ t: number; forecast: boolean; day: boolean; label: string }>;
   missing: { temp?: string; wind?: string; clouds?: string; forecast?: string };
 };
 
@@ -318,6 +321,24 @@ export function buildChart(bundle: WeatherBundle, now: number): ChartData {
   // Låg sikt / dimma och åska
   const lowVis: ChartData["lowVis"] = [];
   const thunder: Mark[] = [];
+
+  // Klar himmel – en symbol per timme som mest
+  const clear: ChartData["clear"] = [];
+  const { latitude: lat, longitude: lon } = bundle.location;
+  let lastClear = -Infinity;
+  for (const o of cloudObs) {
+    const t = ts(o);
+    if (!o.clearSky || t - lastClear < 55 * 60 * 1000) continue;
+    const code = o.raw?.match(/\b(CAVOK|SKC|CLR)\b/)?.[1] ?? "Klart";
+    clear.push({ t, forecast: false, day: isDaylight(lat, lon, t), label: `Klart (${code})` });
+    lastClear = t;
+  }
+  for (const p of fc) {
+    const t = ts(p);
+    if (p.cloudCoverOktas !== 0 || t - lastClear < 55 * 60 * 1000) continue;
+    clear.push({ t, forecast: true, day: isDaylight(lat, lon, t), label: "Klart (prognos)" });
+    lastClear = t;
+  }
   const visObs = stationFor(bundle, "visibility")?.observations ?? [];
   const visStep = stepOf(visObs);
   for (const o of visObs) {
@@ -358,6 +379,7 @@ export function buildChart(bundle: WeatherBundle, now: number): ChartData {
     wind,
     lowVis,
     thunder,
+    clear,
     missing,
   };
 }

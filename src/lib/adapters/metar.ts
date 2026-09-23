@@ -66,7 +66,7 @@ const COVERS: CloudCover[] = ["FEW", "SCT", "BKN", "OVC"];
 export function normalizeClouds(
   clouds: AwcMetar["clouds"],
   raw: string,
-): { layers: CloudLayer[]; noSignificantCloud: boolean } {
+): { layers: CloudLayer[]; noSignificantCloud: boolean; clearSky: boolean } {
   const layers: CloudLayer[] = [];
   let noSignificantCloud = /\b(CAVOK|NSC|SKC|CLR|NCD)\b/.test(raw);
   for (const c of clouds ?? []) {
@@ -92,13 +92,17 @@ export function normalizeClouds(
     if (l) l.type = m[3] as "CB" | "TCU";
   }
   layers.sort((a, b) => a.baseM - b.baseM);
-  return { layers, noSignificantCloud: noSignificantCloud && layers.length === 0 };
+  return {
+    layers,
+    noSignificantCloud: noSignificantCloud && layers.length === 0,
+    clearSky: layers.length === 0 && /\b(CAVOK|SKC|CLR)\b/.test(raw),
+  };
 }
 
 export function normalizeMetar(m: AwcMetar, distanceKm?: number): WeatherObservation {
   const raw = m.rawOb;
   const vis = parseVisibilityFromRaw(raw) ?? visibFromAwc(m.visib);
-  const { layers, noSignificantCloud } = normalizeClouds(m.clouds, raw);
+  const { layers, noSignificantCloud, clearSky } = normalizeClouds(m.clouds, raw);
   const variable = m.wdir === "VRB";
   const obs: WeatherObservation = {
     timestamp: new Date(m.obsTime * 1000).toISOString(),
@@ -118,6 +122,7 @@ export function normalizeMetar(m: AwcMetar, distanceKm?: number): WeatherObserva
     cloudLayers: layers,
     cloudBaseM: layers[0]?.baseM,
     noSignificantCloud: noSignificantCloud || undefined,
+    clearSky: clearSky || undefined,
     weatherPhenomena: parseMetarWeather(m.wxString),
     raw,
   };

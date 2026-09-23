@@ -152,6 +152,9 @@ VaderlekApp            – plats, datahämtning, auto-uppdatering (5 min när fl
     observerade punkten. Skillnaden mellan observation och prognos där läggs på prognosen
     och klingar av linjärt under 3 h, så att kurvan blir sammanhängande. Samma justering
     används för prognostemperaturen i avläsningen. Observationer äldre än 2 h används inte.
+  - **Klar himmel**: CAVOK, SKC eller CLR i METAR (och 0 oktas i prognosen) ritas som
+    en sol på dagen och en måne på natten, i stället för moln. Dag/natt avgörs med solens
+    höjd för platsen (`src/lib/sun.ts`, förenklad NOAA-algoritm).
   - Nederbörd vid minusgrader (enligt kurvan vid samma tid) visas som snö.
   - Temperaturkurvan:, heldragen (observerat) / streckad (prognos) kurva, färgad efter temperaturen.
   - **Nederbörd faller från molnets mitt**: streck från lägsta molnlagret (SCT/BKN/OVC)
