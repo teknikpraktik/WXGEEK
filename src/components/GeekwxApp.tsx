@@ -255,7 +255,7 @@ export function GeekwxApp() {
                         disabled={!canBack}
                         aria-label="Previous hour"
                       >
-                        ◀
+                        −1 h
                       </button>
                       {/* "Now" always keeps its place, even when now is selected */}
                       <button
@@ -274,7 +274,7 @@ export function GeekwxApp() {
                         disabled={!canFwd}
                         aria-label="Next hour"
                       >
-                        ▶
+                        +1 h
                       </button>
                     </div>
                   </div>

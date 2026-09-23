@@ -155,7 +155,7 @@ GeekwxApp              – plats, datahämtning, auto-uppdatering (5 min när fl
 
 - **Fast fönster**: 12 h bakåt och 12 h framåt, NU i mitten vid start.
 - Tid väljs genom att dra grafen under en **fast markör i mitten** (native scroll på
-  touch, musdrag på desktop). Klick flyttar inte grafen. Knapparna **◀ / Nu / ▶** stegar en
+  touch, musdrag på desktop). Klick flyttar inte grafen. Knapparna **−1 h / Now / +1 h** stegar en
   timme, begränsat till fönstret; "Nu" behåller alltid sin plats. Tangentbord: pilar
   (±1 h, Shift ±6 h) och `N`.
 - **Vald tid** och **NU** har olika markörer som fungerar utan färgseende: NU är en
