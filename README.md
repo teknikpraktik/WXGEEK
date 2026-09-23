@@ -30,7 +30,7 @@ situation **now**, and the **forecast** for the next 12 hours, all on the same a
 - Raw METAR and TAF are printed at the bottom of the page.
 
 GeekWX never implies more precision than the sources support: it interpolates no values,
-and it shows missing data as missing. It is not a flight-planning service.
+and it shows missing data as missing.
 
 ## Getting started
 
@@ -90,4 +90,4 @@ Architecture, station selection and caching: [`docs/architecture.md`](docs/archi
 ---
 
 Data: SMHI (CC BY 4.0), NOAA Aviation Weather Center, © OpenStreetMap contributors.
-Not for flight planning. © Per Björkman · Teknikpraktik
+© Per Björkman · Teknikpraktik

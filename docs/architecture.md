@@ -131,7 +131,7 @@ GeekwxApp              – plats, datahämtning, auto-uppdatering (5 min när fl
 │  └─ Timeline         – diagrammet −12 h … +12 h
 ├─ Warnings            – SMHI-varningar, SIGMET, betydande väder ur METAR/TAF
 ├─ DataInfo            – rå METAR och TAF; källfel bara när en tjänst inte svarar
-└─ sidfot              – källor, "Not for flight planning", © år Per Björkman · Teknikpraktik
+└─ sidfot              – källor, © år Per Björkman · Teknikpraktik
 ```
 
 ### Prognosens källor (src/lib/client/forecast.ts)

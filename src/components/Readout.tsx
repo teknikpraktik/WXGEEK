@@ -37,7 +37,7 @@ export function Readout({ snap, now, children }: Props) {
 
   return (
     <section className={`readout readout-${snap.mode}`} aria-live="polite">
-      <dl className={`readout-grid${pr ? " has-precip" : ""}`}>
+      <dl className="readout-grid">
         <Cell label="Temperature" r={snap.temperature} old={stale(snap.temperature)}>
           {snap.temperature && <Val v={fmtTemp(snap.temperature.value)} unit="°C" />}
         </Cell>
@@ -63,7 +63,7 @@ export function Readout({ snap, now, children }: Props) {
               <Val v="–" unit="" />
             ))}
         </Cell>
-        {/* Precipitation only when there is data for the selected time */}
+        {/* Precipitation only when there is data; its column is always reserved so the other cells never move */}
         {pr && (
           <Cell label="Precipitation" r={snap.precipitation} old={stale(snap.precipitation)} sub={precipSub(snap)}>
             <Val {...splitUnit(fmtPrecip(pr.mm))} />

@@ -1274,20 +1274,9 @@ main {
 }
 
 /* Summary: 4 cells, 5 with precipitation */
+/* Fast rutnät: 5 kolumner (3 på mobil) även utan nederbörd, så rutorna aldrig flyttar sig */
 .readout-grid {
-  grid-template-columns: repeat(4, minmax(0, 1fr));
   margin-top: 4px;
-}
-.readout-grid.has-precip {
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-}
-@media (max-width: 560px) {
-  .readout-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-  .readout-grid.has-precip {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
 }
 .old-flag {
   color: var(--warn);
