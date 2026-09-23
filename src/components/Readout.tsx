@@ -115,7 +115,6 @@ function weatherSummary(snap: Snapshot): string {
   const ph = snap.phenomena;
   if (ph?.value.length) return ph.value.map((p) => p.label).join(", ");
   if (snap.forecastSummary) return snap.forecastSummary;
-  if (ph && (ph.origin.kind === "TAF" || ph.origin.kind === "METAR")) return "No significant weather";
   return " ";
 }
 

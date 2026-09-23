@@ -1241,12 +1241,16 @@ main {
 /* ========================================================================= */
 
 /* Selected-time cursor: bolder dashed line in the same green as NOW */
+/* Linjen (2 px, heltal – bråkdelar avrundas olika i olika webbläsare) centreras på
+   markörens x; romben (8 px) centreras på linjen. Absolut positionerade barn utgår
+   från padding-boxen, dvs. efter bordern. */
 .tl-cursor {
-  border-left: 2.5px dashed var(--now);
+  border-left: 2px dashed var(--now);
+  margin-left: -1px;
 }
 .tl-cursor::before {
   background: var(--now);
-  left: -6px;
+  left: -5px;
 }
 .tl-cursor-label {
   color: var(--now-text);
