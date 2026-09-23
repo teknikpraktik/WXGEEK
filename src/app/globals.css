@@ -828,12 +828,9 @@ main {
 .foot .stale-note {
   color: var(--warn);
 }
-/* Källor (observerat, nu, prognos) ovanför copyrightraderna, i samma diskreta stil */
+/* Källorna på en rad ovanför copyrightraderna, i samma diskreta stil */
 .source-note {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  margin-bottom: 6px;
+  margin-bottom: 4px;
 }
 
 .cell .val .val-prefix {
