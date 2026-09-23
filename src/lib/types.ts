@@ -1,0 +1,204 @@
+// Normaliserade interna typer. UI:t känner bara till dessa – aldrig AWC:s eller SMHI:s råformat.
+
+export type ObservationSource = "METAR" | "SMHI";
+
+export type CloudCover = "FEW" | "SCT" | "BKN" | "OVC" | "VV";
+
+export type CloudLayer = {
+  cover: CloudCover;
+  baseM: number;
+  /** CB / TCU om angivet i METAR */
+  type?: "CB" | "TCU";
+};
+
+/** Grovkategorier för väderfenomen, används för händelser längs tidslinjen. */
+export type PhenomenonKind =
+  | "regn"
+  | "duggregn"
+  | "snö"
+  | "snöblandat"
+  | "hagel"
+  | "skurar"
+  | "dimma"
+  | "dis"
+  | "åska"
+  | "underkylt";
+
+export type Phenomenon = {
+  kind: PhenomenonKind;
+  /** Svensk beskrivning, t.ex. "Lätt regn" */
+  label: string;
+  intensity?: "lätt" | "måttlig" | "kraftig";
+  /** Originalkod, t.ex. "-RA" eller SMHI-kod "161" */
+  code?: string;
+};
+
+export type WeatherObservation = {
+  timestamp: string;
+  source: ObservationSource;
+  stationId: string;
+  stationName?: string;
+  latitude: number;
+  longitude: number;
+  distanceKm?: number;
+
+  temperatureC?: number;
+  dewPointC?: number;
+  relativeHumidity?: number;
+
+  windDirectionDeg?: number;
+  windVariable?: boolean;
+  windSpeedMs?: number;
+  windGustMs?: number;
+
+  pressureHpa?: number;
+  visibilityM?: number;
+  /** true när sikten rapporteras som "minst" värdet (9999/CAVOK) */
+  visibilityAtLeast?: boolean;
+
+  cloudBaseM?: number;
+  cloudLayers?: CloudLayer[];
+  /** CAVOK / NSC / inga moln rapporterade */
+  noSignificantCloud?: boolean;
+
+  precipitationMm?: number;
+
+  weatherPhenomena?: Phenomenon[];
+
+  raw?: string;
+};
+
+export type ForecastPoint = {
+  timestamp: string;
+  /** Start på intervallet för nederbörd etc. */
+  intervalStart?: string;
+  temperatureC?: number;
+  relativeHumidity?: number;
+  windDirectionDeg?: number;
+  windSpeedMs?: number;
+  windGustMs?: number;
+  pressureHpa?: number;
+  visibilityM?: number;
+  cloudBaseM?: number;
+  /** oktas 0–8 */
+  cloudCoverOktas?: number;
+  lowCloudCoverOktas?: number;
+  precipitationMm?: number;
+  precipitationMinMm?: number;
+  precipitationMaxMm?: number;
+  precipitationProbability?: number;
+  thunderProbability?: number;
+  symbolCode?: number;
+  phenomenon?: Phenomenon;
+};
+
+export type Forecast = {
+  source: "SMHI";
+  model: "snow1g";
+  createdTime: string;
+  referenceTime: string;
+  latitude: number;
+  longitude: number;
+  points: ForecastPoint[];
+};
+
+export type TafChange = "BASE" | "FM" | "BECMG" | "TEMPO" | "PROB";
+
+export type TafPeriod = {
+  change: TafChange;
+  probability?: number;
+  from: string;
+  to: string;
+  /** För BECMG: när övergången är klar */
+  becomingBy?: string;
+  windDirectionDeg?: number;
+  windVariable?: boolean;
+  windSpeedMs?: number;
+  windGustMs?: number;
+  visibilityM?: number;
+  visibilityAtLeast?: boolean;
+  cloudLayers?: CloudLayer[];
+  noSignificantCloud?: boolean;
+  phenomena?: Phenomenon[];
+  /** Svensk sammanfattning av perioden */
+  summary: string;
+};
+
+export type Taf = {
+  stationId: string;
+  stationName?: string;
+  distanceKm: number;
+  issueTime: string;
+  validFrom: string;
+  validTo: string;
+  raw: string;
+  periods: TafPeriod[];
+};
+
+/** Parametrar som kan visas och som har egen stationsvalslogik. */
+export type ParamKey =
+  | "temperature"
+  | "dewPoint"
+  | "humidity"
+  | "wind"
+  | "gust"
+  | "pressure"
+  | "visibility"
+  | "cloudBase"
+  | "precipitation"
+  | "phenomena";
+
+export type StationRef = {
+  source: ObservationSource;
+  stationId: string;
+  stationName: string;
+  latitude: number;
+  longitude: number;
+  distanceKm: number;
+};
+
+export type StationSeries = {
+  key: string;
+  station: StationRef;
+  /** Sorterade stigande i tid */
+  observations: WeatherObservation[];
+};
+
+/** Vilken station som valts för en parameter, och varför. */
+export type ParamSelection = {
+  param: ParamKey;
+  /** Nyckel till `WeatherBundle.stations`, null om ingen lämplig station finns */
+  stationKey: string | null;
+  station: StationRef | null;
+  /** Kort svensk motivering, t.ex. "Närmaste station med aktuell mätning" */
+  reason: string;
+  latestTimestamp?: string;
+  /** Andra kandidater som övervägdes */
+  alternatives: Array<StationRef & { latestTimestamp?: string }>;
+};
+
+export type SourceStatus = {
+  id: "metar" | "taf" | "smhi-obs" | "smhi-forecast";
+  label: string;
+  ok: boolean;
+  message?: string;
+};
+
+export type Place = {
+  name: string;
+  detail?: string;
+  latitude: number;
+  longitude: number;
+};
+
+export type WeatherBundle = {
+  generatedAt: string;
+  location: { latitude: number; longitude: number };
+  /** En tidsserie per station. Nyckel = `${source}:${stationId}`. */
+  stations: StationSeries[];
+  /** Vilken station som används för respektive parameter. */
+  selections: Record<ParamKey, ParamSelection>;
+  forecast: Forecast | null;
+  taf: Taf | null;
+  sources: SourceStatus[];
+};
