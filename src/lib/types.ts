@@ -99,6 +99,8 @@ export type Forecast = {
 };
 
 export type TafChange = "BASE" | "FM" | "BECMG" | "TEMPO" | "PROB";
+/** Element som en TAF-grupp kan ange. */
+export type TafElement = "wind" | "visibility" | "weather" | "clouds";
 
 export type TafPeriod = {
   change: TafChange;
@@ -116,6 +118,14 @@ export type TafPeriod = {
   cloudLayers?: CloudLayer[];
   noSignificantCloud?: boolean;
   phenomena?: Phenomenon[];
+  /** CAVOK: sikt ≥ 10 km, inga moln under 1 500 m (eller högsta sektorhöjd), ingen CB/TCU, inget väder */
+  cavok?: boolean;
+  /** NSW: inget väder av betydelse (avslutar tidigare väderfenomen) */
+  nsw?: boolean;
+  /** Element som gruppen faktiskt anger (ur råtexten). BECMG ändrar bara dessa. */
+  changes?: TafElement[];
+  /** Gruppens råtext, t.ex. "BECMG 2318/2320 0300 FG VV002" */
+  group?: string;
   /** Svensk sammanfattning av perioden */
   summary: string;
 };
@@ -124,6 +134,8 @@ export type Taf = {
   stationId: string;
   stationName?: string;
   distanceKm: number;
+  latitude: number;
+  longitude: number;
   issueTime: string;
   validFrom: string;
   validTo: string;
@@ -192,7 +204,7 @@ export type WeatherBundle = {
   /** Vilken station som används för respektive parameter. */
   selections: Record<ParamKey, ParamSelection>;
   forecast: Forecast | null;
-  /** Prognosen visas fram till hit: närmaste TAF:s slut (minst 6 h, högst 30 h framåt). */
+  /** Slutet på det fasta prognosfönstret (NU + 12 h). */
   forecastUntil: string;
   taf: Taf | null;
   sources: SourceStatus[];

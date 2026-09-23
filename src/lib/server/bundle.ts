@@ -24,9 +24,8 @@ import type {
 } from "../types";
 
 const HISTORY_MS = 13 * 60 * 60 * 1000;
-/** Prognosfönster: närmaste TAF:s slut, men minst/högst så här långt fram. */
-const FORECAST_MIN_MS = 6 * 60 * 60 * 1000;
-const FORECAST_MAX_MS = 30 * 60 * 60 * 1000;
+/** Fast tidsfönster: 12 h bakåt (observationer) och 12 h framåt (prognos). */
+const FORECAST_WINDOW_MS = 12 * 60 * 60 * 1000;
 const METAR_RADIUS_KM = 110;
 const TAF_MAX_KM = 50;
 
@@ -261,9 +260,10 @@ export async function buildWeatherBundle(lat: number, lon: number): Promise<Weat
   // -------------------------------------------------------------------------
   // Prognos
   // -------------------------------------------------------------------------
-  // Prognosen visas bara fram till närmaste TAF:s slut – fokus är nuväder.
-  const tafEnd = taf ? Date.parse(taf.validTo) : now + FORECAST_MIN_MS;
-  const forecastUntil = Math.min(now + FORECAST_MAX_MS, Math.max(now + FORECAST_MIN_MS, tafEnd));
+
+  // Prognosen visas alltid 12 h framåt. TAF används där den gäller, SMHI kompletterar
+  // och tar över efter TAF:s giltighetstid (se src/lib/client/forecast.ts).
+  const forecastUntil = now + FORECAST_WINDOW_MS;
   let forecast: Forecast | null = null;
   let forecastMessage: string | undefined;
   if (forecastRes.status === "fulfilled" && forecastRes.value) {

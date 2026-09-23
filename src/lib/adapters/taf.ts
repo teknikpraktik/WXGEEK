@@ -1,5 +1,5 @@
-import type { CloudLayer, Taf, TafChange, TafPeriod } from "../types";
-import { compass } from "../geo";
+import type { CloudLayer, Taf, TafChange, TafElement, TafPeriod } from "../types";
+import { compassWord } from "../geo";
 import { cleanAwcName, FT_TO_M, ktToMs, visibFromAwc } from "./metar";
 import { parseMetarWeather } from "../weather/phenomena";
 
@@ -31,16 +31,46 @@ export type AwcTaf = {
 const iso = (s: number) => new Date(s * 1000).toISOString();
 
 /**
- * Sikt i TAF: AWC ger statute miles. Europeiska TAF anger meter, så vi försöker
- * läsa ursprungsvärdet ur rå-TAF-segmentet för bättre noggrannhet.
+ * Delar rå-TAF i grupper i samma ordning som AWC:s `fcsts`: huvudprognos, därefter
+ * en grupp per FM / BECMG / TEMPO / PROBnn (PROBnn TEMPO räknas som en grupp).
+ * Används för det AWC:s avkodning tappar: CAVOK, VV, sikt i meter och vilka element
+ * en BECMG-grupp faktiskt ändrar.
  */
-function visibilityForPeriod(v: AwcTaf["fcsts"][number]["visib"]) {
-  const r = visibFromAwc(v);
-  if (!r) return null;
-  // Avrunda till "TAF-steg" för att inte visa falsk precision efter omräkning.
-  if (r.atLeast) return r;
-  const m = r.m < 800 ? Math.round(r.m / 50) * 50 : r.m < 5000 ? Math.round(r.m / 100) * 100 : Math.round(r.m / 1000) * 1000;
-  return { m, atLeast: false };
+export function splitTafGroups(raw: string): string[] {
+  const body = raw
+    .replace(/^TAF\s+(AMD\s+|COR\s+)?/, "")
+    .replace(/\s+RMK\b.*$/, "")
+    .trim();
+  const parts = body.split(/\s+(?=FM\d{6}\b|BECMG\b|TEMPO\b|PROB\d{2}\b)/);
+  const out: string[] = [];
+  for (const p of parts) {
+    // "PROB40 TEMPO ..." är en grupp; "TEMPO" direkt efter en ensam "PROB40" slås ihop.
+    if (/^TEMPO\b/.test(p) && out.length && /^PROB\d{2}$/.test(out[out.length - 1].trim())) {
+      out[out.length - 1] = `${out[out.length - 1]} ${p}`;
+    } else out.push(p);
+  }
+  return out;
+}
+
+/** Sikt i meter ur en TAF-grupp: fyra siffror (9999 = minst 10 km) eller CAVOK. */
+function visibilityFromGroup(g: string): { m: number; atLeast: boolean } | null {
+  if (/\bCAVOK\b/.test(g)) return { m: 10000, atLeast: true };
+  const m = g.split(/\s+/).find((tok) => /^\d{4}$/.test(tok));
+  if (!m) return null;
+  const v = parseInt(m, 10);
+  return v >= 9999 ? { m: 10000, atLeast: true } : { m: v, atLeast: false };
+}
+
+/** Vilka element en grupp anger (övriga lämnas oförändrade av BECMG). */
+function elementsInGroup(g: string): TafElement[] {
+  const toks = g.split(/\s+/);
+  const out: TafElement[] = [];
+  if (toks.some((t) => /^(\d{3}|VRB)\d{2,3}(G\d{2,3})?(KT|MPS)$/.test(t))) out.push("wind");
+  if (/\bCAVOK\b/.test(g) || toks.some((t) => /^\d{4}$/.test(t))) out.push("visibility");
+  if (/\bCAVOK\b|\bNSW\b/.test(g) || toks.some((t) => /^[-+]?(VC)?(MI|BC|PR|DR|BL|SH|TS|FZ)?(DZ|RA|SN|SG|PL|GR|GS|UP|FG|BR|HZ|FU)+$/.test(t)))
+    out.push("weather");
+  if (/\bCAVOK\b|\bNSC\b|\bSKC\b|\bVV\d{3}\b/.test(g) || toks.some((t) => /^(FEW|SCT|BKN|OVC)\d{3}/.test(t))) out.push("clouds");
+  return out;
 }
 
 function fmtVis(m: number, atLeast?: boolean) {
@@ -48,38 +78,79 @@ function fmtVis(m: number, atLeast?: boolean) {
   return m < 1000 ? `sikt ${m} m` : `sikt ${(m / 1000).toLocaleString("sv-SE", { maximumFractionDigits: 1 })} km`;
 }
 
-function summarize(p: Omit<TafPeriod, "summary">): string {
+const roundBase = (m: number) => (m < 1000 ? Math.round(m / 10) * 10 : Math.round(m / 100) * 100);
+const COVER_WORD: Record<string, string> = {
+  FEW: "få moln",
+  SCT: "spridda moln",
+  BKN: "brutet molntäcke",
+  OVC: "mulet",
+};
+
+/**
+ * Svensk sammanfattning av de element gruppen faktiskt anger. För BECMG/TEMPO/PROB
+ * tas bara de element med som står i gruppen – inte de som AWC fört vidare.
+ */
+function summarize(p: Omit<TafPeriod, "summary">, only?: TafElement[]): string {
+  const has = (e: TafElement) => !only || only.includes(e);
   const parts: string[] = [];
-  if (p.windSpeedMs !== undefined) {
-    const dir = p.windVariable ? "Varierande" : p.windDirectionDeg !== undefined ? compass(p.windDirectionDeg) : "";
-    let w = `${dir} ${Math.round(p.windSpeedMs)} m/s`.trim();
-    if (p.windGustMs) w += `, byar ${Math.round(p.windGustMs)} m/s`;
-    parts.push(w);
+  if (p.cavok && has("visibility")) parts.push("CAVOK: sikt minst 10 km, inga moln under 1 500 m, inget väder av betydelse");
+  else {
+    if (has("wind") && p.windSpeedMs !== undefined) {
+      if (p.windSpeedMs < 0.5) parts.push("vindstilla");
+      else {
+        const dir = p.windVariable ? "varierande vind" : p.windDirectionDeg !== undefined ? `vind från ${compassWord(p.windDirectionDeg)}` : "vind";
+        let w = `${dir} ${Math.round(p.windSpeedMs)} m/s`;
+        if (p.windGustMs) w += `, byar ${Math.round(p.windGustMs)} m/s`;
+        parts.push(w);
+      }
+    }
+    if (has("visibility") && p.visibilityM !== undefined) parts.push(fmtVis(p.visibilityM, p.visibilityAtLeast));
+    if (has("weather")) {
+      if (p.nsw) parts.push("inget väder av betydelse");
+      else if (p.phenomena?.length) parts.push(p.phenomena.map((x) => x.label.toLowerCase()).join(", "));
+    }
+    if (has("clouds")) {
+      const vv = p.cloudLayers?.find((l) => l.cover === "VV");
+      const lowest = p.cloudLayers?.find((l) => l.cover !== "VV");
+      if (vv) parts.push(`skymd himmel, vertikal sikt ${roundBase(vv.baseM)} m`);
+      else if (lowest) {
+        parts.push(`${COVER_WORD[lowest.cover] ?? "moln"} ${roundBase(lowest.baseM)} m${lowest.type === "CB" ? " (bymoln)" : ""}`);
+      } else if (p.noSignificantCloud) parts.push("inga betydande moln");
+    }
   }
-  if (p.visibilityM !== undefined) parts.push(fmtVis(p.visibilityM, p.visibilityAtLeast));
-  if (p.phenomena?.length) parts.push(p.phenomena.map((x) => x.label.toLowerCase()).join(", "));
-  const low = p.cloudLayers?.find((l) => l.cover === "BKN" || l.cover === "OVC" || l.cover === "VV");
-  if (low) parts.push(`${low.cover === "VV" ? "vertikal sikt" : "molnbas"} ${roundBase(low.baseM)} m`);
-  else if (p.noSignificantCloud) parts.push("inga betydande moln");
   const s = parts.join(" · ");
-  return s ? s.charAt(0).toUpperCase() + s.slice(1) : "Ingen ändring angiven";
+  return s ? s.charAt(0).toUpperCase() + s.slice(1) : "Inga uppgifter i gruppen";
 }
 
-const roundBase = (m: number) => (m < 1000 ? Math.round(m / 10) * 10 : Math.round(m / 100) * 100);
-
 export function normalizeTaf(t: AwcTaf, distanceKm: number): Taf {
-  const periods: TafPeriod[] = t.fcsts.map((f) => {
+  const groups = splitTafGroups(t.rawTAF);
+  const groupsMatch = groups.length === t.fcsts.length;
+
+  const periods: TafPeriod[] = t.fcsts.map((f, i) => {
     let change: TafChange = "BASE";
     if (f.fcstChange === "FM") change = "FM";
     else if (f.fcstChange === "BECMG") change = "BECMG";
     else if (f.fcstChange === "TEMPO") change = "TEMPO";
     else if (f.fcstChange === "PROB" || (f.probability && !f.fcstChange)) change = "PROB";
-    // "PROB30 TEMPO" kodas som TEMPO med probability.
+    // "PROB30 TEMPO" kodas som TEMPO med sannolikhet.
     if (change === "TEMPO" && f.probability) change = "PROB";
 
-    const vis = visibilityForPeriod(f.visib);
+    const g = groupsMatch ? groups[i] : "";
+    const cavok = /\bCAVOK\b/.test(g);
+    const nsw = /\bNSW\b/.test(g) || (f.wxString ?? "").includes("NSW") ? true : undefined;
+
+    // Sikt: meter ur råtexten om möjligt, annars AWC:s statute miles avrundat.
+    let vis = g ? visibilityFromGroup(g) : null;
+    if (!vis) {
+      const r = visibFromAwc(f.visib);
+      if (r)
+        vis = r.atLeast
+          ? r
+          : { m: r.m < 800 ? Math.round(r.m / 50) * 50 : r.m < 5000 ? Math.round(r.m / 100) * 100 : Math.round(r.m / 1000) * 1000, atLeast: false };
+    }
+
     const layers: CloudLayer[] = [];
-    let nsc = false;
+    let nsc = cavok;
     for (const c of f.clouds ?? []) {
       if (["FEW", "SCT", "BKN", "OVC"].includes(c.cover) && c.base != null) {
         layers.push({
@@ -89,8 +160,12 @@ export function normalizeTaf(t: AwcTaf, distanceKm: number): Taf {
         });
       } else if (["NSC", "SKC", "CAVOK", "CLR"].includes(c.cover)) nsc = true;
     }
-    if (f.vertVis != null) layers.push({ cover: "VV", baseM: Math.round(f.vertVis * FT_TO_M) });
+    // Vertikal sikt: AWC anger ibland bara "OVX" utan höjd – läs VV ur råtexten.
+    const vvRaw = g.match(/\bVV(\d{3})\b/);
+    const vvFt = f.vertVis ?? (vvRaw ? parseInt(vvRaw[1], 10) * 100 : null);
+    if (vvFt != null) layers.push({ cover: "VV", baseM: Math.round(vvFt * FT_TO_M) });
 
+    const changes = g ? elementsInGroup(g) : undefined;
     const base: Omit<TafPeriod, "summary"> = {
       change,
       probability: f.probability ?? undefined,
@@ -104,16 +179,24 @@ export function normalizeTaf(t: AwcTaf, distanceKm: number): Taf {
       visibilityM: vis?.m,
       visibilityAtLeast: vis?.atLeast || undefined,
       cloudLayers: layers.sort((a, b) => a.baseM - b.baseM),
-      noSignificantCloud: nsc || undefined,
+      noSignificantCloud: (nsc && layers.length === 0) || undefined,
+      cavok: cavok || undefined,
+      nsw,
       phenomena: parseMetarWeather(f.wxString),
+      changes,
+      group: g || undefined,
     };
-    return { ...base, summary: summarize(base) };
+    // Huvudprognos/FM: hela tillståndet. BECMG/TEMPO/PROB: bara det gruppen anger.
+    const only = change === "BASE" || change === "FM" ? undefined : changes;
+    return { ...base, summary: summarize(base, only) };
   });
 
   return {
     stationId: t.icaoId,
     stationName: t.name ? cleanAwcName(t.name) : undefined,
     distanceKm,
+    latitude: t.lat,
+    longitude: t.lon,
     issueTime: t.issueTime,
     validFrom: iso(t.validTimeFrom),
     validTo: iso(t.validTimeTo),

@@ -23,6 +23,13 @@ export function isRoughlySweden(lat: number, lon: number): boolean {
 
 const COMPASS = ["N", "NO", "O", "SO", "S", "SV", "V", "NV"] as const;
 
+const COMPASS_WORD = ["norr", "nordost", "öster", "sydost", "söder", "sydväst", "väster", "nordväst"] as const;
+
+/** Vindriktning (varifrån det blåser) i klartext: "sydost". */
+export function compassWord(deg: number): string {
+  return COMPASS_WORD[Math.round((((deg % 360) + 360) % 360) / 45) % 8];
+}
+
 /** Vindriktning (varifrån det blåser) som svensk kompassriktning. */
 export function compass(deg: number): string {
   return COMPASS[Math.round((((deg % 360) + 360) % 360) / 45) % 8];
