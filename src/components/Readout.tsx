@@ -56,9 +56,12 @@ export function Readout({ snap, now, children }: Props) {
             v={skyCode(snap.sky.kind)}
             unit=""
             icon={
-              <svg className="sky-inline" width={26} height={22} viewBox="-13 -11 26 22" aria-hidden>
-                <SkyIcon sky={snap.sky} day={snap.day} />
-              </svg>
+              // Symboler som bara är text (CAVOK, NSC, ?) upprepar värdet – visas inte här.
+              !TEXT_SKY.has(snap.sky.kind) && (
+                <svg className="sky-inline" width={26} height={22} viewBox="-13 -11 26 22" aria-hidden>
+                  <SkyIcon sky={snap.sky} day={snap.day} />
+                </svg>
+              )
             }
           />
         </Cell>
@@ -85,6 +88,8 @@ function windSub(w: { deg?: number; variable?: boolean; speed?: number }, gust: 
   const g = gust !== undefined && gust >= (w.speed ?? 0) + 1 ? `gusts ${fmtWindSpeed(gust)} m/s` : "";
   return [dir, g].filter(Boolean).join(" · ");
 }
+
+const TEXT_SKY = new Set<Snapshot["sky"]["kind"]>(["CAVOK", "NSC", "UNKNOWN", "MISSING"]);
 
 const skyCode = (k: Snapshot["sky"]["kind"]) => (k === "UNKNOWN" ? "?" : k === "MISSING" ? "–" : k);
 
@@ -126,7 +131,8 @@ function Val({ v, unit, icon }: { v: string; unit: string; icon?: ReactNode }) {
   return (
     <span className="val">
       {icon}
-      <b>
+      {/* Långa ord (CAVOK m.fl.) i mindre storlek så att rutan inte sprängs */}
+      <b className={/[A-Za-z]{4,}/.test(v) ? "long" : undefined}>
         {v.startsWith("≥") ? (
           <>
             <span className="val-prefix">≥</span>
