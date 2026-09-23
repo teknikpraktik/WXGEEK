@@ -7,14 +7,16 @@ sammanhängande förlopp genom tiden. Vanliga väderappar är prognosappar –
 Väderlek behandlar **observerat väder som en förstklassig datatyp**.
 
 ```
-−12 h ←──────── NU ────────→ +36 h
+−12 h ←──────── NU ────────→ TAF:s slut
   observerat          prognos
 ```
 
 - Öppna appen och se direkt det **observerade** vädret nu – med station, avstånd och ålder.
 - Dra tidslinjen bakåt ~12 timmar och se hur vädret faktiskt utvecklats.
 - Dra framåt och se prognosen på **samma** tidsaxel.
-- Allt på en gång, som ett meteogram: temperatur och nederbörd, vind, moln/sikt och lufttryck i smala körfält på samma tidsaxel.
+- Ett diagram: molnbas (meter, vänster axel) och temperatur (°C, höger axel), med nederbörd som faller från molnbasen och vindpilar under.
+- Fokus på nuväder: prognosen sträcker sig bara till närmaste TAF:s slut (minst 6 h).
+- Rå METAR och TAF samt vilka stationer som använts står överst, i liten stil.
 - Observation (heldraget, bläck) och prognos (streckat, blått) skiljs tydligt åt.
 
 Väderlek kombinerar **METAR** (flygplatsobservationer), **SMHI:s observationer**,

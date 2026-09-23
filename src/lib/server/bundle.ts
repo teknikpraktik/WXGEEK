@@ -24,17 +24,17 @@ import type {
 } from "../types";
 
 const HISTORY_MS = 13 * 60 * 60 * 1000;
-const FORECAST_MS = 48 * 60 * 60 * 1000;
+/** Prognosfönster: närmaste TAF:s slut, men minst/högst så här långt fram. */
+const FORECAST_MIN_MS = 6 * 60 * 60 * 1000;
+const FORECAST_MAX_MS = 30 * 60 * 60 * 1000;
 const METAR_RADIUS_KM = 110;
 const TAF_MAX_KM = 50;
 
 /** Vilka SMHI-parametrar som behövs för respektive Väderlek-parameter. */
 const SMHI_FOR: Record<ParamKey, SmhiParamName[]> = {
   temperature: ["temperature"],
-  humidity: ["humidity"],
   wind: ["windSpeed", "windDirection"],
   gust: ["gust"],
-  pressure: ["pressure"],
   precipitation: ["precipitation"],
   visibility: ["visibility"],
   cloudBase: ["cloudBase"],
@@ -44,10 +44,8 @@ const SMHI_FOR: Record<ParamKey, SmhiParamName[]> = {
 /** Om en METAR alls innehåller parametern. */
 const METAR_HAS: Record<ParamKey, (m: AwcMetar) => boolean> = {
   temperature: (m) => m.temp != null,
-  humidity: (m) => m.temp != null && m.dewp != null,
   wind: (m) => m.wspd != null,
   gust: (m) => m.wspd != null,
-  pressure: (m) => m.altim != null,
   precipitation: () => false,
   visibility: () => true,
   cloudBase: () => true,
@@ -263,13 +261,16 @@ export async function buildWeatherBundle(lat: number, lon: number): Promise<Weat
   // -------------------------------------------------------------------------
   // Prognos
   // -------------------------------------------------------------------------
+  // Prognosen visas bara fram till närmaste TAF:s slut – fokus är nuväder.
+  const tafEnd = taf ? Date.parse(taf.validTo) : now + FORECAST_MIN_MS;
+  const forecastUntil = Math.min(now + FORECAST_MAX_MS, Math.max(now + FORECAST_MIN_MS, tafEnd));
   let forecast: Forecast | null = null;
   let forecastMessage: string | undefined;
   if (forecastRes.status === "fulfilled" && forecastRes.value) {
     forecast = normalizeSmhiForecast(forecastRes.value);
     forecast.points = forecast.points.filter((p) => {
       const t = Date.parse(p.timestamp);
-      return t >= now - 60 * 60 * 1000 && t <= now + FORECAST_MS;
+      return t >= now - 60 * 60 * 1000 && t <= forecastUntil + 60 * 60 * 1000;
     });
   } else if (forecastRes.status === "fulfilled") {
     forecastMessage = "Platsen ligger utanför SMHI:s prognosområde";
@@ -297,14 +298,13 @@ export async function buildWeatherBundle(lat: number, lon: number): Promise<Weat
   sources.push({
     id: "smhi-obs",
     label: "SMHI observationer",
-    ok: smhiListsOk && smhiData.size > 0,
+    // Att ingen SMHI-station valts är inget fel – en närmare flygplats kan ha vunnit alla parametrar.
+    ok: smhiListsOk && smhiDataErrors === 0,
     message: !smhiListsOk
       ? "SMHI:s observationstjänst svarar inte just nu"
-      : smhiData.size === 0
-        ? "Ingen SMHI-station med aktuella mätningar i närheten"
-        : smhiDataErrors > 0
-          ? "Vissa SMHI-mätningar kunde inte hämtas"
-          : undefined,
+      : smhiDataErrors > 0
+        ? "Vissa SMHI-mätningar kunde inte hämtas"
+        : undefined,
   });
   sources.push({ id: "smhi-forecast", label: "SMHI prognos", ok: !!forecast, message: forecastMessage });
   sources.push({
@@ -325,6 +325,7 @@ export async function buildWeatherBundle(lat: number, lon: number): Promise<Weat
     stations,
     selections,
     forecast,
+    forecastUntil: new Date(forecastUntil).toISOString(),
     taf,
     sources,
   };

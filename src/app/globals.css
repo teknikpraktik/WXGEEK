@@ -20,6 +20,7 @@
   --ev-dimma: #9a9a92;
   --ev-aska: #d4a200;
   --taf: #0e7f73;
+  --cloud: #5f6672;
   --font-ui: var(--font-sans), system-ui, -apple-system, "Segoe UI", sans-serif;
   --font-num: var(--font-mono), ui-monospace, "SF Mono", Menlo, monospace;
   color-scheme: light;
@@ -45,6 +46,7 @@
     --ev-dimma: #7d7f84;
     --ev-aska: #f0c330;
     --taf: #4fc6b6;
+  --cloud: #aab2bf;
     color-scheme: dark;
   }
 }
@@ -367,17 +369,6 @@ main {
   flex-basis: 100%;
 }
 
-.readout-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  margin: 0;
-  border-top: 1px solid var(--rule);
-}
-@media (min-width: 600px) {
-  .readout-grid {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-  }
-}
 .cell {
   padding: 7px 10px 7px 0;
   border-bottom: 1px solid var(--rule-2);
@@ -624,20 +615,6 @@ main {
   stroke-width: 1;
 }
 
-.tl-cloud {
-  fill: var(--obs);
-}
-.tl-cloud.vv {
-  fill: url(#vv);
-}
-.tl-vv {
-  stroke: var(--obs);
-  stroke-width: 1.5;
-}
-.tl-cloud.fc {
-  fill: var(--fc);
-}
-
 .tl-taf rect {
   fill: none;
   stroke: var(--taf);
@@ -714,26 +691,6 @@ main {
 .tl-lanesep {
   stroke: var(--rule);
   stroke-width: 1;
-}
-.tl-line.thin {
-  stroke-width: 1.5;
-}
-.tl-precip.k-regn {
-  fill: var(--ev-regn);
-}
-.tl-precip.k-sno {
-  fill: var(--ev-sno);
-}
-.tl-precip.fc {
-  fill-opacity: 0.3;
-  stroke-width: 1;
-  stroke-dasharray: 3 2;
-}
-.tl-precip.fc.k-regn {
-  stroke: var(--ev-regn);
-}
-.tl-precip.fc.k-sno {
-  stroke: var(--ev-sno);
 }
 .tl-wind path {
   fill: none;
@@ -815,118 +772,12 @@ main {
 /* Detaljer                                                                   */
 /* ------------------------------------------------------------------------- */
 
-.details {
-  margin-top: 20px;
-}
-.panel {
-  border-top: 1px solid var(--rule);
-}
-.panel:last-of-type {
-  border-bottom: 1px solid var(--rule);
-}
-.panel summary {
-  cursor: pointer;
-  padding: 11px 0;
-  font-weight: 500;
-  list-style: none;
-  display: flex;
-  justify-content: space-between;
-}
-.panel summary::-webkit-details-marker {
-  display: none;
-}
-.panel summary::after {
-  content: "+";
-  font-family: var(--font-num);
-  color: var(--muted);
-}
-.panel[open] summary::after {
-  content: "−";
-}
-.panel > *:not(summary) {
-  margin-top: 0;
-}
-.panel > :last-child {
-  margin-bottom: 14px;
-}
-.raw {
-  margin: 0 0 8px;
-  padding: 10px 12px;
-  background: var(--surface);
-  border: 1px solid var(--rule-2);
-  border-radius: 6px;
-  font-size: 12.5px;
-  white-space: pre-wrap;
-  word-break: break-word;
-}
-
-.stations {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 13px;
-}
-.stations th,
-.stations td {
-  text-align: left;
-  vertical-align: top;
-  padding: 7px 8px 7px 0;
-  border-bottom: 1px solid var(--rule-2);
-}
-.stations thead th {
-  font-size: 11px;
-  font-weight: 500;
-  color: var(--muted);
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-}
-.stations tbody th {
-  font-weight: 500;
-  white-space: nowrap;
-}
-.stations td.mono {
-  white-space: nowrap;
-  font-size: 12px;
-}
-.stations .why {
-  font-size: 11.5px;
-  color: var(--muted);
-}
 .src-metar,
 .src-smhi {
   display: inline-block;
   padding: 0 4px;
   border-radius: 2px;
   box-shadow: inset 0 0 0 1px var(--rule);
-}
-
-.sources {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px 14px;
-  margin-top: 16px;
-  font-size: 12px;
-}
-.source {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
-.source i {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: #3a9b5b;
-}
-.source.down i {
-  background: var(--warn);
-}
-.source-msg {
-  color: var(--muted);
-}
-.attrib {
-  font-size: 11px;
-  color: var(--muted);
-  margin-top: 14px;
 }
 
 /* ------------------------------------------------------------------------- */
@@ -973,4 +824,127 @@ main {
   .windarrow {
     transition: none;
   }
+}
+
+/* ------------------------------------------------------------------------- */
+/* Rutnät för avläsning                                                        */
+/* ------------------------------------------------------------------------- */
+
+.readout-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(104px, 1fr));
+  margin: 0;
+  border-top: 1px solid var(--rule);
+}
+
+/* ------------------------------------------------------------------------- */
+/* Diagram: moln, nederbörd, dubbla axlar                                      */
+/* ------------------------------------------------------------------------- */
+
+.tl-yaxis.right {
+  left: auto;
+  right: 0;
+  text-align: right;
+  background: linear-gradient(to left, var(--bg) 60%, transparent);
+}
+.tl-yaxis.right span {
+  left: auto;
+  right: 16px;
+}
+.tl-yaxis .tl-axtitle {
+  transform: none;
+  font-size: 9.5px;
+  letter-spacing: 0.04em;
+  color: var(--ink-2);
+}
+
+.tl-cloud {
+  fill: var(--cloud);
+}
+.tl-cloud.vv {
+  fill: url(#vv);
+}
+.tl-vv {
+  stroke: var(--cloud);
+  stroke-width: 1.5;
+}
+.tl-cloud.fc {
+  fill: var(--fc);
+}
+
+.tl-precip line {
+  stroke-width: 1.6;
+  stroke-linecap: round;
+}
+.tl-precip.k-regn line {
+  stroke: var(--ev-regn);
+  stroke-dasharray: 6 4;
+}
+.tl-precip.k-sno line {
+  stroke: var(--ev-sno);
+  stroke-width: 2.6;
+  stroke-dasharray: 0.1 7;
+}
+.tl-precip.fc {
+  opacity: 0.55;
+}
+/* Molnbas okänd: strecken börjar uppifrån och tonas */
+.tl-precip.nobase {
+  opacity: 0.4;
+}
+
+.lg-cloud::before {
+  width: 12px;
+  height: 7px;
+  border: 0;
+  border-radius: 1.5px;
+  background: linear-gradient(to right, color-mix(in srgb, var(--cloud) 30%, transparent), var(--cloud));
+}
+
+/* ------------------------------------------------------------------------- */
+/* Rådata och källor överst                                                    */
+/* ------------------------------------------------------------------------- */
+
+.datainfo {
+  margin: 8px 0 0;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--rule-2);
+  font-family: var(--font-num);
+  font-size: 10px;
+  line-height: 1.45;
+  color: var(--muted);
+}
+.datainfo p {
+  margin: 0 0 3px;
+}
+.raw-line {
+  display: flex;
+  gap: 6px;
+}
+.raw-tag {
+  flex: none;
+  color: var(--ink-2);
+  font-weight: 500;
+  letter-spacing: 0.06em;
+}
+.raw-text {
+  word-break: break-word;
+}
+.used {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 12px;
+}
+.used b {
+  font-weight: 500;
+  color: var(--ink-2);
+}
+.used .down {
+  color: var(--warn);
+}
+
+.attrib {
+  font-size: 11px;
+  color: var(--muted);
+  margin-top: 20px;
 }

@@ -76,7 +76,6 @@ API:t ger upp till **30 dagar** bakåt. Vi använder `hours=13` (≈ 12 h + marg
   bara under öppettider – nattetid kan METAR saknas helt.
 - Byar rapporteras bara när de är markant högre än medelvinden (≥ 10 kt över). Att
   byar saknas i METAR betyder alltså inte att det är byfritt.
-- QNH och SMHI:s "lufttryck reducerat till havsytans nivå" är nära men inte identiska storheter.
 
 ---
 
@@ -122,11 +121,9 @@ Värden är **strängar**. Kvalitet `G` = kontrollerat, `Y` = misstänkt/prelimi
 | p | Parameter | Enhet | Kommentar |
 |---|---|---|---|
 | 1 | Lufttemperatur, momentan 1 gång/tim | °C | |
-| 6 | Relativ luftfuktighet | % | |
 | 3 | Vindriktning, 10-min medel | grader | |
 | 4 | Vindhastighet, 10-min medel | m/s | |
 | 21 | Byvind, max 1 gång/tim | m/s | Finns inte på alla stationer (t.ex. inte Karlstad Flygplats) |
-| 9 | Lufttryck reducerat till havsytans nivå | hPa | |
 | 7 | Nederbördsmängd, summa 1 timme | mm | Glesare stationsnät |
 | 12 | Sikt | m | Kan ge mycket höga värden (t.ex. 75 000 m) |
 | 36 | Molnbas, lägsta molnbas | m | |
@@ -184,8 +181,6 @@ Senaste körning: `.../snow1g/version/1/createdtime.json`
 |---|---|
 | `air_temperature` | °C |
 | `wind_from_direction`, `wind_speed`, `wind_speed_of_gust` | °, m/s |
-| `relative_humidity` | % |
-| `air_pressure_at_mean_sea_level` | hPa |
 | `visibility_in_air` | **km** |
 | `cloud_area_fraction`, `low_type_cloud_area_fraction` | **oktas** (0–8) |
 | `cloud_base_altitude` | m – referensnivå (mark/hav) anges inte i metadata; tolkas som ungefärlig höjd |

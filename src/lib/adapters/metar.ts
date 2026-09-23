@@ -6,12 +6,10 @@ export type AwcMetar = {
   icaoId: string;
   obsTime: number;
   temp?: number | null;
-  dewp?: number | null;
   wdir?: number | "VRB" | null;
   wspd?: number | null;
   wgst?: number | null;
   visib?: number | string | null;
-  altim?: number | null;
   wxString?: string | null;
   rawOb: string;
   lat: number;
@@ -111,12 +109,10 @@ export function normalizeMetar(m: AwcMetar, distanceKm?: number): WeatherObserva
     longitude: m.lon,
     distanceKm,
     temperatureC: m.temp ?? undefined,
-    dewPointC: m.dewp ?? undefined,
     windDirectionDeg: typeof m.wdir === "number" ? m.wdir : undefined,
     windVariable: variable || undefined,
     windSpeedMs: typeof m.wspd === "number" ? ktToMs(m.wspd) : undefined,
     windGustMs: typeof m.wgst === "number" ? ktToMs(m.wgst) : undefined,
-    pressureHpa: m.altim ?? undefined,
     visibilityM: vis?.m,
     visibilityAtLeast: vis?.atLeast || undefined,
     cloudLayers: layers,
@@ -125,18 +121,7 @@ export function normalizeMetar(m: AwcMetar, distanceKm?: number): WeatherObserva
     weatherPhenomena: parseMetarWeather(m.wxString),
     raw,
   };
-  // Relativ fuktighet beräknas ur temperatur och daggpunkt (Magnus formel).
-  if (obs.temperatureC !== undefined && obs.dewPointC !== undefined) {
-    obs.relativeHumidity = relativeHumidity(obs.temperatureC, obs.dewPointC);
-  }
   return obs;
-}
-
-export function relativeHumidity(t: number, td: number): number {
-  const a = 17.625;
-  const b = 243.04;
-  const rh = 100 * Math.exp((a * td) / (b + td) - (a * t) / (b + t));
-  return Math.round(Math.min(100, Math.max(0, rh)));
 }
 
 /** "Karlstad Arpt, S, SE" → "Karlstad flygplats" */

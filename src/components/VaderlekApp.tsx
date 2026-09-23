@@ -2,11 +2,11 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Place, WeatherBundle } from "@/lib/types";
-import { buildMeteogram, HOUR, snapshotAt } from "@/lib/client/timeline";
+import { buildChart, HOUR, snapshotAt } from "@/lib/client/timeline";
 import { Timeline } from "./Timeline";
 import { Readout } from "./Readout";
 import { PlacePicker } from "./PlacePicker";
-import { Details } from "./Details";
+import { DataInfo } from "./DataInfo";
 
 const PLACE_KEY = "vaderlek:place";
 const REFRESH_MS = 5 * 60 * 1000;
@@ -167,7 +167,7 @@ export function VaderlekApp() {
   // ---------------------------------------------------------------------------
   // Härledd data
   // ---------------------------------------------------------------------------
-  const meteogram = useMemo(() => (bundle ? buildMeteogram(bundle, now) : null), [bundle, now]);
+  const chart = useMemo(() => (bundle ? buildChart(bundle, now) : null), [bundle, now]);
   const t = cursor ?? now;
   const snap = useMemo(() => (bundle ? snapshotAt(bundle, t, now) : null), [bundle, t, now]);
   const onCursor = useCallback((tt: number) => setCursor(tt), []);
@@ -225,19 +225,29 @@ export function VaderlekApp() {
             </div>
           )}
 
-          {bundle && snap && meteogram && (
+          {bundle && snap && chart && (
             <>
+              <DataInfo bundle={bundle} snap={snap} />
+
               <Readout
                 snap={snap}
                 now={now}
                 forecastCreated={bundle.forecast?.createdTime}>
               <section className="timeline-wrap" aria-label="Tidslinje">
-                <Timeline now={now} data={meteogram} taf={bundle.taf} onCursor={onCursor} recenterSignal={recenter} />
+                <Timeline
+                  now={now}
+                  until={Date.parse(bundle.forecastUntil)}
+                  data={chart}
+                  taf={bundle.taf}
+                  onCursor={onCursor}
+                  recenterSignal={recenter}
+                />
 
                 <div className="tl-footer">
                   <div className="legend" aria-hidden>
                     <span className="lg lg-obs">Observerat</span>
                     <span className="lg lg-fc">Prognos</span>
+                    <span className="lg lg-cloud">Moln (tätare = mer)</span>
                     <span className="lg lg-regn">Regn</span>
                     <span className="lg lg-sno">Snö</span>
                     <span className="lg lg-fog">Dimma / låg sikt</span>
@@ -257,7 +267,11 @@ export function VaderlekApp() {
               {error && <p className="inline-error">Uppdateringen misslyckades: {error}. Visar data från {new Date(bundle.generatedAt).toLocaleTimeString("sv-SE", { hour: "2-digit", minute: "2-digit" })}.</p>}
               {loading && <p className="muted small">Uppdaterar…</p>}
 
-              <Details bundle={bundle} snap={snap} now={now} />
+              <p className="attrib">
+                Data: SMHI (CC BY 4.0, bearbetad: stationsurval och enhetsomräkning) · METAR/TAF: NOAA Aviation
+                Weather Center · Ortnamn: © OpenStreetMap-bidragsgivare. Väderlek är inte en flygväderstjänst och ska
+                inte användas för flygplanering.
+              </p>
             </>
           )}
         </main>

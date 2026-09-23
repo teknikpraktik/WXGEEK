@@ -20,12 +20,6 @@ export type ParamRule = {
 
 export const PARAM_RULES: Record<ParamKey, ParamRule> = {
   temperature: { maxKm: 40, sources: ["SMHI", "METAR"] },
-  humidity: {
-    maxKm: 40,
-    sources: ["SMHI", "METAR"],
-    prefer: { SMHI: 10 },
-    preferReason: "SMHI mäter luftfuktighet direkt (METAR ger bara heltalsgrader)",
-  },
   wind: { maxKm: 40, sources: ["SMHI", "METAR"] },
   gust: {
     maxKm: 40,
@@ -33,8 +27,6 @@ export const PARAM_RULES: Record<ParamKey, ParamRule> = {
     prefer: { SMHI: 30 },
     preferReason: "SMHI mäter byvind varje timme – METAR rapporterar bara kraftiga byar",
   },
-  // Lufttryck varierar långsamt i rummet – längre avstånd är acceptabelt.
-  pressure: { maxKm: 100, sources: ["SMHI", "METAR"] },
   visibility: {
     maxKm: 50,
     sources: ["METAR", "SMHI"],

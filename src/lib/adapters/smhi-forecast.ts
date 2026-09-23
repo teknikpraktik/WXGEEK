@@ -35,11 +35,9 @@ export function normalizeSmhiForecast(raw: SmhiForecastRaw): Forecast {
       timestamp: ts.time,
       intervalStart: ts.intervalParametersStartTime,
       temperatureC: num(d, "air_temperature"),
-      relativeHumidity: num(d, "relative_humidity"),
       windDirectionDeg: num(d, "wind_from_direction"),
       windSpeedMs: num(d, "wind_speed"),
       windGustMs: num(d, "wind_speed_of_gust"),
-      pressureHpa: num(d, "air_pressure_at_mean_sea_level"),
       visibilityM: visKm !== undefined ? Math.min(10000, Math.round(visKm * 1000)) : undefined,
       // 9999 = inga moln → undefined, men molnighet 0 säger samma sak.
       cloudBaseM: cloudBaseRaw !== undefined && cloudBaseRaw !== MISSING ? cloudBaseRaw : undefined,

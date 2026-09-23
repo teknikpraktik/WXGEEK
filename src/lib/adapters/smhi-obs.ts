@@ -4,11 +4,9 @@ import { parseSmhiPresentWeather } from "../weather/phenomena";
 /** SMHI metobs-parametrar som Väderlek använder. */
 export const SMHI_PARAMS = {
   temperature: 1,
-  humidity: 6,
   windDirection: 3,
   windSpeed: 4,
   gust: 21,
-  pressure: 9,
   precipitation: 7,
   visibility: 12,
   cloudBase: 36,
@@ -91,9 +89,6 @@ export function mergeSmhiStation(
         case "temperature":
           o.temperatureC = v;
           break;
-        case "humidity":
-          o.relativeHumidity = v;
-          break;
         case "windDirection":
           // SMHI anger 0 vid vindstilla; riktning utan vind saknar mening.
           o.windDirectionDeg = v === 0 ? undefined : v;
@@ -103,9 +98,6 @@ export function mergeSmhiStation(
           break;
         case "gust":
           o.windGustMs = v;
-          break;
-        case "pressure":
-          o.pressureHpa = v;
           break;
         case "precipitation":
           o.precipitationMm = v;

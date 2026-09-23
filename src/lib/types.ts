@@ -43,15 +43,12 @@ export type WeatherObservation = {
   distanceKm?: number;
 
   temperatureC?: number;
-  dewPointC?: number;
-  relativeHumidity?: number;
 
   windDirectionDeg?: number;
   windVariable?: boolean;
   windSpeedMs?: number;
   windGustMs?: number;
 
-  pressureHpa?: number;
   visibilityM?: number;
   /** true när sikten rapporteras som "minst" värdet (9999/CAVOK) */
   visibilityAtLeast?: boolean;
@@ -73,11 +70,9 @@ export type ForecastPoint = {
   /** Start på intervallet för nederbörd etc. */
   intervalStart?: string;
   temperatureC?: number;
-  relativeHumidity?: number;
   windDirectionDeg?: number;
   windSpeedMs?: number;
   windGustMs?: number;
-  pressureHpa?: number;
   visibilityM?: number;
   cloudBaseM?: number;
   /** oktas 0–8 */
@@ -137,10 +132,8 @@ export type Taf = {
 /** Parametrar som kan visas och som har egen stationsvalslogik. */
 export type ParamKey =
   | "temperature"
-  | "humidity"
   | "wind"
   | "gust"
-  | "pressure"
   | "visibility"
   | "cloudBase"
   | "precipitation"
@@ -195,6 +188,8 @@ export type WeatherBundle = {
   /** Vilken station som används för respektive parameter. */
   selections: Record<ParamKey, ParamSelection>;
   forecast: Forecast | null;
+  /** Prognosen visas fram till hit: närmaste TAF:s slut (minst 6 h, högst 30 h framåt). */
+  forecastUntil: string;
   taf: Taf | null;
   sources: SourceStatus[];
 };

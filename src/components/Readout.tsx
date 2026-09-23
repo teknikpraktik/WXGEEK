@@ -9,9 +9,7 @@ import {
   fmtDistance,
   fmtOktas,
   fmtOffset,
-  fmtPercent,
   fmtPrecip,
-  fmtPressure,
   fmtRelativeDay,
   fmtTemp,
   fmtTime,
@@ -130,18 +128,7 @@ export function Readout({ snap, now, forecastCreated, children }: Props) {
               <span className="note">{fmtOktas(cloud.oktas)}</span>
             ) : null)}
         </Cell>
-        <Cell label="Lufttryck" r={snap.pressure} {...cellProps} missing={isFc ? "–" : "Ingen tryckmätning"}>
-          {snap.pressure && (
-            <>
-              <b className="mono">{fmtPressure(snap.pressure.value)}</b> hPa
-              {snap.pressureTrend !== undefined && <span className="sub">{fmtTrend(snap.pressureTrend)}</span>}
-            </>
-          )}
-        </Cell>
-        <Cell label="Luftfuktighet" r={snap.humidity} {...cellProps} missing={isFc ? "–" : "Ingen fuktmätning"}>
-          {snap.humidity && <b className="mono">{fmtPercent(snap.humidity.value)}</b>}
-        </Cell>
-        {snap.precipitation && (
+        {snap.precipitation && snap.precipitation.value.mm > 0 && (
           <Cell label={isFc ? "Nederbörd" : "Nederbörd, 1 h"} r={snap.precipitation} {...cellProps} missing="–">
             <b className="mono">{fmtPrecip(snap.precipitation.value.mm)}</b>
             {isFc && snap.precipitation.value.probability !== undefined && snap.precipitation.value.probability > 0 && (
@@ -207,13 +194,6 @@ function Cell<T>({
       </dd>
     </div>
   );
-}
-
-/** Trycktendens 3 h, som i synoptiska observationer. */
-function fmtTrend(d: number): string {
-  const v = Math.abs(d).toFixed(1).replace(".", ",");
-  if (Math.abs(d) < 0.5) return "oförändrat senaste 3 h";
-  return `${d > 0 ? "stigande" : "fallande"} ${v} hPa / 3 h`;
 }
 
 function sameOrigin(a: Origin, b?: Origin) {

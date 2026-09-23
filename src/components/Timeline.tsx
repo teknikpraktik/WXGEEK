@@ -2,28 +2,26 @@
 
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { Taf, TafPeriod } from "@/lib/types";
-import { FUTURE_HOURS, HOUR, PAST_HOURS, type Meteogram, type Pt } from "@/lib/client/timeline";
+import { CLOUD_TICKS, CLOUD_TOP_M, HOUR, PAST_HOURS, type ChartData, type Precip, type Pt } from "@/lib/client/timeline";
 import { fmtDay, localHour, fmtTime } from "@/lib/format";
 
 const PX_PER_HOUR = 34;
 const MIN_OFFSET_H = -PAST_HOURS;
 
-// Körfält (px). Alla delar samma tidsaxel.
+// Layout (px)
 const TOP = 26; // NU / OBSERVERAT / PROGNOS
-const TEMP_H = 128; // temperatur + nederbördsstaplar
+const CHART_H = 210; // molnbas (vänster axel) + temperatur (höger axel) + nederbörd
+const GROUND_PAD = 10; // band under marklinjen för dimma/låg sikt
 const WIND_H = 44;
-const CLOUD_H = 58; // molnlager, låg sikt, åska
-const PRES_H = 30;
 const TAF_H = 18;
 const AXIS_H = 28;
 const GAP = 6;
-/** Nederbördsstaplarna får som mest så här stor del av temperaturfältet. */
-const PRECIP_SHARE = 0.42;
-const CLOUD_TOP_M = 3000;
 
 type Props = {
   now: number;
-  data: Meteogram;
+  /** Prognosfönstrets slut (ms) */
+  until: number;
+  data: ChartData;
   taf: Taf | null;
   /** Tid under markören */
   onCursor: (t: number) => void;
@@ -31,7 +29,7 @@ type Props = {
   recenterSignal: number;
 };
 
-export const Timeline = memo(function Timeline({ now, data, taf, onCursor, recenterSignal }: Props) {
+export const Timeline = memo(function Timeline({ now, until, data, taf, onCursor, recenterSignal }: Props) {
   const scroller = useRef<HTMLDivElement>(null);
   const [viewW, setViewW] = useState(0);
   const followNow = useRef(true);
@@ -39,39 +37,42 @@ export const Timeline = memo(function Timeline({ now, data, taf, onCursor, recen
 
   // Tidsaxeln är fast förankrad i timmen, så att den inte "glider" när NU flyttas.
   const start = useMemo(() => Math.floor(now / HOUR) * HOUR - PAST_HOURS * HOUR, [now]);
-  const end = start + (PAST_HOURS + FUTURE_HOURS + 1) * HOUR;
+  const end = Math.max(Math.ceil(until / HOUR) * HOUR, start + (PAST_HOURS + 1) * HOUR);
   const W = ((end - start) / HOUR) * PX_PER_HOUR;
   const pad = viewW / 2;
   const x = useCallback((t: number) => ((t - start) / HOUR) * PX_PER_HOUR, [start]);
   const tAt = useCallback((scrollLeft: number) => start + (scrollLeft / PX_PER_HOUR) * HOUR, [start]);
+  const maxOffsetH = Math.max(1, Math.round((until - now) / HOUR));
 
-  const tafPeriods = useMemo(
-    () => (taf?.periods ?? []).filter((p) => p.change !== "BASE" && Date.parse(p.to) > start),
-    [taf, start],
-  );
+  const tafPeriods = useMemo(() => {
+    const rowsEnd: number[] = [];
+    return (taf?.periods ?? [])
+      .filter((p) => p.change !== "BASE" && Date.parse(p.to) > start)
+      .sort((a, b) => Date.parse(a.from) - Date.parse(b.from))
+      .map((p) => {
+        const from = Date.parse(p.from);
+        let row = rowsEnd.findIndex((e) => e <= from);
+        if (row < 0) row = rowsEnd.length;
+        rowsEnd[row] = Date.parse(p.to);
+        return { p, row };
+      });
+  }, [taf, start]);
+  const tafRows = tafPeriods.reduce((m, x) => Math.max(m, x.row + 1), 0);
 
   // Layout
-  const tempTop = TOP;
-  const tempBottom = tempTop + TEMP_H;
-  const windTop = tempBottom + GAP;
-  const cloudTop = windTop + WIND_H + GAP;
-  const cloudBottom = cloudTop + CLOUD_H;
-  const presTop = cloudBottom + GAP;
-  const presBottom = presTop + PRES_H;
-  const tafTop = presBottom + GAP;
-  const axisTop = tafTop + (tafPeriods.length ? TAF_H + GAP : 0);
+  const chartTop = TOP;
+  const groundY = chartTop + CHART_H - GROUND_PAD;
+  const chartBottom = chartTop + CHART_H;
+  const windTop = chartBottom + GAP;
+  const tafTop = windTop + WIND_H + GAP;
+  const axisTop = tafTop + (tafRows ? tafRows * (TAF_H + 3) + GAP - 3 : 0);
   const H = axisTop + AXIS_H;
 
-  // Skalor
+  // Skalor: molnbas (m, kvadratrot) och temperatur (°C, linjär) delar ytan
+  const plotH = CHART_H - GROUND_PAD - 22;
+  const yCloud = (m: number) => groundY - Math.sqrt(Math.min(1, Math.max(0, m / CLOUD_TOP_M))) * plotH;
   const [t0, t1] = data.temp.domain;
-  const yTemp = useCallback(
-    (v: number) => tempBottom - 6 - ((v - t0) / (t1 - t0)) * (TEMP_H - 18),
-    [t0, t1, tempBottom],
-  );
-  const yPrecip = (mm: number) => tempBottom - Math.min(1, mm / data.precipMax) * TEMP_H * PRECIP_SHARE;
-  const yCloud = (m: number) => cloudBottom - 8 - Math.sqrt(Math.min(1, Math.max(0, m / CLOUD_TOP_M))) * (CLOUD_H - 14);
-  const [p0, p1] = data.pressure.domain;
-  const yPres = (v: number) => presBottom - 4 - ((v - p0) / (p1 - p0)) * (PRES_H - 8);
+  const yTemp = useCallback((v: number) => groundY - 6 - ((v - t0) / (t1 - t0)) * (plotH - 6), [t0, t1, groundY, plotH]);
 
   // Mät vyn
   useLayoutEffect(() => {
@@ -180,34 +181,41 @@ export const Timeline = memo(function Timeline({ now, data, taf, onCursor, recen
     return out;
   }, [start, end]);
 
-  const pathOf = (pts: Pt[], y: (v: number) => number) =>
-    pts.map((p, i) => `${i ? "L" : "M"}${x(p.t).toFixed(1)},${y(p.v).toFixed(1)}`).join("");
+  const pathOf = (pts: Pt[]) => pts.map((p, i) => `${i ? "L" : "M"}${x(p.t).toFixed(1)},${yTemp(p.v).toFixed(1)}`).join("");
   const nowX = x(now);
   const span = (a: number, b: number, inset = 0) => ({ x: x(a) + inset, width: Math.max(1, x(b) - x(a) - inset * 2) });
 
   return (
     <div className="tl" style={{ height: H }}>
-      {/* Fast vänsterkant: temperaturskala och körfältsnamn */}
+      {/* Vänster axel: molnbas (m) */}
       <div className="tl-yaxis" aria-hidden>
-        {data.temp.ticks.map((v) => (
-          <span key={v} style={{ top: yTemp(v) }}>
-            {`${v}°`.replace("-", "−")}
+        <span className="tl-axtitle" style={{ top: chartTop + 2 }}>
+          moln m
+        </span>
+        {CLOUD_TICKS.filter((m) => m > 0).map((m) => (
+          <span key={m} style={{ top: yCloud(m) }}>
+            {m >= 1000 ? `${m / 1000} km` : m}
           </span>
         ))}
         <span className="tl-lane" style={{ top: windTop + 2 }}>
           Vind
-        </span>
-        <span className="tl-lane" style={{ top: cloudTop + 2 }}>
-          Moln
-        </span>
-        <span className="tl-lane" style={{ top: presTop + 2 }}>
-          Tryck
         </span>
         {tafPeriods.length > 0 && (
           <span className="tl-lane" style={{ top: tafTop + 3 }}>
             TAF
           </span>
         )}
+      </div>
+      {/* Höger axel: temperatur (°C) */}
+      <div className="tl-yaxis right" aria-hidden>
+        <span className="tl-axtitle" style={{ top: chartTop + 2 }}>
+          °C
+        </span>
+        {data.temp.ticks.map((v) => (
+          <span key={v} style={{ top: yTemp(v) }}>
+            {`${v}°`.replace("-", "−")}
+          </span>
+        ))}
       </div>
 
       <div
@@ -223,7 +231,7 @@ export const Timeline = memo(function Timeline({ now, data, taf, onCursor, recen
         role="slider"
         aria-label="Tidslinje. Pil vänster och höger flyttar en timme, N går till nu."
         aria-valuemin={MIN_OFFSET_H}
-        aria-valuemax={FUTURE_HOURS}
+        aria-valuemax={maxOffsetH}
         aria-valuenow={0}
       >
         <div style={{ width: W + pad * 2, height: H, position: "relative" }}>
@@ -232,7 +240,7 @@ export const Timeline = memo(function Timeline({ now, data, taf, onCursor, recen
             height={H}
             style={{ position: "absolute", left: pad, top: 0 }}
             role="img"
-            aria-label="Meteogram: temperatur och nederbörd, vind, moln och lufttryck. Heldraget är observerat, streckat är prognos."
+            aria-label="Diagram: molnbas i meter (vänster axel), temperatur i grader (höger axel), nederbörd från molnbasen, vind under. Heldraget är observerat, streckat är prognos."
           >
             <defs>
               <pattern id="hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
@@ -244,58 +252,87 @@ export const Timeline = memo(function Timeline({ now, data, taf, onCursor, recen
             </defs>
 
             {/* Bakgrund: observerat vs prognos */}
-            <rect x={0} y={tempTop} width={nowX} height={axisTop - tempTop} className="tl-bg-obs" />
-            <rect x={nowX} y={tempTop} width={W - nowX} height={axisTop - tempTop} fill="url(#hatch)" />
+            <rect x={0} y={chartTop} width={nowX} height={axisTop - chartTop} className="tl-bg-obs" />
+            <rect x={nowX} y={chartTop} width={Math.max(0, W - nowX)} height={axisTop - chartTop} fill="url(#hatch)" />
 
-            {/* Körfältsgränser och dygnsgränser */}
-            {[windTop, cloudTop, presTop, ...(tafPeriods.length ? [tafTop] : [])].map((yy) => (
+            {/* Rutnät: molnbasens nivåer, marklinje, fältgränser, dygnsgränser */}
+            {CLOUD_TICKS.filter((m) => m > 0).map((m) => (
+              <line key={m} x1={0} x2={W} y1={yCloud(m)} y2={yCloud(m)} className="tl-grid" />
+            ))}
+            <line x1={0} x2={W} y1={groundY} y2={groundY} className="tl-ground" />
+            {[windTop, ...(tafPeriods.length ? [tafTop] : [])].map((yy) => (
               <line key={yy} x1={0} x2={W} y1={yy - GAP / 2} y2={yy - GAP / 2} className="tl-lanesep" />
             ))}
             {hours
               .filter((h) => h.h === 0)
               .map((h) => (
-                <line key={h.t} x1={x(h.t)} x2={x(h.t)} y1={tempTop} y2={axisTop + 14} className="tl-midnight" />
+                <line key={h.t} x1={x(h.t)} x2={x(h.t)} y1={chartTop} y2={axisTop + 14} className="tl-midnight" />
               ))}
-            {data.temp.ticks.map((v) => (
-              <line key={v} x1={0} x2={W} y1={yTemp(v)} y2={yTemp(v)} className="tl-grid" />
+
+            {/* Låg sikt / dimma vid marken */}
+            {data.lowVis.map((v, i) => (
+              <rect
+                key={`lv${i}`}
+                {...span(v.t0, v.t1, 0.5)}
+                y={groundY + 1}
+                height={GROUND_PAD - 2}
+                className={`tl-lowvis${v.severe ? " severe" : ""}${v.forecast ? " fc" : ""}`}
+              >
+                <title>{`${v.label}${v.forecast ? " (prognos)" : ""}`}</title>
+              </rect>
             ))}
 
-            {/* ---- Temperatur + nederbörd ---- */}
-            {data.precipObserved.map((b, i) => (
-              <rect key={`po${i}`} {...span(b.t0, b.t1, 1)} y={yPrecip(b.v)} height={tempBottom - yPrecip(b.v)} className={`tl-precip k-${kindClass(b.kind)}`}>
-                <title>{`${b.kind === "snö" ? "Snö" : "Regn"} ${b.v.toFixed(1).replace(".", ",")} mm (uppmätt)`}</title>
+            {/* Nederbörd – faller från molnbasen */}
+            {[...data.precipObserved, ...data.precipForecast.map((p) => ({ ...p, fc: true }))].map((p, i) => (
+              <PrecipStreaks
+                key={`pr${i}`}
+                p={p}
+                forecast={"fc" in p}
+                x={x}
+                fromY={p.fromM !== undefined ? yCloud(p.fromM) + 4 : chartTop + 18}
+                toY={groundY - 1}
+                unknownBase={p.fromM === undefined}
+              />
+            ))}
+
+            {/* Moln */}
+            {data.cloudsObserved.map((c, i) => (
+              <rect
+                key={`co${i}`}
+                {...span(c.t0, c.t1, 0.5)}
+                y={yCloud(c.baseM) - 3.5}
+                height={7}
+                rx={1.5}
+                className={c.cover === "VV" ? "tl-cloud vv" : "tl-cloud"}
+                style={{ opacity: c.cover === "VV" ? 1 : c.opacity }}
+              >
+                <title>{`${c.cover === "MODEL" ? "Molnbas" : c.cover} ${Math.round(c.baseM)} m`}</title>
               </rect>
             ))}
-            {data.precipStrips.map((s, i) => (
-              <rect key={`ps${i}`} {...span(s.t0, s.t1, 0.5)} y={tempBottom - 4} height={4} className={`tl-precip k-${kindClass(s.kind)}`}>
-                <title>{`${s.label} (observerat, mängd okänd)`}</title>
+            {data.cloudsForecast.map((c, i) => (
+              <rect key={`cf${i}`} {...span(c.t0, c.t1, 1)} y={yCloud(c.baseM) - 3.5} height={7} rx={1.5} className="tl-cloud fc" style={{ opacity: c.opacity }}>
+                <title>{`Molnbas ${Math.round(c.baseM)} m (prognos)`}</title>
               </rect>
             ))}
-            {data.precipForecast.map((b, i) => {
-              const cx = (x(b.t0) + x(b.t1)) / 2;
-              return (
-                <g key={`pf${i}`}>
-                  {b.max !== undefined && b.max > b.v && (
-                    <line x1={cx} x2={cx} y1={yPrecip(b.max)} y2={yPrecip(b.v)} className="tl-whisker" />
-                  )}
-                  <rect {...span(b.t0, b.t1, 2)} y={yPrecip(b.v)} height={Math.max(1, tempBottom - yPrecip(b.v))} className={`tl-precip fc k-${kindClass(b.kind)}`}>
-                    <title>{`${b.kind === "snö" ? "Snö" : "Regn"} ${b.v.toFixed(1).replace(".", ",")} mm (prognos${b.max ? `, upp till ${b.max.toFixed(1).replace(".", ",")}` : ""})`}</title>
-                  </rect>
-                </g>
-              );
-            })}
+            {data.thunder.map((m, i) => (
+              <text key={`th${i}`} x={(x(m.t0) + x(m.t1)) / 2} y={chartTop + 30} textAnchor="middle" className={`tl-thunder${m.forecast ? " fc" : ""}`}>
+                ϟ<title>{m.label}</title>
+              </text>
+            ))}
+
+            {/* Temperatur – överst */}
             {data.temp.forecast.map((s, i) => (
-              <path key={`tf${i}`} d={pathOf(s, yTemp)} className="tl-line fc" />
+              <path key={`tf${i}`} d={pathOf(s)} className="tl-line fc" />
             ))}
             {data.temp.observed.map((s, i) =>
               s.length === 1 ? (
                 <circle key={`to${i}`} cx={x(s[0].t)} cy={yTemp(s[0].v)} r={2.5} className="tl-dot" />
               ) : (
-                <path key={`to${i}`} d={pathOf(s, yTemp)} className="tl-line obs" />
+                <path key={`to${i}`} d={pathOf(s)} className="tl-line obs" />
               ),
             )}
 
-            {/* ---- Vind ---- */}
+            {/* Vind under diagrammet: pil + m/s (+ byar) */}
             {data.wind.map((a) => (
               <g key={a.t} transform={`translate(${x(a.t)},0)`} className={a.forecast ? "tl-wind fc" : "tl-wind"}>
                 {a.deg !== undefined && !a.variable ? (
@@ -317,47 +354,9 @@ export const Timeline = memo(function Timeline({ now, data, taf, onCursor, recen
               </g>
             ))}
 
-            {/* ---- Moln, låg sikt, åska ---- */}
-            <line x1={0} x2={W} y1={cloudBottom - 8} y2={cloudBottom - 8} className="tl-ground" />
-            {data.lowVis.map((v, i) => (
-              <rect key={`lv${i}`} {...span(v.t0, v.t1, 0.5)} y={cloudBottom - 7} height={7} className={`tl-lowvis${v.severe ? " severe" : ""}${v.forecast ? " fc" : ""}`}>
-                <title>{`${v.label}${v.forecast ? " (prognos)" : ""}`}</title>
-              </rect>
-            ))}
-            {data.cloudsObserved.map((c, i) => (
-              <rect
-                key={`co${i}`}
-                {...span(c.t0, c.t1, 0.5)}
-                y={yCloud(c.baseM) - 2.5}
-                height={5}
-                className={c.cover === "VV" ? "tl-cloud vv" : "tl-cloud"}
-                style={{ opacity: c.cover === "VV" ? 1 : c.opacity }}
-              >
-                <title>{`${c.cover === "MODEL" ? "Molnbas" : c.cover} ${Math.round(c.baseM)} m`}</title>
-              </rect>
-            ))}
-            {data.cloudsForecast.map((c, i) => (
-              <rect key={`cf${i}`} {...span(c.t0, c.t1, 1)} y={yCloud(c.baseM) - 2.5} height={5} className="tl-cloud fc" style={{ opacity: c.opacity }}>
-                <title>{`Molnbas ${Math.round(c.baseM)} m (prognos)`}</title>
-              </rect>
-            ))}
-            {data.thunder.map((m, i) => (
-              <text key={`th${i}`} x={(x(m.t0) + x(m.t1)) / 2} y={cloudTop + 11} textAnchor="middle" className={`tl-thunder${m.forecast ? " fc" : ""}`}>
-                ϟ<title>{m.label}</title>
-              </text>
-            ))}
-
-            {/* ---- Lufttryck ---- */}
-            {data.pressure.forecast.map((s, i) => (
-              <path key={`pf${i}`} d={pathOf(s, yPres)} className="tl-line fc thin" />
-            ))}
-            {data.pressure.observed.map((s, i) => (
-              <path key={`po${i}`} d={pathOf(s, yPres)} className="tl-line obs thin" />
-            ))}
-
-            {/* ---- TAF ---- */}
-            {tafPeriods.map((p, i) => (
-              <TafBand key={i} p={p} x={x} top={tafTop} />
+            {/* TAF */}
+            {tafPeriods.map(({ p, row }, i) => (
+              <TafBand key={i} p={p} x={x} top={tafTop + row * (TAF_H + 3)} />
             ))}
 
             {/* Tidsaxel */}
@@ -377,19 +376,18 @@ export const Timeline = memo(function Timeline({ now, data, taf, onCursor, recen
             <text x={nowX} y={TOP - 11} className="tl-nowlabel" textAnchor="middle">
               NU {fmtTime(now)}
             </text>
-            <text x={nowX - 8} y={tempTop + 12} className="tl-side obs" textAnchor="end">
+            <text x={nowX - 8} y={chartTop + 12} className="tl-side obs" textAnchor="end">
               ← OBSERVERAT
             </text>
-            <text x={nowX + 8} y={tempTop + 12} className="tl-side fc" textAnchor="start">
+            <text x={nowX + 8} y={chartTop + 12} className="tl-side fc" textAnchor="start">
               PROGNOS →
             </text>
 
             {/* Saknade data */}
-            <Missing x={nowX - 20} y={tempTop + TEMP_H / 2} text={data.missing.temp} anchor="end" />
+            <Missing x={nowX - 20} y={chartTop + CHART_H / 2} text={data.missing.temp} anchor="end" />
+            <Missing x={nowX - 20} y={chartTop + CHART_H / 2 + 16} text={data.missing.clouds} anchor="end" />
             <Missing x={nowX - 20} y={windTop + 24} text={data.missing.wind} anchor="end" />
-            <Missing x={nowX - 20} y={cloudTop + 30} text={data.missing.clouds} anchor="end" />
-            <Missing x={nowX - 20} y={presTop + 18} text={data.missing.pressure} anchor="end" />
-            <Missing x={nowX + 20} y={tempTop + TEMP_H / 2} text={data.missing.forecast} anchor="start" />
+            <Missing x={nowX + 20} y={chartTop + CHART_H / 2} text={data.missing.forecast} anchor="start" />
           </svg>
         </div>
       </div>
@@ -400,7 +398,40 @@ export const Timeline = memo(function Timeline({ now, data, taf, onCursor, recen
   );
 });
 
-const kindClass = (k: "regn" | "snö") => (k === "snö" ? "sno" : "regn");
+/** Nederbördsstreck från molnbasen till marken. Fler streck = mer nederbörd. */
+function PrecipStreaks({
+  p,
+  forecast,
+  x,
+  fromY,
+  toY,
+  unknownBase,
+}: {
+  p: Precip;
+  forecast: boolean;
+  x: (t: number) => number;
+  fromY: number;
+  toY: number;
+  unknownBase: boolean;
+}) {
+  const x0 = x(p.t0);
+  const w = x(p.t1) - x0;
+  const perHour = p.mm === undefined ? 1.5 : p.mm < 0.5 ? 1 : p.mm < 2 ? 2 : p.mm < 5 ? 3 : 5;
+  const n = Math.max(1, Math.round((w / PX_PER_HOUR) * perHour));
+  const cls = `tl-precip k-${p.kind === "snö" ? "sno" : "regn"}${forecast ? " fc" : ""}${unknownBase ? " nobase" : ""}`;
+  if (toY - fromY < 4) return null;
+  return (
+    <g className={cls}>
+      {Array.from({ length: n }, (_, i) => {
+        const xx = x0 + (w * (i + 0.5)) / n;
+        return <line key={i} x1={xx} x2={xx - 3} y1={fromY + (i % 2) * 5} y2={toY} />;
+      })}
+      <title>
+        {`${p.label}${p.mm !== undefined ? ` ${p.mm.toFixed(1).replace(".", ",")} mm` : ""}${forecast ? " (prognos)" : " (observerat)"}${unknownBase ? " – molnbas okänd" : ""}`}
+      </title>
+    </g>
+  );
+}
 
 function Missing({ x, y, text, anchor }: { x: number; y: number; text?: string; anchor: "start" | "end" }) {
   if (!text) return null;
