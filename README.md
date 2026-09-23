@@ -39,13 +39,11 @@ situation **now**, and the **forecast** for the next 24 hours, all on the same a
 - The forecast uses **TAF first** for wind, visibility, cloud and weather at the airport
   while the TAF is valid. **SMHI** covers temperature, precipitation, missing values and
   the rest of the window.
-- Warnings appear under the chart: SMHI impact-based weather warnings, SIGMETs and
-  significant weather in METAR/TAF. Significant weather covers thunderstorms, CB/TCU,
-  freezing precipitation, fog, visibility below 1,500 m, wind or gusts of 13 m/s or more,
-  and ceilings below 150 m.
-- A one-sentence plain-language description of the current weather follows the warnings
-  (clouds, humidity, Beaufort wind and what's coming). The text is generated from rules, not by AI.
-- Raw METAR and TAF are printed at the bottom of the page.
+- Raw METAR and TAF are printed at the bottom of the page, followed by discreet warnings:
+  SMHI weather warnings (meteorological only – not water shortage, high flows, flooding,
+  sea level or fire risk), SIGMETs and significant weather in METAR/TAF. Significant weather
+  covers thunderstorms, CB/TCU, freezing precipitation, fog, visibility below 1,500 m, wind
+  or gusts of 13 m/s or more, and ceilings below 150 m.
 
 WXGEEK never implies more precision than the sources support: it interpolates no values,
 and it shows missing data as missing.

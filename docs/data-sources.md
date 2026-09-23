@@ -207,6 +207,9 @@ Endpoint: `https://opendata-download-warnings.smhi.se/ibww/api/version/1/warning
   ett GeoJSON-område (Polygon/MultiPolygon).
 - Vi visar varningar vars område innehåller platsen (point-in-polygon) och som överlappar
   fönstret −12 h … +24 h. Rubrik = `eventDescription.en`.
+- Bara **vädervarningar**: `event.mhoClassification.code` `HYD` (hydrologi) och `OCE`
+  (oceanografi) samt händelserna `WATER_SHORTAGE`, `HIGH_FLOW`, `FLOODING`,
+  `LOW_SEA_LEVEL`, `HIGH_SEALEVEL` och `FIRE` (brandrisk) filtreras bort.
 - Hämtas med `revalidate: 300`. Licens CC BY 4.0.
 
 ---

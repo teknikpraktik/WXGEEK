@@ -35,6 +35,15 @@ type AwcSigmet = {
 };
 
 const LEVEL_RANK: Record<string, number> = { RED: 3, ORANGE: 2, YELLOW: 1, MESSAGE: 0 };
+/**
+ * Bara vädervarningar (meteorologi): hydrologi (vattenbrist, höga flöden, översvämning),
+ * oceanografi (havsvattenstånd) och brandrisk visas inte. Både SMHI:s klassning och
+ * händelsekoden kontrolleras, så att nya icke-meteorologiska händelser också faller bort.
+ */
+const NON_WEATHER_CLASS = new Set(["HYD", "OCE"]);
+const NON_WEATHER_EVENT = new Set(["WATER_SHORTAGE", "HIGH_FLOW", "FLOODING", "LOW_SEA_LEVEL", "HIGH_SEALEVEL", "FIRE"]);
+const isWeatherEvent = (e: IbwwWarning["event"]) =>
+  !NON_WEATHER_CLASS.has(e?.mhoClassification?.code ?? "") && !NON_WEATHER_EVENT.has(e?.code ?? "");
 const HAZARD: Record<string, string> = {
   TS: "Thunderstorms",
   TURB: "Turbulence",
@@ -47,13 +56,14 @@ const HAZARD: Record<string, string> = {
   RDOACT: "Radioactive cloud",
 };
 
-/** SMHI warnings whose area contains the point and that overlap [from, to]. */
+/** SMHI weather warnings whose area contains the point and that overlap [from, to]. */
 export async function smhiWarningsAt(lat: number, lon: number, from: number, to: number): Promise<WeatherWarning[]> {
   const data = await fetchJson<IbwwWarning[]>("https://opendata-download-warnings.smhi.se/ibww/api/version/1/warning.json", {
     revalidate: 300,
   });
   const out: WeatherWarning[] = [];
   for (const w of data ?? []) {
+    if (!isWeatherEvent(w.event)) continue;
     for (const a of w.warningAreas ?? []) {
       if (!geometryContains(a.area?.geometry, lon, lat)) continue;
       const start = a.approximateStart ? Date.parse(a.approximateStart) : undefined;
