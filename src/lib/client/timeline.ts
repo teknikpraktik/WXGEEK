@@ -125,12 +125,23 @@ function forecastWindow(bundle: WeatherBundle, now: number): ForecastPoint[] {
 export type PrecipKind = "regn" | "snö";
 /** density 0–1: hur stor del av himlen som täcks (FEW → OVC, eller oktas/8). */
 export type CloudBlock = Span & { baseM: number; cover: CloudLayer["cover"] | "MODEL"; density: number };
-/** Nederbörd som faller från molnbasen. mm saknas när bara väderkoden säger att det regnar. */
 /**
- * Nederbörd som faller från ett moln. `fromM` = molnbasen, `atT` = molnets mitt (tid),
- * så att strecken ritas under molnet de kommer ifrån.
+ * Nederbörd som faller från ett moln. `fromM` = molnbasen. Dropparna ritas över hela
+ * `drawT0`–`drawT1` (molnets bredd när regnet faller). `atT` = mitten, för temperaturuppslag.
+ * mm saknas när bara väderkoden säger att det regnar.
  */
-export type Precip = Span & { kind: PrecipKind; mm?: number; fromM?: number; atT: number; label: string };
+export type Precip = Span & {
+  kind: PrecipKind;
+  mm?: number;
+  fromM?: number;
+  atT: number;
+  drawT0: number;
+  drawT1: number;
+  label: string;
+};
+
+/** Ackumulerad nederbörd (mm) – vattenansamling vid marken. */
+export type WaterSeries = { observed: Pt[]; forecast: Pt[] };
 export type Arrow = { t: number; deg?: number; variable?: boolean; speed: number; gust?: number; forecast: boolean };
 export type Mark = Span & { forecast: boolean; label: string };
 
@@ -140,6 +151,7 @@ export type ChartData = {
   cloudsForecast: CloudBlock[];
   precipObserved: Precip[];
   precipForecast: Precip[];
+  water: WaterSeries;
   wind: Arrow[];
   /** Dimma / sikt under 5 km */
   lowVis: Array<Mark & { severe: boolean }>;
@@ -193,10 +205,14 @@ function cloudAt(blocks: CloudBlock[], span: Span): CloudBlock | undefined {
   return best;
 }
 
-/** Var nederbörden faller ifrån: mitten av molnet ovanför, annars mitten av intervallet. */
-function source(blocks: CloudBlock[], span: Span): { fromM?: number; atT: number } {
+/** Var nederbörden faller ifrån: molnet ovanför (hela dess bredd), annars själva intervallet. */
+function source(blocks: CloudBlock[], span: Span): { fromM?: number; atT: number; drawT0: number; drawT1: number } {
   const c = cloudAt(blocks, span);
-  return c ? { fromM: c.baseM, atT: (c.t0 + c.t1) / 2 } : { atT: (span.t0 + span.t1) / 2 };
+  // Rita under den del av molnet som överlappar regnperioden.
+  const t0 = c ? Math.max(c.t0, span.t0) : span.t0;
+  const t1 = c ? Math.min(c.t1, span.t1) : span.t1;
+  const [d0, d1] = t1 - t0 >= 10 * 60 * 1000 ? [t0, t1] : [span.t0, span.t1];
+  return { fromM: c?.baseM, atT: (d0 + d1) / 2, drawT0: d0, drawT1: d1 };
 }
 
 export function buildChart(bundle: WeatherBundle, now: number): ChartData {
@@ -276,10 +292,41 @@ export function buildChart(bundle: WeatherBundle, now: number): ChartData {
     const t0 = p.intervalStart ? Date.parse(p.intervalStart) : t1 - HOUR;
     if (t1 < now || p.precipitationMm === undefined || p.precipitationMm < 0.1) return [];
     const kind = precipKindOf(p.phenomenon) ?? "regn";
-    // Prognosens moln för timmen ritas centrerat på t1.
-    const from = p.cloudBaseM !== undefined ? { fromM: p.cloudBaseM, atT: t1 } : { atT: (t0 + t1) / 2 };
+    // Prognosens moln för timmen ritas centrerat på t1 – dropparna täcker samma bredd.
+    const from =
+      p.cloudBaseM !== undefined
+        ? { fromM: p.cloudBaseM, atT: t1, drawT0: t1 - HOUR / 2, drawT1: t1 + HOUR / 2 }
+        : { atT: (t0 + t1) / 2, drawT0: t0, drawT1: t1 };
     return [{ t0, t1, kind, mm: p.precipitationMm, ...from, label: p.phenomenon?.label ?? (kind === "snö" ? "Snö" : "Regn") }];
   });
+
+  // Vattenansamling: löpande summa av uppmätt nederbörd, sedan prognosens mängder.
+  const water: WaterSeries = { observed: [], forecast: [] };
+  const measured = (stationFor(bundle, "precipitation")?.observations ?? []).filter(
+    (o) => o.precipitationMm !== undefined && ts(o) <= now,
+  );
+  let sum = 0;
+  if (measured.length) {
+    water.observed.push({ t: ts(measured[0]) - HOUR, v: 0 });
+    for (const o of measured) {
+      sum += o.precipitationMm!;
+      water.observed.push({ t: ts(o), v: Math.round(sum * 10) / 10 });
+    }
+  }
+  // Prognosen fortsätter från observerad summa om mätningen är färsk, annars från noll vid NU.
+  const lastMeasured = water.observed.at(-1);
+  const startV = lastMeasured && now - lastMeasured.t <= 2 * HOUR ? lastMeasured.v : 0;
+  const startT = lastMeasured && now - lastMeasured.t <= 2 * HOUR ? lastMeasured.t : now;
+  if (bundle.forecast) {
+    let acc = startV;
+    water.forecast.push({ t: startT, v: acc });
+    for (const p of fc) {
+      const t = ts(p);
+      if (t <= startT || p.precipitationMm === undefined) continue;
+      acc += p.precipitationMm;
+      water.forecast.push({ t, v: Math.round(acc * 10) / 10 });
+    }
+  }
 
   // Nederbörd vid minusgrader är snö, oavsett vad väderkoden säger.
   const tempNear = (t: number): number | undefined => {
@@ -376,6 +423,7 @@ export function buildChart(bundle: WeatherBundle, now: number): ChartData {
     cloudsForecast,
     precipObserved,
     precipForecast,
+    water,
     wind,
     lowVis,
     thunder,

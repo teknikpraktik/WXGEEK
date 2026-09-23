@@ -831,18 +831,27 @@ main {
   opacity: 0.8;
 }
 
+.tl-precip path,
 .tl-precip line {
-  stroke-width: 1.6;
+  fill: none;
+  stroke-width: 1.5;
   stroke-linecap: round;
 }
+.tl-precip.k-regn path,
 .tl-precip.k-regn line {
   stroke: var(--ev-regn);
-  stroke-dasharray: 6 4;
 }
+.tl-precip.k-sno path,
 .tl-precip.k-sno line {
   stroke: var(--ev-sno);
-  stroke-width: 2.6;
-  stroke-dasharray: 0.1 7;
+  stroke-width: 2.8;
+}
+/* Förklaringens ikoner ritar linjer – gör dem till droppar */
+.lgi .tl-precip.k-regn line {
+  stroke-dasharray: 4 3;
+}
+.lgi .tl-precip.k-sno line {
+  stroke-dasharray: 0.1 5;
 }
 .tl-precip.fc {
   opacity: 0.55;
@@ -982,4 +991,31 @@ main {
   color: var(--ink-2);
   margin-right: 2px;
   vertical-align: 0.35em;
+}
+
+/* Vattenansamling vid marken */
+.water-fill {
+  fill: var(--ev-regn);
+  opacity: 0.35;
+}
+.water-fill.fc {
+  opacity: 0.18;
+}
+.water-top {
+  fill: none;
+  stroke: var(--ev-regn);
+  stroke-width: 1.25;
+}
+.water-top.fc {
+  stroke-dasharray: 3 2;
+  opacity: 0.8;
+}
+.tl-water-label {
+  font-family: var(--font-num);
+  font-size: 10px;
+  font-weight: 500;
+  fill: var(--ev-regn);
+}
+.tl-water-label.fc {
+  opacity: 0.8;
 }

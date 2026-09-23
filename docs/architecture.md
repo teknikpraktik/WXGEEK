@@ -158,8 +158,13 @@ VaderlekApp            – plats, datahämtning, auto-uppdatering (5 min när fl
     höjd för platsen (`src/lib/sun.ts`, förenklad NOAA-algoritm).
   - Nederbörd vid minusgrader (enligt kurvan vid samma tid) visas som snö.
   - Temperaturkurvan:, heldragen (observerat) / streckad (prognos) kurva, färgad efter temperaturen.
-  - **Nederbörd faller från molnets mitt**: streck från lägsta molnlagret (SCT/BKN/OVC)
-    ned till marken. Antal streck efter mängd; regn streckat, snö prickat. Saknas
+  - **Nederbörd som droppar**: korta droppar (regn) eller prickar (snö) från lägsta
+    molnlagret (SCT/BKN/OVC) ned till marken, spridda över hela molnets bredd under
+    regnperioden. Tätare ju mer det regnar.
+  - **Vattenansamling vid marken**: en vattenyta som växer med ackumulerad nederbörd –
+    uppmätt (SMHI, heldragen) fram till NU och därefter prognosens mängder (ljusare,
+    streckad kant). Summan i mm står vid ytans slut. 1 mm = 5 px upp till 4 mm, därefter
+    komprimerad skala (max 20 px). Saknas nederbördsmätare börjar summan på noll vid NU. Antal streck efter mängd; regn streckat, snö prickat. Saknas
     molnbas börjar strecken uppifrån och tonas ned.
   - Dimma/dis: ljusgrått lager från marken (dimma ~150 m, dis/sikt under 5 km ~60 m). Åska markeras med ϟ.
 - **Förklaringen** byggs från datat och visar bara det som faktiskt finns i diagrammet,

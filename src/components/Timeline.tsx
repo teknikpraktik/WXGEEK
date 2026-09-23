@@ -300,7 +300,10 @@ export const Timeline = memo(function Timeline({ now, until, data, onCursor, rec
               );
             })}
 
-            {/* Nederbörd – faller från molnbasen */}
+            {/* Vattenansamling vid marken: löpande summa, observerat heldraget, prognos ljusare */}
+            <WaterLayer water={data.water} x={x} groundY={groundY} />
+
+            {/* Nederbörd – droppar från molnbasen över hela tiden det regnar */}
             {[...data.precipObserved, ...data.precipForecast.map((p) => ({ ...p, fc: true }))].map((p, i) => (
               <PrecipStreaks
                 key={`pr${i}`}
@@ -568,6 +571,17 @@ export function ChartLegend({ data }: { data: ChartData }) {
         </g>,
       ),
     });
+  if (Math.max(data.water.observed.at(-1)?.v ?? 0, data.water.forecast.at(-1)?.v ?? 0) >= 0.1)
+    items.push({
+      key: "wa",
+      label: "Nederbörd, summa (mm)",
+      icon: icon(
+        <g className="tl-water">
+          <path d="M1,13 L7,11 L14,9 L21,7 L21,13 Z" className="water-fill" />
+          <path d="M1,13 L7,11 L14,9 L21,7" className="water-top" />
+        </g>,
+      ),
+    });
   if (data.lowVis.length)
     items.push({ key: "fg", label: "Dimma / dis", icon: icon(<rect x={1} y={3} width={20} height={10} className="lg-fog" />) });
   if (data.thunder.length)
@@ -619,7 +633,10 @@ function MoonIcon() {
 const cloudFill = (density: number) =>
   `color-mix(in srgb, var(--cloud-dense) ${Math.round(15 + density * 85)}%, var(--cloud-thin))`;
 
-/** Nederbördsstreck från molnbasen till marken. Fler streck = mer nederbörd. */
+/**
+ * Nederbörd som droppar (regn) eller prickar (snö) från molnbasen till marken, spridda
+ * över hela regnperioden. Tätare ju mer det regnar.
+ */
 function PrecipStreaks({
   p,
   forecast,
@@ -635,21 +652,76 @@ function PrecipStreaks({
   toY: number;
   unknownBase: boolean;
 }) {
-  const cx = x(p.atT);
-  // Antal streck efter mängd; okänd mängd (bara väderkod) = två streck.
-  const n = p.mm === undefined ? 2 : p.mm < 0.5 ? 1 : p.mm < 2 ? 2 : p.mm < 5 ? 3 : 4;
-  const gap = 4.5;
-  const cls = `tl-precip k-${p.kind === "snö" ? "sno" : "regn"}${forecast ? " fc" : ""}${unknownBase ? " nobase" : ""}`;
   if (toY - fromY < 4) return null;
+  const x0 = x(p.drawT0) + 1.5;
+  const x1 = x(p.drawT1) - 1.5;
+  if (x1 <= x0) return null;
+  // Vertikalt avstånd mellan droppar efter mängd; okänd mängd (bara väderkod) = glest.
+  const rowGap = p.mm === undefined ? 16 : p.mm < 0.5 ? 18 : p.mm < 2 ? 12 : p.mm < 5 ? 9 : 7;
+  const colGap = 5.5;
+  const snow = p.kind === "snö";
+  const len = snow ? 0.1 : 4;
+  const cols = Math.max(1, Math.floor((x1 - x0) / colGap) + 1);
+  const step = cols > 1 ? (x1 - x0) / (cols - 1) : 0;
+  let d = "";
+  for (let c = 0; c < cols; c++) {
+    const xx = x0 + c * step;
+    // Förskjut varannan kolumn så att dropparna inte hamnar i rader.
+    for (let y = fromY + 3 + ((c * 7) % rowGap); y + len < toY; y += rowGap) {
+      d += `M${xx.toFixed(1)},${y.toFixed(1)}l-0.8,${len}`;
+    }
+  }
+  const cls = `tl-precip k-${snow ? "sno" : "regn"}${forecast ? " fc" : ""}${unknownBase ? " nobase" : ""}`;
   return (
     <g className={cls}>
-      {Array.from({ length: n }, (_, i) => {
-        const xx = cx + (i - (n - 1) / 2) * gap;
-        return <line key={i} x1={xx} x2={xx - 3} y1={fromY + (i % 2) * 3} y2={toY} />;
-      })}
+      <path d={d} />
       <title>
         {`${p.label}${p.mm !== undefined ? ` ${p.mm.toFixed(1).replace(".", ",")} mm` : ""}${forecast ? " (prognos)" : " (observerat)"}${unknownBase ? " – molnbas okänd" : ""}`}
       </title>
+    </g>
+  );
+}
+
+/** Vattenyta vid marken som växer med ackumulerad nederbörd. */
+const WATER_MAX_PX = 20;
+function WaterLayer({ water, x, groundY }: { water: ChartData["water"]; x: (t: number) => number; groundY: number }) {
+  const total = Math.max(water.observed.at(-1)?.v ?? 0, water.forecast.at(-1)?.v ?? 0);
+  if (total < 0.1) return null;
+  // 1 mm = 5 px upp till 4 mm, därefter komprimeras skalan så att ytan ryms (max 20 px).
+  const scale = WATER_MAX_PX / Math.max(4, total);
+  const y = (mm: number) => groundY - mm * scale;
+  const area = (pts: Pt[]) =>
+    pts.length < 2
+      ? ""
+      : `M${x(pts[0].t).toFixed(1)},${groundY} ` +
+        pts.map((p) => `L${x(p.t).toFixed(1)},${y(p.v).toFixed(1)}`).join(" ") +
+        ` L${x(pts.at(-1)!.t).toFixed(1)},${groundY} Z`;
+  const top = (pts: Pt[]) => pts.map((p, i) => `${i ? "L" : "M"}${x(p.t).toFixed(1)},${y(p.v).toFixed(1)}`).join(" ");
+  const label = (p: Pt | undefined, cls: string) =>
+    p && p.v >= 0.1 ? (
+      <text x={x(p.t) + 3} y={y(p.v) - 3} className={`tl-water-label ${cls}`}>
+        {`${p.v.toFixed(1).replace(".", ",")} mm`}
+      </text>
+    ) : null;
+  const obsEnd = water.observed.at(-1);
+  const fcEnd = water.forecast.at(-1);
+  return (
+    <g className="tl-water">
+      {water.observed.length > 1 && (
+        <>
+          <path d={area(water.observed)} className="water-fill" />
+          <path d={top(water.observed)} className="water-top" />
+        </>
+      )}
+      {water.forecast.length > 1 && (
+        <>
+          <path d={area(water.forecast)} className="water-fill fc" />
+          <path d={top(water.forecast)} className="water-top fc" />
+        </>
+      )}
+      {obsEnd && (!fcEnd || Math.abs((fcEnd.v ?? 0) - obsEnd.v) >= 0.1) && label(obsEnd, "obs")}
+      {label(fcEnd, "fc")}
+      <title>{`Nederbörd, summa: ${obsEnd ? `${obsEnd.v.toFixed(1).replace(".", ",")} mm uppmätt` : "ingen mätning"}${fcEnd ? `, ${fcEnd.v.toFixed(1).replace(".", ",")} mm med prognosen` : ""}`}</title>
     </g>
   );
 }
