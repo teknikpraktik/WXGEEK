@@ -1,5 +1,5 @@
-import { GeekwxApp } from "@/components/GeekwxApp";
+import { WxgeekApp } from "@/components/WxgeekApp";
 
 export default function Page() {
-  return <GeekwxApp />;
+  return <WxgeekApp />;
 }

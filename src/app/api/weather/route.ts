@@ -9,7 +9,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Invalid coordinates" }, { status: 400 });
   }
   if (!isRoughlySweden(lat, lon)) {
-    return NextResponse.json({ error: "GeekWX currently covers Sweden only" }, { status: 422 });
+    return NextResponse.json({ error: "WXGEEK currently covers Sweden only" }, { status: 422 });
   }
   // Avrunda till ~1 km: bättre CDN-träffar och ingen exakt position i loggar/uppströms.
   const rLat = Math.round(lat * 100) / 100;

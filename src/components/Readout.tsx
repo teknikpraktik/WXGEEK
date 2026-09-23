@@ -1,13 +1,13 @@
 "use client";
 
 import type { ReactNode } from "react";
-import type { Reading, Snapshot } from "@/lib/client/timeline";
+import { modelLayer, type Reading, type Snapshot } from "@/lib/client/timeline";
 import {
   COVER_LABEL,
   COVER_OKTAS,
-  fmtCloudBase,
-  fmtInterval,
-  fmtOktas,
+  fmtCloudLayer,
+  fmtTime,
+  oktasCover,
   fmtPrecip,
   fmtTemp,
   fmtVisibility,
@@ -15,6 +15,7 @@ import {
   fmtWindSpeed,
 } from "@/lib/format";
 import { WindArrow } from "./WindArrow";
+import { SkyIcon } from "./SkyIcon";
 
 type Props = {
   snap: Snapshot;
@@ -30,7 +31,8 @@ export function Readout({ snap, now, children }: Props) {
   const w = snap.wind?.value;
   const gust = snap.gust?.value;
   const cloud = snap.cloud?.value;
-  const lowest = cloud?.layers?.find((l) => l.cover !== "VV") ?? cloud?.layers?.[0];
+  // SMHI (station or model): base with the low-cloud amount that belongs to it – never the total.
+  const model = cloud && !cloud.layers?.length ? modelLayer(cloud) : null;
   const pr = snap.precipitation?.value;
   const stale = (r: Reading<unknown>) =>
     snap.mode === "now" && !!r && (r.origin.kind === "METAR" || r.origin.kind === "SMHI") && now - r.origin.timestamp > STALE_MS;
@@ -53,15 +55,16 @@ export function Readout({ snap, now, children }: Props) {
         <Cell label="Visibility" r={snap.visibility} old={stale(snap.visibility)} sub={cloud?.cavok ? "CAVOK" : undefined}>
           {snap.visibility && <Val {...splitUnit(fmtVisibility(snap.visibility.value.m, snap.visibility.value.atLeast))} />}
         </Cell>
-        <Cell label="Cloud base" r={snap.cloud} old={stale(snap.cloud)} sub={cloud ? cloudSub(cloud, lowest) : undefined}>
-          {cloud &&
-            (lowest ? (
-              <Val {...splitUnit(fmtCloudBase(lowest.baseM))} />
-            ) : cloud.baseM !== undefined ? (
-              <Val {...splitUnit(fmtCloudBase(cloud.baseM))} />
-            ) : (
-              <Val v="–" unit="" />
-            ))}
+        <Cell label="Cloud cover" r={snap.sky.kind === "MISSING" ? null : snap.cloud} old={stale(snap.cloud)} sub={skySub(snap)}>
+          <Val
+            v={skyCode(snap.sky.kind)}
+            unit=""
+            icon={
+              <svg className="sky-inline" width={26} height={22} viewBox="-13 -11 26 22" aria-hidden>
+                <SkyIcon sky={snap.sky} day={snap.day} />
+              </svg>
+            }
+          />
         </Cell>
         {/* Precipitation only when there is data; its column is always reserved so the other cells never move */}
         {pr && (
@@ -72,6 +75,7 @@ export function Readout({ snap, now, children }: Props) {
       </dl>
 
       <p className="readout-summary">{weatherSummary(snap)}</p>
+      <p className="readout-clouds">{cloudDetail(snap, cloud, model)}</p>
 
       {children}
     </section>
@@ -88,26 +92,64 @@ function windSub(w: { deg?: number; variable?: boolean; speed?: number }, gust: 
 }
 
 type CloudVal = NonNullable<Snapshot["cloud"]>["value"];
-type Layer = NonNullable<CloudVal["layers"]>[number];
 
-/** Type of cloudiness and eighths of the sky covered. */
-function cloudSub(c: CloudVal, lowest?: Layer): string {
-  if (c.cavok) return "CAVOK · no cloud below 1,500 m";
-  if (lowest) {
-    if (lowest.cover === "VV") return "Sky obscured · 8/8";
-    return `${COVER_LABEL[lowest.cover]} · ${COVER_OKTAS[lowest.cover]}${lowest.type ? ` · ${lowest.type}` : ""}`;
+type Model = ReturnType<typeof modelLayer>;
+
+const skyCode = (k: Snapshot["sky"]["kind"]) => (k === "UNKNOWN" ? "?" : k === "MISSING" ? "–" : k);
+
+/** Description of the simplified cover (largest category), with the category's interval. */
+function skySub(snap: Snapshot): string {
+  const k = snap.sky;
+  switch (k.kind) {
+    case "SKC":
+      return k.fromSmhi ? "Clear · 0/8 · SMHI model (CAVOK)" : "Clear sky · 0/8";
+    case "CAVOK":
+      return "No cloud below 1,500 m";
+    case "NSC":
+      return "No significant cloud";
+    case "UNKNOWN":
+      return "Amount unknown";
+    case "MISSING":
+      return "";
+    default:
+      return `${COVER_LABEL[k.kind]} · ${COVER_OKTAS[k.kind]}${k.fromSmhi ? " · SMHI model (CAVOK)" : ""}`;
   }
-  if (c.baseM !== undefined && c.oktas !== undefined) return `${fmtOktas(c.oktas)} · ${c.oktas}/8`;
-  if (c.baseM !== undefined) return "Cover unknown";
-  if (c.nsc) return "No significant cloud";
-  if (c.oktas !== undefined) return `${fmtOktas(c.oktas)} · ${c.oktas}/8`;
-  return "";
+}
+
+/** Source and validity of the cloud reading. */
+function cloudSource(snap: Snapshot): string {
+  const o = snap.cloud?.origin;
+  if (!o) return "";
+  if (o.kind === "METAR") return `METAR ${o.stationId} ${fmtTime(o.timestamp)}`;
+  if (o.kind === "SMHI") return `SMHI ${o.stationName ?? o.stationId} ${fmtTime(o.timestamp)}`;
+  if (o.kind === "TAF") return `TAF ${o.stationId}${o.validFrom && o.validTo ? ` ${fmtTime(o.validFrom)}–${fmtTime(o.validTo)}` : ""}`;
+  return `SMHI forecast ${fmtTime(o.timestamp)}`;
+}
+
+/** Detail line for the selected time: every layer with base, source and validity. */
+function cloudDetail(snap: Snapshot, c: CloudVal | undefined, model: Model): string {
+  if (!c) return "Clouds: no data for this time";
+  const lines = cloudLines(c, model);
+  const many = (c.layers?.length ?? 0) > 1 ? " (symbol = largest layer, a simplification)" : "";
+  const smhi = snap.sky.fromSmhi ? " · cover from SMHI model" : "";
+  return `Clouds${many}: ${lines.join(" / ") || "no layers"} · ${cloudSource(snap)}${smhi}`;
+}
+
+/** Every layer in full: "Broken · BKN · 5–7/8 · base 480 m". */
+function cloudLines(c: CloudVal, model: Model): string[] {
+  if (c.cavok) return ["CAVOK · no cloud below 1,500 m"];
+  if (c.layers?.length) return c.layers.map((l) => fmtCloudLayer(l.cover, l.baseM, l.type));
+  if (model) return [fmtCloudLayer(model.cover === "UNKNOWN" ? undefined : model.cover, model.baseM)];
+  if (c.clear || c.oktas === 0) return ["Clear sky"];
+  if (c.nsc) return ["No significant cloud"];
+  const total = oktasCover(c.oktas);
+  return total ? [fmtCloudLayer(total, undefined)] : [];
 }
 
 function precipSub(snap: Snapshot): string {
   const pr = snap.precipitation?.value;
   if (!pr) return "";
-  const iv = fmtInterval(pr.from, pr.to);
+  const iv = `${fmtTime(pr.from)}–${fmtTime(pr.to)}`;
   return snap.precipProbability ? `${iv} · ${Math.round(snap.precipProbability.value)} %` : iv;
 }
 

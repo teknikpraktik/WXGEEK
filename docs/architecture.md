@@ -10,7 +10,7 @@ Repot var tomt när arbetet började (2026-09-23). Projektet skapades med
 ```
 Webbläsare                              Server (Vercel Functions, Node.js)            Externa källor
 ───────────                             ─────────────────────────────────             ──────────────
-GeekwxApp ─── /api/weather?lat&lon ──▶ route.ts ─▶ buildWeatherBundle() ──┬──▶ AWC  metar (bbox, historik)
+WxgeekApp ─── /api/weather?lat&lon ──▶ route.ts ─▶ buildWeatherBundle() ──┬──▶ AWC  metar (bbox, historik)
    │                                                 │                     ├──▶ AWC  taf (bbox)
    │                                                 │  stationsval        ├──▶ SMHI metobs (stationslistor, latest-day)
    │                                                 │  normalisering      ├──▶ SMHI snow1g (punktprognos)
@@ -126,7 +126,7 @@ Tre nivåer:
 ## UI-struktur
 
 ```
-GeekwxApp              – plats, datahämtning, auto-uppdatering (5 min när fliken syns), klocka
+WxgeekApp              – plats, datahämtning, auto-uppdatering (5 min när fliken syns), klocka
 ├─ PlacePicker         – "Use my location" + ortsökning (sök vid submit, inte per tangent)
 ├─ Readout             – temperatur, vind, sikt, molnbas (+ nederbörd när data finns) vid markörens tid
 │  └─ Timeline         – diagrammet −12 h … +12 h
@@ -222,3 +222,24 @@ GeekwxApp              – plats, datahämtning, auto-uppdatering (5 min när fl
 - Molnbas: höjd + typ och åttondelar, t.ex. "Broken · 5–7/8 · CB", "Overcast · 8/8".
 - Observationer äldre än 90 min markeras "old"; äldre än maxåldern visas som saknade.
 - Väderläget på en egen rad utan etikett. Ingen detaljvy. Alla tider lokala (Europe/Stockholm).
+
+## Molnighet, temperaturskala och nederbörd (senaste versionen)
+
+- **Molnighetsrad** (`ChartData.sky`, `skyOf` i `src/lib/client/timeline.ts`, ikoner i
+  `src/components/SkyIcon.tsx`): en post per hel timme; observerat = närmaste observation inom
+  rapporttoleransen (METAR 35 min, SMHI 40 min), prognos = huvudläget (TAF BASE/FM/BECMG eller
+  SMHI – aldrig TEMPO/PROB). Regel: största kategorin bland samtidiga lager. CAVOK → SMHI:s
+  totala molnmängd om den finns (märkt "SMHI model"), annars neutral CAVOK-markering. NSC →
+  NSC-markering, saknas → "–". Dag/natt med solhöjd för platsen och tiden (`src/lib/sun.ts`).
+  Var 2:a timme, var 3:e under 520 px vybredd.
+- Molnbasens höjdaxel och höjdplacerade moln är borttagna. Molnbas och alla lager visas i
+  detaljraden under sammanfattningen, med källa och giltighet.
+- SMHI-prognosens lager för text: lägsta molnbas + mängd *låga* moln (`modelLayer`); den
+  totala molnmängden kombineras aldrig med basen.
+- **Temperaturskala** (`tempScale`): 20 °C, gränser på 5 °C, 2 °C marginal; behålls så länge
+  alla värden ligger ≥ 1 °C innanför, flyttas annars i steg om 5 °C; ett utökat spann krymps
+  inte. Skalan sparas i appens state per plats.
+- **Nederbörd per timme**: en serie staplar från nollinje, linjär skala 0–max (minst 2 mm).
+  Mängd per timme (SMHI param 7 = summa 1 h; prognosens timsteg = mängd). Prognos: median
+  (mörk) och övre spridning (ljus). Den ackumulerade vattenytan/snödjupet är borttaget.
+- **Tidsaxel**: varje timme; midnatt med kraftigare linje och datum på båda sidor.

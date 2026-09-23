@@ -14,7 +14,13 @@ const INSET = 76;
 const size = BOX.right - BOX.left - 2 * INSET;
 const crop = { left: BOX.left + INSET, top: BOX.top + INSET, width: size, height: size };
 
-const square = await sharp(path("assets/icon-source.webp")).extract(crop).png().toBuffer();
+// WXGEEK: vitt "WX"-monogram under horisontlinjen (hela namnet är oläsligt i ikonstorlek).
+const mono = Buffer.from(
+  `<svg width="${size}" height="${size}"><text x="${size / 2}" y="${size * 0.955}" text-anchor="middle" ` +
+    `font-family="Segoe UI, Arial, Helvetica, sans-serif" font-weight="800" font-size="${size * 0.2}" ` +
+    `letter-spacing="${size * 0.012}" fill="#ffffff">WX</text></svg>`,
+);
+const square = await sharp(path("assets/icon-source.webp")).extract(crop).composite([{ input: mono }]).png().toBuffer();
 
 const targets = [
   ["public/icon-192.png", 192],

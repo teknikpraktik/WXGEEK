@@ -15,12 +15,12 @@ const mono = IBM_Plex_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "GeekWX",
+  title: "WXGEEK",
   description: "Observed weather, now and forecast on one timeline – METAR, TAF and SMHI for Sweden.",
-  applicationName: "GeekWX",
+  applicationName: "WXGEEK",
   appleWebApp: {
     capable: true,
-    title: "GeekWX",
+    title: "WXGEEK",
     statusBarStyle: "default",
   },
 };

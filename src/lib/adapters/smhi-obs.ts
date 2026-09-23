@@ -1,7 +1,7 @@
 import type { WeatherObservation } from "../types";
 import { parseSmhiPresentWeather } from "../weather/phenomena";
 
-/** SMHI metobs-parametrar som GeekWX använder. */
+/** SMHI metobs-parametrar som WXGEEK använder. */
 export const SMHI_PARAMS = {
   temperature: 1,
   windDirection: 3,

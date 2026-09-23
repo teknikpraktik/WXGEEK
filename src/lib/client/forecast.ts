@@ -43,8 +43,10 @@ export type CloudValue = {
   layers?: CloudLayer[];
   /** Lägsta molnbas (SMHI) */
   baseM?: number;
-  /** Molnmängd i oktas (SMHI) */
+  /** Total molnmängd i oktas, alla höjder (SMHI) */
   oktas?: number;
+  /** Mängd låga moln i oktas (SMHI) – hör ihop med en låg molnbas, inte totalen */
+  lowOktas?: number;
   /** Inga betydande moln (NSC) */
   nsc?: boolean;
   /** CAVOK: inga moln under 1 500 m – säger inget om högre moln */
@@ -248,7 +250,7 @@ export function mergedForecastAt(
       source: tafSrc,
     };
   } else if (p && smhi && (p.cloudBaseM !== undefined || p.cloudCoverOktas !== undefined)) {
-    out.clouds = { value: { baseM: p.cloudBaseM, oktas: p.cloudCoverOktas }, source: smhi };
+    out.clouds = { value: { baseM: p.cloudBaseM, oktas: p.cloudCoverOktas, lowOktas: p.lowCloudCoverOktas }, source: smhi };
   }
 
   // Väder – TAF:s huvudprognos anger alltid väder (inget angivet = inget av betydelse).
@@ -259,11 +261,12 @@ export function mergedForecastAt(
   }
 
   // Nederbörd: mängd bara från SMHI, med prognosens faktiska intervall.
-  if (p && smhi && p.precipitationMm !== undefined) {
+  // Mängd = SMHI-ensemblens median (samma som timstaplarna), annars medel.
+  if (p && smhi && (p.precipitationMedianMm ?? p.precipitationMm) !== undefined) {
     const to = ms(p.timestamp);
     out.precipitation = {
       value: {
-        mm: p.precipitationMm,
+        mm: (p.precipitationMedianMm ?? p.precipitationMm)!,
         from: p.intervalStart ? ms(p.intervalStart) : to - HOUR,
         to,
         probability: p.precipitationProbability,

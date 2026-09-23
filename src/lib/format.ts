@@ -123,6 +123,23 @@ export const COVER_OKTAS: Record<string, string> = {
   VV: "8/8",
 };
 
+/** Oktas → METAR category (FEW 1–2, SCT 3–4, BKN 5–7, OVC 8). 0 = no cloud. */
+export function oktasCover(o: number | undefined): "FEW" | "SCT" | "BKN" | "OVC" | undefined {
+  if (o === undefined || o <= 0) return undefined;
+  return o <= 2 ? "FEW" : o <= 4 ? "SCT" : o <= 7 ? "BKN" : "OVC";
+}
+
+/**
+ * One cloud layer as text, with the category's interval – never an invented exact number of oktas.
+ * "Broken · BKN · 5–7/8 · base 480 m", "Amount unknown · base 480 m", "Broken · BKN · 5–7/8 · base unknown".
+ */
+export function fmtCloudLayer(cover: string | undefined, baseM: number | undefined, type?: string): string {
+  const base = baseM === undefined ? "base unknown" : `base ${fmtCloudBase(baseM)}`;
+  if (cover === "VV") return `Sky obscured · VV · 8/8 · vertical visibility ${baseM === undefined ? "unknown" : fmtCloudBase(baseM)}`;
+  if (!cover || !COVER_LABEL[cover]) return `Amount unknown · ${base}`;
+  return `${COVER_LABEL[cover]} · ${cover} · ${COVER_OKTAS[cover]}${type ? ` · ${type}` : ""} · ${base}`;
+}
+
 /** SMHI cloudiness in oktas, as words. */
 export function fmtOktas(o: number | undefined): string {
   if (o === undefined) return "–";

@@ -30,7 +30,7 @@ const FORECAST_WINDOW_MS = 12 * 60 * 60 * 1000;
 const METAR_RADIUS_KM = 110;
 const TAF_MAX_KM = 50;
 
-/** Vilka SMHI-parametrar som behövs för respektive GeekWX-parameter. */
+/** Vilka SMHI-parametrar som behövs för respektive WXGEEK-parameter. */
 const SMHI_FOR: Record<ParamKey, SmhiParamName[]> = {
   temperature: ["temperature"],
   wind: ["windSpeed", "windDirection"],

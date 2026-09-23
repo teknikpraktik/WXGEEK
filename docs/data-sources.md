@@ -66,7 +66,7 @@ API:t ger upp till **30 dagar** bakåt. Vi använder `hours=13` (≈ 12 h + marg
 
 - Max **100 anrop/minut** (överskridande → blockering, HTTP 429).
 - De flesta endpoints returnerar max 400 poster.
-- Sätt egen `User-Agent` (vi skickar `GeekWX/0.1 (+https://github.com/teknikpraktik/vaderlek)`).
+- Sätt egen `User-Agent` (vi skickar `WXGEEK/0.1 (+https://github.com/teknikpraktik/vaderlek)`).
 - `204 No Content` = giltig fråga men ingen data (t.ex. station utan aktuell METAR).
 - CORS tillåts inte → endast serveranrop.
 - Svaren har `Cache-Control: max-age=60`.
@@ -133,7 +133,7 @@ Värden är **strängar**. Kvalitet `G` = kontrollerat, `Y` = misstänkt/prelimi
 
 ### Historik
 
-`latest-day` ger ca 24 h, vilket räcker för GeekWX:s −12 h. (`latest-hour` och
+`latest-day` ger ca 24 h, vilket räcker för WXGEEK:s −12 h. (`latest-hour` och
 `latest-months` finns också.)
 
 ### Rate limits och villkor
@@ -218,7 +218,7 @@ Endpoint: `https://opendata-download-warnings.smhi.se/ibww/api/version/1/warning
 
 Användningspolicy (<https://operations.osmfoundation.org/policies/nominatim/>):
 max 1 anrop/sekund, identifierande `User-Agent`, ingen autocomplete-sökning vid
-varje tangenttryckning, cacha resultat, visa ODbL-attribution. GeekWX söker
+varje tangenttryckning, cacha resultat, visa ODbL-attribution. WXGEEK söker
 därför bara när användaren skickar sökningen och cachar svaren i 24 h.
 
 Alternativ som testades: Open-Meteo geocoding (fungerar, men icke-kommersiella villkor).

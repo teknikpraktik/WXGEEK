@@ -10,6 +10,7 @@ import type {
 } from "../types";
 import { PHENOMENON_GROUP, symbolLabel } from "../weather/phenomena";
 import { isDaylight } from "../sun";
+import { oktasCover } from "../format";
 import {
   mergedForecastAt,
   smhiPointAt,
@@ -133,8 +134,24 @@ function forecastWindow(bundle: WeatherBundle, now: number): ForecastPoint[] {
 // ---------------------------------------------------------------------------
 
 export type PrecipKind = "regn" | "snö";
-/** density 0–1: hur stor del av himlen som täcks (FEW → OVC, eller oktas/8). */
-export type CloudBlock = Span & { baseM: number; cover: CloudLayer["cover"] | "MODEL"; density: number };
+/**
+ * Ett molnlager under ett tidsintervall: höjd och mängd kommer alltid från samma lager.
+ * cover "UNKNOWN" = molnbas känd men mängden okänd (SMHI-station, eller SMHI-prognos där
+ * mängden låga moln inte hör ihop med basen).
+ */
+export type CloudBlock = Span & { baseM: number; cover: CloudLayer["cover"] | "UNKNOWN"; type?: CloudLayer["type"]; forecast: boolean };
+
+/** Högsta basen där SMHI:s mängd låga moln (low_type_cloud_area_fraction) anses höra till lagret. */
+const LOW_CLOUD_MAX_M = 2500;
+/**
+ * SMHI-prognosens lager: lägsta molnbas + mängd *låga* moln. Den totala molnmängden
+ * (cloud_area_fraction) gäller alla höjder och kombineras aldrig med basen.
+ */
+export function modelLayer(c: { baseM?: number; lowOktas?: number }): { baseM: number; cover: CloudBlock["cover"] } | null {
+  if (c.baseM === undefined) return null;
+  const cover = c.baseM <= LOW_CLOUD_MAX_M ? oktasCover(c.lowOktas) : undefined;
+  return { baseM: c.baseM, cover: cover ?? "UNKNOWN" };
+}
 /**
  * Nederbörd som faller från ett moln. `fromM` = molnbasen. Dropparna ritas över hela
  * `drawT0`–`drawT1` (molnets bredd när regnet faller). `atT` = mitten, för temperaturuppslag.
@@ -157,7 +174,10 @@ export type Precip = Span & {
  * med tumregeln 1 mm vatten ≈ 1 cm nysnö. Smältning och sättning räknas inte.
  */
 /**
- * Nederbörd per timme, i ett eget fält direkt under marklinjen.
+ * Nederbörd per timme (mängd under timmen t0–t1, mm), i ett eget fält under diagrammet.
+ * Både SMHI:s mätning (parameter 7, summa 1 h) och prognosens timsteg är mängder per
+ * intervall – ingen omräkning från intensitet behövs. Timmar utan uppgift saknas i listan
+ * (visas inte som 0 mm); 0 mm är en giltig uppgift.
  * Uppmätt: likely = possible = mätt mängd.
  * Prognos (SMHI:s ensemble): likely = median (minst hälften av medlemmarna ger så mycket),
  * possible = övre delen av spridningen (max av medel och max). SMHI:s min används inte –
@@ -165,10 +185,6 @@ export type Precip = Span & {
  */
 export type PrecipHour = Span & { likely: number; possible: number; kind: PrecipKind; forecast: boolean };
 
-export type AccPt = { t: number; rainMm: number; snowCm: number };
-export type WaterSeries = { observed: AccPt[]; forecast: AccPt[] };
-/** Nysnö: ungefär 10 gånger vattnets höjd (1 mm vatten ≈ 1 cm snö). */
-export const SNOW_CM_PER_MM = 1;
 export type Arrow = { t: number; deg?: number; variable?: boolean; speed: number; gust?: number; forecast: boolean };
 export type Mark = Span & { forecast: boolean; label: string };
 
@@ -176,16 +192,15 @@ export type ChartData = {
   temp: { observed: Pt[][]; forecast: Pt[][]; domain: [number, number]; ticks: number[] };
   cloudsObserved: CloudBlock[];
   cloudsForecast: CloudBlock[];
+  /** Molnighet per hel timme i fönstret (observerat fram till NU, därefter prognos) */
+  sky: Array<Sky & { t: number; forecast: boolean; day: boolean }>;
   precipObserved: Precip[];
   precipForecast: Precip[];
-  water: WaterSeries;
   precipHours: PrecipHour[];
   wind: Arrow[];
   /** Dimma / sikt under 5 km */
   lowVis: Array<Mark & { severe: boolean }>;
   thunder: Mark[];
-  /** Klar himmel: CAVOK/SKC/CLR i METAR, eller 0 oktas i prognosen. Sol på dagen, måne på natten. */
-  clear: Array<{ t: number; forecast: boolean; day: boolean; label: string }>;
   missing: { temp?: string; wind?: string; clouds?: string; forecast?: string };
   /** Tidpunkt då TAF slutar inom fönstret – därefter fortsätter SMHI */
   tafEnd?: { t: number; stationId: string };
@@ -194,14 +209,80 @@ export type ChartData = {
 /** Molnbasaxeln (höger): linjär 0–3 000 m. */
 export const CLOUD_TOP_M = 3000;
 export const CLOUD_TICKS = [0, 500, 1000, 1500, 2000, 2500, 3000];
-/** Temperaturaxeln (vänster): fast −20 … +35 °C. */
-export const TEMP_DOMAIN: [number, number] = [-20, 35];
-export const TEMP_TICKS = [-20, -10, 0, 10, 20, 30];
+// Temperaturaxeln: normalt 20 °C spann, gränser på multiplar av 5 °C.
+const TEMP_SPAN = 20;
+const TEMP_MARGIN = 2;
+const TEMP_KEEP = 1;
+const floor5 = (v: number) => Math.floor(v / 5) * 5;
+const ceil5 = (v: number) => Math.ceil(v / 5) * 5;
+
+/**
+ * Temperaturskalans intervall för värdena i fönstret (observationer + prognos).
+ * - Ny skala: minst 2 °C marginal, gränser på 5 °C, spann 20 °C (utökas i steg om 5 vid behov).
+ * - Med tidigare skala: behålls så länge alla värden ligger minst 1 °C innanför gränserna;
+ *   annars flyttas den i steg om 5 °C. Ett utökat spann krymps aldrig. Värden klipps aldrig.
+ */
+export function tempScale(values: number[], prev?: [number, number]): [number, number] {
+  if (!values.length) return prev ?? [0, TEMP_SPAN];
+  const lo = Math.min(...values);
+  const hi = Math.max(...values);
+  const need = Math.max(TEMP_SPAN, ceil5(hi + TEMP_MARGIN) - floor5(lo - TEMP_MARGIN));
+  if (prev) {
+    const [pl, pu] = prev;
+    if (lo >= pl + TEMP_KEEP && hi <= pu - TEMP_KEEP) return prev;
+    const span = Math.max(pu - pl, need);
+    let l = pl;
+    if (lo - TEMP_MARGIN < l) l = floor5(lo - TEMP_MARGIN);
+    if (hi + TEMP_MARGIN > l + span) l = ceil5(hi + TEMP_MARGIN) - span;
+    return [l, l + span];
+  }
+  // Centrera värdena i spannet, avrundat till 5 °C.
+  const extra = need - (ceil5(hi + TEMP_MARGIN) - floor5(lo - TEMP_MARGIN));
+  const l = floor5(lo - TEMP_MARGIN) - Math.floor(extra / 10) * 5;
+  return [l, l + need];
+}
+export const tempTicks = ([lo, hi]: [number, number]) => Array.from({ length: (hi - lo) / 5 + 1 }, (_, i) => lo + i * 5);
+
+// --- Molnighet som symbol ---------------------------------------------------
+/**
+ * Förenklad molnighet för en tidpunkt. Regel: den största täckningskategorin bland samtidiga
+ * lager (åttondelar summeras inte). CAVOK, NSC och saknade uppgifter blir aldrig SKC.
+ */
+export type SkyKind = "SKC" | "FEW" | "SCT" | "BKN" | "OVC" | "VV" | "CAVOK" | "NSC" | "UNKNOWN" | "MISSING";
+export type Sky = {
+  kind: SkyKind;
+  /** Kategorin kommer från SMHI:s modell som komplement till CAVOK */
+  fromSmhi?: boolean;
+  /** Ursprunglig uppgift var CAVOK */
+  cavok?: boolean;
+};
+const COVER_RANK: Record<string, number> = { FEW: 1, SCT: 2, BKN: 3, OVC: 4, VV: 5 };
+type SkyInput = { layers?: CloudLayer[]; cavok?: boolean; clear?: boolean; nsc?: boolean; oktas?: number; baseM?: number };
+export function skyOf(c: SkyInput | undefined | null, smhiOktas?: number): Sky {
+  if (!c) return { kind: "MISSING" };
+  if (c.cavok) {
+    if (smhiOktas === undefined) return { kind: "CAVOK", cavok: true };
+    return { kind: smhiOktas === 0 ? "SKC" : oktasCover(smhiOktas)!, fromSmhi: true, cavok: true };
+  }
+  if (c.layers?.length) {
+    const top = c.layers.reduce((a, b) => (COVER_RANK[b.cover] > COVER_RANK[a.cover] ? b : a));
+    return { kind: top.cover };
+  }
+  if (c.clear) return { kind: "SKC" };
+  if (c.nsc) return { kind: "NSC" };
+  if (c.oktas !== undefined) return { kind: c.oktas === 0 ? "SKC" : oktasCover(c.oktas)! };
+  if (c.baseM !== undefined) return { kind: "UNKNOWN" };
+  return { kind: "MISSING" };
+}
+/** Molnighet ur en observation (CAVOK läses ur rå-METAR; clearSky i adaptern omfattar även CAVOK). */
+const obsCloud = (o: WeatherObservation): SkyInput | undefined => {
+  const cavok = !!o.raw && /\bCAVOK\b/.test(o.raw);
+  if (!(o.cloudLayers?.length || o.noSignificantCloud || o.clearSky || o.cloudBaseM !== undefined || cavok)) return undefined;
+  return { layers: o.cloudLayers, nsc: o.noSignificantCloud, clear: o.clearSky && !cavok, cavok, baseM: o.cloudBaseM };
+};
 
 const OBS_GAP = 100 * 60 * 1000;
 const FCST_GAP = 3 * HOUR + 1;
-// Täckningsgrad enligt METAR: FEW 1–2, SCT 3–4, BKN 5–7, OVC 8 oktas.
-const COVER_DENSITY: Record<string, number> = { FEW: 0.25, SCT: 0.5, BKN: 0.75, OVC: 1, VV: 1 };
 
 const precipKindOf = (p: Phenomenon | undefined): PrecipKind | null => {
   if (!p) return null;
@@ -228,7 +309,7 @@ function source(blocks: CloudBlock[], span: Span): { fromM?: number; atT: number
   return { fromM: c?.baseM, atT: (d0 + d1) / 2, drawT0: d0, drawT1: d1 };
 }
 
-export function buildChart(bundle: WeatherBundle, now: number): ChartData {
+export function buildChart(bundle: WeatherBundle, now: number, prevTempDomain?: [number, number]): ChartData {
   const fc = forecastWindow(bundle, now);
   const missing: ChartData["missing"] = {};
   if (!bundle.forecast) missing.forecast = "No forecast";
@@ -247,6 +328,8 @@ export function buildChart(bundle: WeatherBundle, now: number): ChartData {
     ),
   ];
 
+  const tDomain = tempScale([...tObs.filter((p) => p.t >= now - PAST_HOURS * HOUR), ...tFc].map((p) => p.v), prevTempDomain);
+
   // Prognos per timme med källa per variabel: TAF där den gäller, annars SMHI.
   const merged: MergedForecast[] = fc.filter((p) => ts(p) >= now - 30 * 60 * 1000).map((p) => mergedForecastAt(bundle, ts(p), adjust));
   /** Lägsta molnbas (ej FEW) i en sammanslagen prognospunkt. */
@@ -261,27 +344,52 @@ export function buildChart(bundle: WeatherBundle, now: number): ChartData {
   // Moln
   const cloudObs = stationFor(bundle, "cloudBase")?.observations ?? [];
   const cloudStep = stepOf(cloudObs);
+  // Varje observation gäller ± halva rapportintervallet, men aldrig efter NU; prognosen
+  // gäller från NU.
   const cloudsObserved: CloudBlock[] = [];
   for (const x of cloudObs) {
     const t = ts(x);
-    const span = { t0: t - cloudStep / 2, t1: t + cloudStep / 2 };
+    const span = { t0: t - cloudStep / 2, t1: Math.min(now, t + cloudStep / 2) };
+    if (span.t1 <= span.t0) continue;
     if (x.cloudLayers?.length) {
-      for (const l of x.cloudLayers) cloudsObserved.push({ ...span, baseM: l.baseM, cover: l.cover, density: COVER_DENSITY[l.cover] });
+      for (const l of x.cloudLayers) cloudsObserved.push({ ...span, baseM: l.baseM, cover: l.cover, type: l.type, forecast: false });
     } else if (x.cloudBaseM !== undefined) {
-      cloudsObserved.push({ ...span, baseM: x.cloudBaseM, cover: "MODEL", density: 0.6 });
+      cloudsObserved.push({ ...span, baseM: x.cloudBaseM, cover: "UNKNOWN", forecast: false });
     }
   }
   if (!cloudObs.length) missing.clouds = "No cloud observation nearby";
   const cloudsForecast: CloudBlock[] = merged.flatMap((m): CloudBlock[] => {
     const c = m.clouds?.value;
     if (!c) return [];
-    const span = { t0: m.t - HOUR / 2, t1: m.t + HOUR / 2 };
+    const span = { t0: Math.max(now, m.t - HOUR / 2), t1: m.t + HOUR / 2 };
+    if (span.t1 <= span.t0) return [];
     // TAF: angivna lager med täckningsgrad. CAVOK/NSC ritar inga moln (ingen påhittad molnbas).
-    if (c.layers?.length) return c.layers.map((l) => ({ ...span, baseM: l.baseM, cover: l.cover, density: COVER_DENSITY[l.cover] }));
-    if (c.baseM === undefined) return [];
-    const oktas = c.oktas ?? 4;
-    return [{ ...span, baseM: c.baseM, cover: "MODEL" as const, density: Math.max(0.15, oktas / 8) }];
+    if (c.layers?.length) return c.layers.map((l) => ({ ...span, baseM: l.baseM, cover: l.cover, type: l.type, forecast: true }));
+    const ml = modelLayer(c);
+    return ml ? [{ ...span, ...ml, forecast: true }] : [];
   });
+  // Molnighet per hel timme: närmaste observation (inom rapporttoleransen) fram till NU,
+  // därefter prognosens huvudläge (TAF BASE/FM/BECMG eller SMHI – aldrig TEMPO/PROB).
+  const { latitude: lat, longitude: lon } = bundle.location;
+  const skySrc = stationFor(bundle, "cloudBase");
+  const skyTol = skySrc?.station.source === "SMHI" ? 40 * 60 * 1000 : 35 * 60 * 1000;
+  const sky: ChartData["sky"] = [];
+  const fcEnd = Date.parse(bundle.forecastUntil);
+  for (let t = Math.ceil((now - PAST_HOURS * HOUR) / HOUR) * HOUR; t <= fcEnd; t += HOUR) {
+    const day = isDaylight(lat, lon, t);
+    if (t <= now) {
+      let best: WeatherObservation | undefined;
+      for (const o of cloudObs) {
+        const d = Math.abs(ts(o) - t);
+        if (d <= skyTol && ts(o) <= now && obsCloud(o) && (!best || d < Math.abs(ts(best) - t))) best = o;
+      }
+      sky.push({ t, forecast: false, day, ...skyOf(best && obsCloud(best)) });
+    } else {
+      const m = merged.find((x) => x.t === t);
+      const pt = fc.find((x) => ts(x) === t);
+      sky.push({ t, forecast: true, day, ...skyOf(m?.clouds?.value, m?.clouds?.value.cavok ? pt?.cloudCoverOktas : undefined) });
+    }
+  }
 
   // Väderfenomen (observerat) – nederbördstyp, dimma, åska
   const phenObs = stationFor(bundle, "phenomena")?.observations ?? [];
@@ -350,55 +458,21 @@ export function buildChart(bundle: WeatherBundle, now: number): ChartData {
     }
   }
 
-  // Ansamling vid marken: regn som vatten (mm), snö som uppskattat nysnödjup (cm).
-  // Typ per intervall hämtas från nederbördsobjekten ovan (efter snö-omklassningen).
+  // Nederbördstyp per intervall hämtas från nederbördsobjekten ovan (efter snö-omklassningen).
   const kindOver = (span: Span, list: Precip[]): PrecipKind => {
     const hit = list.find((p) => p.t0 < span.t1 && p.t1 > span.t0);
     if (hit) return hit.kind;
     const temp = tempNear((span.t0 + span.t1) / 2);
     return temp !== undefined && temp < 0 ? "snö" : "regn";
   };
-  const water: WaterSeries = { observed: [], forecast: [] };
   const measured = (stationFor(bundle, "precipitation")?.observations ?? []).filter(
     (o) => o.precipitationMm !== undefined && ts(o) <= now,
   );
-  let rain = 0;
-  let snow = 0;
-  const pt = (t: number): AccPt => ({ t, rainMm: Math.round(rain * 10) / 10, snowCm: Math.round(snow * SNOW_CM_PER_MM * 10) / 10 });
-  if (measured.length) {
-    water.observed.push(pt(ts(measured[0]) - HOUR));
-    for (const o of measured) {
-      const span = { t0: ts(o) - HOUR, t1: ts(o) };
-      if (kindOver(span, precipObserved) === "snö") snow += o.precipitationMm!;
-      else rain += o.precipitationMm!;
-      water.observed.push(pt(ts(o)));
-    }
-  }
-  // Prognosen fortsätter från observerad summa om mätningen är färsk, annars från noll vid NU.
-  const lastMeasured = water.observed.at(-1);
-  const fresh = !!lastMeasured && now - lastMeasured.t <= 2 * HOUR;
-  if (!fresh) {
-    rain = 0;
-    snow = 0;
-  }
-  const startT = fresh ? lastMeasured!.t : now;
-  if (bundle.forecast) {
-    water.forecast.push(pt(startT));
-    for (const p of fc) {
-      const t = ts(p);
-      if (t <= startT || p.precipitationMm === undefined) continue;
-      const t0 = p.intervalStart ? Date.parse(p.intervalStart) : t - HOUR;
-      if (kindOver({ t0, t1: t }, precipForecast) === "snö") snow += p.precipitationMm;
-      else rain += p.precipitationMm;
-      water.forecast.push(pt(t));
-    }
-  }
-
   // Nederbörd per timme: uppmätt fram till senaste mätningen, därefter prognosen
   const precipHours: PrecipHour[] = [];
   for (const o of measured) {
     const span = { t0: ts(o) - HOUR, t1: ts(o) };
-    if (span.t1 < now - PAST_HOURS * HOUR || o.precipitationMm! < 0.1) continue;
+    if (span.t1 < now - PAST_HOURS * HOUR) continue;
     precipHours.push({ ...span, likely: o.precipitationMm!, possible: o.precipitationMm!, kind: kindOver(span, precipObserved), forecast: false });
   }
   const measuredUntil = measured.length ? ts(measured.at(-1)!) : -Infinity;
@@ -406,11 +480,12 @@ export function buildChart(bundle: WeatherBundle, now: number): ChartData {
     const t = ts(p);
     const t0 = p.intervalStart ? Date.parse(p.intervalStart) : t - HOUR;
     if (t <= now || t0 < measuredUntil || t - t0 > HOUR) continue;
-    const likely = p.precipitationMedianMm ?? p.precipitationMm ?? 0;
+    const likelyRaw = p.precipitationMedianMm ?? p.precipitationMm;
+    if (likelyRaw === undefined) continue;
+    const likely = likelyRaw >= 0.1 ? likelyRaw : 0;
     const possible = Math.max(likely, p.precipitationMm ?? 0, p.precipitationMaxMm ?? 0);
-    if (possible < 0.1) continue;
     const span = { t0, t1: t };
-    precipHours.push({ ...span, likely: likely >= 0.1 ? likely : 0, possible, kind: kindOver(span, precipForecast), forecast: true });
+    precipHours.push({ ...span, likely, possible: possible >= 0.1 ? possible : 0, kind: kindOver(span, precipForecast), forecast: true });
   }
 
   // Vind: en pil per timme
@@ -437,29 +512,6 @@ export function buildChart(bundle: WeatherBundle, now: number): ChartData {
   const lowVis: ChartData["lowVis"] = [];
   const thunder: Mark[] = [];
 
-  // Klar himmel – en symbol per timme som mest
-  const clear: ChartData["clear"] = [];
-  const { latitude: lat, longitude: lon } = bundle.location;
-  let lastClear = -Infinity;
-  for (const o of cloudObs) {
-    const t = ts(o);
-    if (!o.clearSky || t - lastClear < 55 * 60 * 1000) continue;
-    const code = o.raw?.match(/\b(CAVOK|SKC|CLR)\b/)?.[1] ?? "Clear";
-    clear.push({ t, forecast: false, day: isDaylight(lat, lon, t), label: `Clear (${code})` });
-    lastClear = t;
-  }
-  for (const m of merged) {
-    const c = m.clouds?.value;
-    const isClear = c?.cavok || (m.clouds?.source.kind === "SMHI-PROGNOS" && c?.oktas === 0);
-    if (!isClear || m.t - lastClear < 55 * 60 * 1000) continue;
-    clear.push({
-      t: m.t,
-      forecast: true,
-      day: isDaylight(lat, lon, m.t),
-      label: c?.cavok ? "CAVOK (TAF) – no cloud below 1,500 m" : "Clear sky (SMHI forecast)",
-    });
-    lastClear = m.t;
-  }
   const visObs = stationFor(bundle, "visibility")?.observations ?? [];
   const visStep = stepOf(visObs);
   for (const o of visObs) {
@@ -495,17 +547,16 @@ export function buildChart(bundle: WeatherBundle, now: number): ChartData {
   }
 
   return {
-    temp: { observed: segments(tObs, OBS_GAP), forecast: segments(tFc, FCST_GAP), domain: TEMP_DOMAIN, ticks: TEMP_TICKS },
+    temp: { observed: segments(tObs, OBS_GAP), forecast: segments(tFc, FCST_GAP), domain: tDomain, ticks: tempTicks(tDomain) },
     cloudsObserved,
     cloudsForecast,
+    sky,
     precipObserved,
     precipForecast,
-    water,
     precipHours,
     wind,
     lowVis,
     thunder,
-    clear,
     missing,
     tafEnd: (() => {
       const t = tafEndWithin(bundle, now, Date.parse(bundle.forecastUntil));
@@ -547,7 +598,11 @@ export type Snapshot = {
   /** Byvind. value undefined = METAR utan G-grupp (inga kraftiga byar rapporterade). */
   gust: Reading<number | undefined>;
   visibility: Reading<{ m: number; atLeast?: boolean }>;
-  cloud: Reading<{ baseM?: number; layers?: CloudLayer[]; nsc?: boolean; oktas?: number; cavok?: boolean }>;
+  cloud: Reading<{ baseM?: number; layers?: CloudLayer[]; nsc?: boolean; oktas?: number; lowOktas?: number; cavok?: boolean; clear?: boolean }>;
+  /** Förenklad molnighet (största kategorin) för vald tid */
+  sky: Sky;
+  /** Dag (solen över horisonten) vid vald tid och plats */
+  day: boolean;
   /** Nederbördsmängd under intervallet from–to. Sannolikhet hålls separat. */
   precipitation: Reading<{ mm: number; from: number; to: number }>;
   precipProbability?: { value: number; origin: Origin };
@@ -663,6 +718,8 @@ export function snapshotAt(bundle: WeatherBundle, t: number, now: number): Snaps
       gust: read(m.wind, (v) => v.gust),
       visibility: read(m.visibility, (v) => v),
       cloud: read(m.clouds, (v) => v),
+      sky: skyOf(m.clouds?.value, m.clouds?.value.cavok ? p?.cloudCoverOktas : undefined),
+      day: isDaylight(bundle.location.latitude, bundle.location.longitude, t),
       precipitation: read(pr, (v) => ({ mm: v.mm, from: v.from, to: v.to })),
       precipProbability:
         pr?.value.probability !== undefined ? { value: pr.value.probability, origin: originOf(pr.source) } : undefined,
@@ -685,6 +742,8 @@ export function snapshotAt(bundle: WeatherBundle, t: number, now: number): Snaps
       : pickObs(bundle, "gust", t, mode, (o) => o.windGustMs);
   if (gust && Number.isNaN(gust.value)) gust.value = undefined;
 
+  const cloud = pickObs(bundle, "cloudBase", t, mode, obsCloud);
+
   // Nederbörd: SMHI:s timsumma avser timmen före tidsstämpeln.
   const precip = pickObs(bundle, "precipitation", t, mode, (o) =>
     o.precipitationMm === undefined ? undefined : { mm: o.precipitationMm, from: ts(o) - HOUR, to: ts(o) },
@@ -699,16 +758,9 @@ export function snapshotAt(bundle: WeatherBundle, t: number, now: number): Snaps
     visibility: pickObs(bundle, "visibility", t, mode, (o) =>
       o.visibilityM === undefined ? undefined : { m: o.visibilityM, atLeast: o.visibilityAtLeast },
     ),
-    cloud: pickObs(bundle, "cloudBase", t, mode, (o) =>
-      o.cloudLayers?.length || o.noSignificantCloud || o.cloudBaseM !== undefined
-        ? {
-            baseM: o.cloudBaseM,
-            layers: o.cloudLayers,
-            nsc: o.noSignificantCloud,
-            cavok: o.raw ? /\bCAVOK\b/.test(o.raw) : undefined,
-          }
-        : undefined,
-    ),
+    cloud,
+    sky: skyOf(cloud?.value),
+    day: isDaylight(bundle.location.latitude, bundle.location.longitude, t),
     precipitation: precip,
     phenomena: pickObs(bundle, "phenomena", t, mode, (o) => o.weatherPhenomena),
     metar,

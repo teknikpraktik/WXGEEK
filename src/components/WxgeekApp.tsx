@@ -10,9 +10,9 @@ import { Readout } from "./Readout";
 import { PlacePicker } from "./PlacePicker";
 import { DataInfo, Warnings } from "./DataInfo";
 
-const PLACE_KEY = "geekwx:place";
+const PLACE_KEY = "wxgeek:place";
 /** Previous app name – read once so existing users keep their place. */
-const LEGACY_PLACE_KEY = "vaderlek:place";
+const LEGACY_PLACE_KEYS = ["geekwx:place", "vaderlek:place"];
 const REFRESH_MS = 5 * 60 * 1000;
 
 type StoredPlace = Place & { fromGeolocation?: boolean };
@@ -33,7 +33,7 @@ function writeStored(key: string, v: unknown) {
   }
 }
 
-export function GeekwxApp() {
+export function WxgeekApp() {
   const [place, setPlace] = useState<StoredPlace | null>(null);
   const [booted, setBooted] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -95,7 +95,8 @@ export function GeekwxApp() {
 
   // First start: stored place → otherwise try geolocation.
   useEffect(() => {
-    const stored = readStored<StoredPlace>(PLACE_KEY) ?? readStored<StoredPlace>(LEGACY_PLACE_KEY);
+    const stored =
+      readStored<StoredPlace>(PLACE_KEY) ?? LEGACY_PLACE_KEYS.map((k) => readStored<StoredPlace>(k)).find(Boolean) ?? null;
     // Read from localStorage after hydration to avoid an SSR mismatch.
     /* eslint-disable react-hooks/set-state-in-effect */
     if (stored) {
@@ -174,14 +175,22 @@ export function GeekwxApp() {
   // ---------------------------------------------------------------------------
   // Derived data
   // ---------------------------------------------------------------------------
-  const chart = useMemo(() => (bundle ? buildChart(bundle, now) : null), [bundle, now]);
+  // Temperature scale is kept between refreshes and time selection; recomputed on a new place.
+  const [tempDomain, setTempDomain] = useState<{ key: string; domain: [number, number] } | null>(null);
+  const placeKey = place ? `${place.latitude},${place.longitude}` : "";
+  const prevDomain = tempDomain?.key === placeKey ? tempDomain.domain : undefined;
+  const chart = useMemo(() => (bundle ? buildChart(bundle, now, prevDomain) : null), [bundle, now, prevDomain]);
+  // Remember the scale (adjusting state during render – React's pattern for derived state).
+  if (chart && (tempDomain?.key !== placeKey || tempDomain.domain[0] !== chart.temp.domain[0] || tempDomain.domain[1] !== chart.temp.domain[1])) {
+    setTempDomain({ key: placeKey, domain: chart.temp.domain });
+  }
   const alerts = useMemo(
     () => (bundle ? aviationAlerts(bundle, now, Date.parse(bundle.forecastUntil)) : []),
     [bundle, now],
   );
   // Plain-language description of the weather at NOW (independent of the cursor)
   const story = useMemo(
-    () => (bundle && chart ? explainWeather(snapshotAt(bundle, now, now), chart, now) : []),
+    () => (bundle && chart ? explainWeather(snapshotAt(bundle, now, now), chart, now) : ""),
     [bundle, chart, now],
   );
   const t = cursor ?? now;
@@ -200,7 +209,7 @@ export function GeekwxApp() {
   return (
     <div className="app">
       <header className="top">
-        <h1 className="wordmark">GeekWX</h1>
+        <h1 className="wordmark">WXGEEK</h1>
         {place && (
           <button
             type="button"
@@ -299,9 +308,7 @@ export function GeekwxApp() {
 
               {story.length > 0 && (
                 <section className="story" aria-label="The weather explained">
-                  {story.map((p, i) => (
-                    <p key={i}>{p}</p>
-                  ))}
+                  <p>{story}</p>
                 </section>
               )}
 

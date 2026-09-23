@@ -1,6 +1,6 @@
 import "server-only";
 
-export const USER_AGENT = "GeekWX/0.1 (+https://github.com/teknikpraktik/vaderlek)";
+export const USER_AGENT = "WXGEEK/0.1 (+https://github.com/teknikpraktik/vaderlek)";
 
 export class UpstreamError extends Error {
   constructor(

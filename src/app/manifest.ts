@@ -2,8 +2,8 @@ import type { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "GeekWX",
-    short_name: "GeekWX",
+    name: "WXGEEK",
+    short_name: "WXGEEK",
     description: "Observed weather, now and forecast on one timeline.",
     lang: "en",
     start_url: "/",
