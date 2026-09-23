@@ -1310,20 +1310,6 @@ main {
 .tl-prh.snow text { fill: var(--ev-sno); }
 .tl-prh text.possible { font-weight: 500; }
 
-/* Förklaring under diagrammet */
-.tl-legend {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px 14px;
-  margin: 6px 0 0;
-  font-size: 12px;
-  color: var(--ink-2);
-}
-.tl-legend-title { font-weight: 600; }
-.tl-legend span { display: inline-flex; align-items: center; gap: 5px; }
-.tl-legend .sw { display: inline-block; width: 12px; height: 9px; background: var(--ev-regn); }
-.tl-legend .sw.possible { opacity: 0.28; }
-.tl-legend b.possible { font-family: var(--font-num); font-weight: 500; color: var(--ev-regn); opacity: 0.7; }
 
 /* Temperature on the left axis: red above zero, blue below */
 .tl-yaxis .tl-ttick { font-weight: 600; }

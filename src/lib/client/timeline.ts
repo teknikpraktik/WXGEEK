@@ -209,36 +209,77 @@ export type ChartData = {
 /** Molnbasaxeln (höger): linjär 0–3 000 m. */
 export const CLOUD_TOP_M = 3000;
 export const CLOUD_TICKS = [0, 500, 1000, 1500, 2000, 2500, 3000];
-// Temperaturaxeln: fast skala per årstid, gränser på multiplar av 5 °C.
-const TEMP_MARGIN = 2;
-const floor5 = (v: number) => Math.floor(v / 5) * 5;
-const ceil5 = (v: number) => Math.ceil(v / 5) * 5;
+/**
+ * Temperaturaxelns inställningar – justeras visuellt här.
+ * - minSpan: minsta spann (°C)
+ * - margin: luft över och under kurvan (°C); 2,5 ger "minst 2 °C" även när ett värde ligger
+ *   precis 2 °C från en femtalsgräns
+ * - keep: vid uppdatering behålls skalan så länge alla värden ligger minst så här långt innanför
+ * - zeroLow/zeroHigh: intervall som gärna ska synas (några minusgrader och noll)
+ * - zeroExtra: högsta extra spann (°C) som får läggas till för att visa zeroLow…zeroHigh
+ * - fallback: skala när temperaturdata saknas helt
+ */
+export const TEMP_AXIS = {
+  minSpan: 20,
+  margin: 2.5,
+  keep: 1,
+  zeroLow: -5,
+  zeroHigh: 0,
+  zeroExtra: 5,
+  fallback: [-5, 15] as [number, number],
+};
+const STEP = 5;
+const floor5 = (v: number) => Math.floor(v / STEP) * STEP;
+const ceil5 = (v: number) => Math.ceil(v / STEP) * STEP;
 
-/** Årstidens grundskala: vinter (dec–feb) −20…+10, sommar (jun–aug) 0…30, vår/höst −5…+20. */
-export function seasonTempScale(month: number): [number, number] {
-  if (month === 11 || month <= 1) return [-20, 10];
-  if (month >= 5 && month <= 7) return [0, 30];
-  return [-5, 20];
+/**
+ * Väljer ett intervall med femtalsgränser för temperaturerna `lo`…`hi`:
+ * 1. minsta spann (minst `minSpan`) som rymmer värdena med marginal,
+ * 2. bland lika stora: mest balanserat utrymme över och under,
+ * 3. hellre ett intervall som visar zeroLow…zeroHigh om det kostar högst `zeroExtra` mer spann.
+ */
+function pickTempRange(lo: number, hi: number, minSpan: number): [number, number] {
+  const c = TEMP_AXIS;
+  const lMax = floor5(lo - c.margin); // lägsta gränsen får vara högst detta
+  const uMin = ceil5(hi + c.margin); // högsta gränsen får vara lägst detta
+  const span = Math.max(minSpan, uMin - lMax);
+  const mid = (lo + hi) / 2;
+  // Alla intervall med ett givet spann som rymmer värdena, mest balanserat först.
+  const fits = (sp: number) => {
+    const out: Array<[number, number]> = [];
+    for (let l = uMin - sp; l <= lMax; l += STEP) out.push([l, l + sp]);
+    return out.sort((a, b) => Math.abs((a[0] + a[1]) / 2 - mid) - Math.abs((b[0] + b[1]) / 2 - mid) || a[0] - b[0]);
+  };
+  for (let sp = span; sp <= span + c.zeroExtra; sp += STEP) {
+    const z = fits(sp).find(([l, u]) => l <= c.zeroLow && u >= c.zeroHigh);
+    if (z) return z;
+  }
+  return fits(span)[0];
 }
 
 /**
- * Temperaturskalans intervall för värdena i fönstret (observationer + prognos).
- * Utgår från årstidens fasta skala (`month` 0–11) och utökas i steg om 5 °C så att alla värden
- * får minst 2 °C marginal. En tidigare skala krymps aldrig. Värden klipps aldrig.
+ * Temperaturskalans intervall för alla giltiga värden i fönstret (observationer + prognos).
+ * Med tidigare skala (samma plats): behålls så länge alla värden ligger minst `keep` innanför
+ * gränserna; annars väljs en ny utan att spannet krymper. Värden klipps aldrig.
  */
-export function tempScale(values: number[], month: number, prev?: [number, number]): [number, number] {
-  let [l, u] = seasonTempScale(month);
-  if (values.length) {
-    l = Math.min(l, floor5(Math.min(...values) - TEMP_MARGIN));
-    u = Math.max(u, ceil5(Math.max(...values) + TEMP_MARGIN));
-  }
-  if (prev) {
-    l = Math.min(l, prev[0]);
-    u = Math.max(u, prev[1]);
-  }
-  return [l, u];
+export function tempScale(values: number[], prev?: [number, number]): [number, number] {
+  const v = values.filter((x) => typeof x === "number" && Number.isFinite(x));
+  if (!v.length) return prev ?? TEMP_AXIS.fallback;
+  const lo = Math.min(...v);
+  const hi = Math.max(...v);
+  if (!prev) return pickTempRange(lo, hi, TEMP_AXIS.minSpan);
+  if (lo >= prev[0] + TEMP_AXIS.keep && hi <= prev[1] - TEMP_AXIS.keep) return prev;
+  return pickTempRange(lo, hi, Math.max(TEMP_AXIS.minSpan, prev[1] - prev[0]));
 }
-export const tempTicks = ([lo, hi]: [number, number]) => Array.from({ length: (hi - lo) / 5 + 1 }, (_, i) => lo + i * 5);
+
+/** Skalmarkeringar var 5:e grad; glesare (10, 20 …) vid stora spann. */
+export function tempTicks([lo, hi]: [number, number], maxTicks = 10): number[] {
+  let step = STEP;
+  while (Math.floor(hi / step) - Math.ceil(lo / step) + 1 > maxTicks) step *= 2;
+  const out: number[] = [];
+  for (let t = Math.ceil(lo / step) * step; t <= hi; t += step) out.push(t);
+  return out;
+}
 
 // --- Molnighet som symbol ---------------------------------------------------
 /**
@@ -327,7 +368,6 @@ export function buildChart(bundle: WeatherBundle, now: number, prevTempDomain?: 
 
   const tDomain = tempScale(
     [...tObs.filter((p) => p.t >= now - PAST_HOURS * HOUR), ...tFc].map((p) => p.v),
-    new Date(now).getMonth(),
     prevTempDomain,
   );
 
