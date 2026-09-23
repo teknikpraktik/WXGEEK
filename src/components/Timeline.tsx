@@ -218,11 +218,6 @@ export const Timeline = memo(function Timeline({ now, until, data, onCursor, rec
     for (let t = start; t <= end; t += HOUR) out.push({ t, h: localHour(t) });
     return out;
   }, [start, end]);
-  // Kalenderdygn i fönstret (gränser vid 00) – varannat dygn får en diskret bakgrund i tidsaxeln.
-  const days = useMemo(() => {
-    const cuts = [start, ...hours.filter((h) => h.h === 0 && h.t > start).map((h) => h.t), end];
-    return cuts.slice(1).map((t1, i) => ({ t0: cuts[i], t1, alt: i % 2 === 1 }));
-  }, [hours, start, end]);
 
   // Temperatur vid tiden t (linjärt mellan punkter) – molnen ligger på kurvan.
   const tempPts = useMemo(
@@ -409,11 +404,6 @@ export const Timeline = memo(function Timeline({ now, until, data, onCursor, rec
 
             {/* Tidsaxel direkt under diagrammet */}
             <rect x={0} y={axisTop} width={W} height={AXIS_H} className="tl-axisband" />
-            {days
-              .filter((d) => d.alt && d.t1 > d.t0)
-              .map((d) => (
-                <rect key={`day${d.t0}`} x={x(d.t0)} y={axisTop} width={x(d.t1) - x(d.t0)} height={AXIS_H} className="tl-axisband newday" />
-              ))}
             <line x1={0} x2={W} y1={axisTop} y2={axisTop} className="tl-axisline" />
             {hours.map((h) => (
               <g key={h.t}>

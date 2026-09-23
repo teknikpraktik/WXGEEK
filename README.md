@@ -33,7 +33,7 @@ situation **now**, and the **forecast** for the next 24 hours, all on the same a
   cloud symbol with a few short rain strokes (snow: dots) just below it – they only signal
   precipitation, the bars show the amount.
 - Wind arrows run below the time axis, which labels every hour. Midnight is marked by a line
-  through the time axis with the new day's name, and the new day has a subtle background.
+  through the time axis with the new day's name.
 - Drag the chart (or use the arrow keys) to select a time within the fixed −12 h … +24 h
   window; **Now** returns to the current time.
 - The forecast uses **TAF first** for wind, visibility, cloud and weather at the airport

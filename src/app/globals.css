@@ -17,7 +17,7 @@
   --now: #334155; /* nutidsmarkering */
   --now-text: #334155;
   --on-now: #ffffff;
-  --accent: #365f83; /* vald tid och interaktiv accent */
+  --accent: #365f83; /* interaktiv accent (fokusmarkering) */
   --accent-line: #365f83;
   --on-accent: #ffffff;
   --cursor: var(--accent);
@@ -496,11 +496,7 @@ main {
   stroke: var(--ink-2);
   stroke-width: 1;
 }
-/* Day change: a line through the time axis and a discreet background for every other day */
-.tl-axisband.newday {
-  fill: var(--ink);
-  fill-opacity: 0.05;
-}
+/* Day change: a line through the time axis (same background for every day) */
 .tl-dayline {
   stroke: var(--ink-2);
   stroke-width: 1.25;
@@ -1011,15 +1007,16 @@ main {
   min-height: 28px;
 }
 
-/* Vald tid: streckad linje i dämpad blå, liten cirkel och etikett med mörkblå bakgrund
-   ovanför grafen (samma rad som NOW-etiketten, som flyttas undan vid behov).
+/* Vald tid: streckad linje i samma gråsvarta ton som NU, liten cirkel och fylld etikett
+   ovanför grafen (samma rad som NOW-etiketten, som flyttas undan vid behov). NU skiljs
+   ut av heldragen linje och etiketten "NOW hh:mm" utan fyllning.
    Linjen (2 px) centreras på markörens x; barnen utgår från padding-boxen, dvs. efter bordern. */
 .tl-cursor {
   position: absolute;
   left: 50%;
   width: 0;
   margin-left: -1px;
-  border-left: 2px dashed var(--accent-line);
+  border-left: 2px dashed var(--now);
   pointer-events: none;
   z-index: 3;
 }
@@ -1031,7 +1028,7 @@ main {
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  background: var(--accent-line);
+  background: var(--now);
 }
 .tl-cursor-label {
   position: absolute;
@@ -1043,8 +1040,8 @@ main {
   font-size: 11px;
   font-weight: 600;
   line-height: 14px;
-  color: var(--on-accent);
-  background: var(--accent);
+  color: var(--on-now);
+  background: var(--now);
   padding: 1px 5px;
   border-radius: 3px;
 }

@@ -159,15 +159,15 @@ WxgeekApp              – plats, datahämtning, auto-uppdatering (5 min när fl
   och behåller alltid sin plats. Tangentbord: pilar (±1 h, Shift ±6 h) och `N`.
 - **Vald tid** och **NU** har olika markörer som fungerar utan färgseende: NU är en tunn
   heldragen linje i mörk blågrå med etiketten "NOW 17:12" ovanför grafen; vald tid är en
-  streckad linje i dämpad blå med en liten cirkel och etiketten "18:00" (vit text på mörkblått).
+  streckad linje i samma blågrå med en liten cirkel och en fylld etikett "18:00" (vit text).
   Står vald tid på NU visas bara NU-linjen och dess etikett. Etiketterna krockar aldrig:
   NOW-etiketten flyttas till sidan bort från vald tid, och döljs när även det skulle krocka.
   Vald tid avrundas till 5 min.
 - Följer klockan när användaren står på NU, men flyttar aldrig grafen under en pågående
   interaktion.
 - **Färger** (samlade som variabler överst i `src/app/globals.css`): varm neutral bakgrund
-  (#F3F1EB) och text (#20252B, sekundärt #5E6772), NU i mörk blågrå (#334155), vald tid och
-  interaktiv accent i dämpad blå (#365F83), temperatur i tegelrött (#C64B40) och nederbörd i
+  (#F3F1EB) och text (#20252B, sekundärt #5E6772), NU och vald tid i mörk blågrå (#334155),
+  fokusmarkering i dämpad blå (#365F83), temperatur i tegelrött (#C64B40) och nederbörd i
   mellanblått (#397CAF; små siffror i mörkare #2C6594). Observerat och prognos skiljs med stil
   (heldraget vs streckat) och bakgrund (tonad vs skrafferad). Gula solar, grå moln och mörka
   vindpilar. Text och kontroller klarar WCAG AA mot sina bakgrunder, även i mörkt läge.
