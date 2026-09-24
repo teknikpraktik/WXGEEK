@@ -1448,9 +1448,9 @@ main {
 }
 
 /* Alla rutor på en rad även på mobil: 4 kolumner, 5 när nederbörd visas.
-   Mindre siffror och text så att "OVC 300 m" och "12/11 °C" ryms. Kolumnerna är fasta men
-   olika breda efter innehållet: moln ("BKN 1200 m") och temperatur ("−12/−15 °C") behöver
-   mest plats, sikt minst – med lika breda kolumner krockar molnen med nästa ruta vid 320 px. */
+   Mindre siffror och text så att "BKN 5–7/8" och "12/11 °C" ryms. Kolumnerna är fasta men
+   olika breda efter innehållet: moln och temperatur ("−12/−15 °C") behöver mest plats, sikt
+   minst – med lika breda kolumner krockar molnen med nästa ruta vid 320 px. */
 @media (max-width: 560px) {
   .readout-grid {
     grid-template-columns: 1.25fr 1fr 0.75fr 1.35fr;

@@ -226,10 +226,10 @@ WxgeekApp              – plats, datahämtning, auto-uppdatering (5 min när fl
   annars närmaste METAR. Prognos: ur SMHI:s relativa fuktighet (Magnus); spreaden räknas på
   SMHI:s egen temperatur och dras av från den visade, justerade. Aldrig över temperaturen.
 - Vind: pil + m/s, "From 140° · gusts 7 m/s" (riktning i hela tiotal grader), "Calm" under 0,5 m/s.
-- Clouds: täckning + höjd för ceiling (lägsta BKN/OVC/VV), annars lägsta lagret, t.ex.
-  "OVC 300 m"; SMHI-prognos utan lager: kategori + molnbas. Undertext: åttondelar och övriga
-  lager, t.ex. "8/8 · FEW 180", eller "Overcast · 8/8" med ett lager. CAVOK, NSC, SKC och okänt
-  utan höjd.
+- Clouds: täckning i åttondelar, t.ex. "OVC 8/8" – största kategorin, som symbolen; VV utan
+  åttondelar. Undertext: ceiling (lägsta BKN/OVC/VV), annars lägsta molnbasen, och övriga
+  lager, t.ex. "Ceiling 340 m · FEW 180" eller "Base 900 m"; SMHI-prognos utan lager: molnbasen.
+  CAVOK, NSC, SKC och okänt behåller sina texter.
 - Dimma/dis (`fogOf`, samma regel som diagrammets dimsymbol – men aldrig när nederbörden är det
   som skymmer): molnrutan visar koden (FG, BR, BCFG …; FZFG för dimma vid minusgrader) med
   dimsymbolen, och undertexten säger vad det är, TAF-gruppen och molnen, t.ex.

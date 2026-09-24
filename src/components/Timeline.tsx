@@ -136,9 +136,14 @@ export const Timeline = memo(function Timeline({ now, until, data, onCursor, rec
   const cursorLabel = useRef<HTMLSpanElement>(null);
   const nowLabel = useRef<SVGTextElement>(null);
   const nowX = x(now);
-  /** Vald tid vid NU: bara NU-linjen och dess etikett. Annars får etiketterna aldrig överlappa. */
+  /**
+   * Vald tid vid NU: bara NU-linjen och dess etikett. Annars får etiketterna aldrig överlappa.
+   * Markörens etikett sätts bara här (React renderar den tom) – annars skriver en omrendering,
+   * t.ex. när klockan går, över vald tid med aktuell tid.
+   */
   const placeMarkers = useCallback(
     (scrollLeft: number) => {
+      if (cursorLabel.current) cursorLabel.current.textContent = fmtTime(snap5(tAt(scrollLeft)));
       const dx = nowX - scrollLeft; // NU relativt vald tid (markören står på scrollLeft i SVG:n)
       const ax = Math.abs(dx);
       const atNow = ax < AT_NOW_PX;
@@ -150,15 +155,11 @@ export const Timeline = memo(function Timeline({ now, until, data, onCursor, rec
       lbl.setAttribute("text-anchor", side < 0 ? "end" : side > 0 ? "start" : "middle");
       lbl.style.visibility = !atNow && ax < NOW_LABEL_SIDE_PX ? "hidden" : "";
     },
-    [nowX],
+    [nowX, tAt],
   );
   useLayoutEffect(() => placeMarkers(scroller.current?.scrollLeft ?? 0));
   const onScroll = () => {
-    if (scroller.current) {
-      const t = tAt(scroller.current.scrollLeft);
-      placeMarkers(scroller.current.scrollLeft);
-      if (cursorLabel.current) cursorLabel.current.textContent = fmtTime(snap5(t));
-    }
+    if (scroller.current) placeMarkers(scroller.current.scrollLeft);
     cancelAnimationFrame(raf.current);
     raf.current = requestAnimationFrame(() => {
       const el = scroller.current;
@@ -449,9 +450,7 @@ export const Timeline = memo(function Timeline({ now, until, data, onCursor, rec
 
       {/* Fast markör i mitten */}
       <div ref={cursorEl} className="tl-cursor at-now" style={{ top: TOP - 4, height: H - TOP + 4 }} aria-hidden>
-        <span ref={cursorLabel} className="tl-cursor-label">
-          {fmtTime(now)}
-        </span>
+        <span ref={cursorLabel} className="tl-cursor-label" />
       </div>
     </div>
   );
