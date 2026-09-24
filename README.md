@@ -13,11 +13,12 @@ situation **now**, and the **forecast** for the next 24 hours, all on the same a
 
 - The header shows **temperature / dew point** in whole degrees ("12/11 °C", with "Fog risk"
   when the dew point is within 1°), wind (m/s, direction in whole tens of degrees), visibility and
-  **clouds** (cover in oktas, e.g. "OVC 8/8", with the ceiling – the lowest BKN/OVC/VV – or
-  else the lowest base below, e.g. "Ceiling 340 m", plus CB/TCU if reported). With fog or
-  mist – the same rule as the chart's fog symbol, including fog in a TAF TEMPO/PROB group –
-  the clouds cell shows FG, BR or FZFG (fog below 0 °C) instead, with e.g.
-  "Fog (PROB40) · OVC 520 m" below. Lower visibility in a TAF TEMPO/PROB group is shown under
+  **clouds** – how much of the sky is covered, e.g. "OVC 8/8", and below it how low: the
+  ceiling (the lowest BKN/OVC/VV) or else the lowest base, e.g. "Ceiling 340 m", plus CB/TCU
+  if reported; CAVOK/NSC give "None below 1500 m". With fog or mist – the same rule as the
+  chart's fog symbol, including fog in a TAF TEMPO/PROB group – the clouds cell shows FG, BR
+  or FZFG (fog below 0 °C) instead, with e.g. "PROB40 · Ceiling 520 m" below. Lower
+  visibility in a TAF TEMPO/PROB group is shown under
   the visibility, e.g. "PROB40 2.5 km". Precipitation appears only when data exists for the
   selected time. All cells stay on one row, also on mobile.
 - Temperature chart (left axis): an adaptive scale chosen from all temperatures in the

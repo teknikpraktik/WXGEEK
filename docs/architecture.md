@@ -151,14 +151,23 @@ WxgeekApp              – plats, datahämtning, auto-uppdatering (5 min när fl
   platsens koordinater; båda anges i koden per variabel. Motsägelser (t.ex. TAF
   utan nederbörd men SMHI med mängd) förklaras i stället för att jämnas ut.
 
+### Sidhuvud
+
+- Logga, platsen som text med en kartnål och en egen knapp **Change** – platsen är ingen
+  knapp och byts inte genom att klicka på namnet.
+- Under 560 px: två rader (logga + Change, platsen på hela bredden under) och låst överst
+  (`position: sticky`), så att man alltid ser vilken plats vädret gäller. Säker yta på iPhone
+  ligger i huvudet, så att den följer med när huvudet låses.
+
 ### Tidslinjen
 
 - **Fast fönster**: 12 h bakåt och 24 h framåt. NU står en fjärdedel in i diagramytan vid
   start (efter vänsteraxeln), så att vyn visar ungefär 25 % observerat och 75 % prognos.
 - Tid väljs genom att dra grafen under en **fast markör en fjärdedel in** (native scroll på
   touch, musdrag på desktop). Klick flyttar inte grafen. Knappen **Now** återgår till NU
-  och står alltid centrerad över markören, där NU-linjen står vid NU. Tangentbord: pilar
-  (±1 h, Shift ±6 h) och `N`.
+  och står fast ovanför diagrammet till vänster, i linje med axeletiketterna – inte över
+  markören, där den skulle se ut att höra till vald tid. Tangentbord: pilar (±1 h,
+  Shift ±6 h) och `N`.
 - **Vald tid** och **NU** har olika markörer som fungerar utan färgseende: NU är en tunn
   heldragen linje i mörk blågrå med etiketten "NOW 17:12" ovanför grafen; vald tid är en
   streckad linje i samma blågrå med en liten cirkel och en fylld etikett "18:00" (vit text).
@@ -227,16 +236,20 @@ WxgeekApp              – plats, datahämtning, auto-uppdatering (5 min när fl
   daggpunkten ligger inom 1° (som de visas), annars tom. Observerat: daggpunkt från samma
   station och tid som temperaturen, annars närmaste METAR. Prognos: ur SMHI:s relativa fuktighet (Magnus); spreaden räknas på
   SMHI:s egen temperatur och dras av från den visade, justerade. Aldrig över temperaturen.
-- Vind: pil + m/s, "From 140° · gusts 7 m/s" (riktning i hela tiotal grader), "Calm" under 0,5 m/s.
-- Clouds: täckning i åttondelar, t.ex. "OVC 8/8" – största kategorin, som symbolen; VV utan
-  åttondelar. Undertext: ceiling (lägsta BKN/OVC/VV), annars lägsta molnbasen, t.ex.
-  "Ceiling 340 m" eller "Base 900 m", plus CB/TCU om något lager har det – övriga lager visas
-  inte; SMHI-prognos utan lager: molnbasen.
-  CAVOK, NSC, SKC och okänt behåller sina texter.
+- Vind: pil + m/s, "140° · gusts 7 m/s" (riktning i hela tiotal grader, utan "From" för att
+  spara plats), "Calm" under 0,5 m/s.
+- Clouds i två led – huvudvärdet säger hur mycket av himlen som är täckt, undertexten hur lågt
+  molnen ligger; ingen rad upprepar den andra i ord:
+  - Täckning: kod + åttondelar, t.ex. "OVC 8/8", "SKC 0/8" – största kategorin, som symbolen.
+    VV, CAVOK och NSC utan åttondelar; okänd mängd "?".
+  - Höjd: ceiling (lägsta BKN/OVC/VV), annars lägsta molnbasen, t.ex. "Ceiling 340 m" eller
+    "Base 900 m", plus CB/TCU om något lager har det – övriga lager visas inte. SMHI-prognos
+    utan lager: molnbasen. CAVOK/NSC: "None below 1500 m"; CAVOK kompletterad med SMHI:s
+    molnmängd: t.ex. "BKN 5–7/8" med "Ceiling ≥ 1500 m". Klart eller okänd höjd: tom.
 - Dimma/dis (`fogOf`, samma regel som diagrammets dimsymbol – men aldrig när nederbörden är det
   som skymmer): molnrutan visar koden (FG, BR, BCFG …; FZFG för dimma vid minusgrader) med
-  dimsymbolen, och undertexten säger vad det är, TAF-gruppen och molnen, t.ex.
-  "Fog (PROB40) · OVC 520 m". Dimma i TAF:ens TEMPO/PROB räknas bara i prognosläget – vid NU
+  dimsymbolen, och undertexten TAF-gruppen och höjden, t.ex. "PROB40 · Ceiling 520 m". Ordet
+  ("Fog") står på väderraden. Dimma i TAF:ens TEMPO/PROB räknas bara i prognosläget – vid NU
   gäller observationen.
 - Sikt: lägre sikt i TAF:ens TEMPO/PROB i undertexten, t.ex. "PROB40 2.5 km" (prognosläget,
   `tafLowVisibility`).

@@ -136,10 +136,13 @@ main {
   flex: 1;
 }
 
+/* Sidhuvud: logga, platsen som text och en egen Change-knapp. På mobil två rader (logga +
+   Change, platsen under) och låst överst – se längst ned. */
 .top {
-  display: flex;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-areas: "logo place change";
   align-items: center;
-  justify-content: space-between;
   gap: 12px;
   padding: 4px 0 12px;
   border-bottom: 1px solid var(--ink);
@@ -147,6 +150,7 @@ main {
 
 /* Loggan (SVG): sol, moln, horisont och ordbild; bläcket följer temat */
 .wordmark {
+  grid-area: logo;
   margin: 0;
   flex: none;
   line-height: 0;
@@ -855,37 +859,60 @@ main {
 /* UX-förbättringar: vald tid, stabil sammanfattning, detaljvy, källor         */
 /* ========================================================================= */
 
-/* Platsväljare – tydligt klickbar, minst 44 px träffyta */
-.placebtn {
+/* Platsen som text med en kartnål; Change är en egen knapp bredvid */
+.place {
+  grid-area: place;
+  justify-self: end;
   min-width: 0;
-  display: inline-flex;
+  margin: 0;
+  display: flex;
   align-items: center;
-  gap: 10px;
-  min-height: 44px;
-  background: var(--surface);
-  border: 1px solid var(--ink-2);
-  border-radius: 999px;
-  padding: 6px 8px 6px 14px;
-  cursor: pointer;
-  max-width: 70%;
+  gap: 6px;
   font-weight: 600;
 }
-.placebtn:hover {
-  background: var(--obs-bg);
+.place-pin {
+  flex: none;
+  fill: none;
+  stroke: var(--muted);
+  stroke-width: 1.3;
 }
-.placebtn-name {
+.place-name {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.placebtn-action {
-  flex: none;
-  font-size: 12px;
-  font-weight: 500;
-  padding: 4px 9px;
-  border-radius: 999px;
-  background: var(--ink);
-  color: var(--bg);
+.place-change {
+  grid-area: change;
+  min-height: 40px;
+  padding: 6px 14px;
+  font-size: 14px;
+}
+/* Mobil: sidhuvudet låst överst, så att man alltid ser vilken plats vädret gäller – två rader
+   (logga + Change, platsen under) med bakgrund över hela bredden. Toppmarginalen (säker yta på
+   iPhone) ligger i huvudet i stället för i .app, så att den följer med när huvudet låses. */
+@media (max-width: 560px) {
+  .app {
+    padding-top: 0;
+  }
+  .top {
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    grid-template-areas:
+      "logo . change"
+      "place place place";
+    row-gap: 4px;
+    margin: 0 -16px;
+    padding: max(10px, env(safe-area-inset-top)) 16px 8px;
+    border-bottom: none;
+    /* Linjen i innehållets bredd, bakgrunden över hela bredden */
+    background:
+      linear-gradient(var(--ink), var(--ink)) center bottom / calc(100% - 32px) 1px no-repeat,
+      var(--bg);
+  }
+  .place {
+    justify-self: start;
+  }
 }
 
 /* Statusrad: läge i text, datum/tid, relativ tid */
@@ -1238,19 +1265,15 @@ main {
   stroke-width: 1.3;
   stroke-linecap: round;
 }
-/* Knappraden har samma utfallande kanter som diagrammet (.tl), så att "Now" kan stå centrerad
-   över markören/NU-linjen – läget kommer från Timeline (onCursorX). */
+/* "Now" fast ovanför diagrammet till vänster, i linje med axeletiketterna – inte över
+   markören, där den såg ut att höra till vald tid. */
 .tl-controls {
   display: block;
-  position: relative;
-  height: 40px;
-  margin: 2px -16px 6px;
+  margin-top: 2px;
 }
 .tl-buttons {
-  position: absolute;
-  top: 0;
-  left: 50%;
-  transform: translateX(-50%);
+  display: flex;
+  justify-content: flex-start;
 }
 
 /* Warnings at the bottom of the page, under METAR/TAF – discreet */

@@ -47,7 +47,6 @@ export function WxgeekApp() {
   const [now, setNow] = useState(() => Date.now());
   const [cursor, setCursor] = useState<number | null>(null);
   const [recenter, setRecenter] = useState(0);
-  const [cursorX, setCursorX] = useState<number | null>(null);
 
   // ---------------------------------------------------------------------------
   // Location
@@ -203,16 +202,25 @@ export function WxgeekApp() {
           <Logo className="logo" />
         </h1>
         {place && (
-          <button
-            type="button"
-            className="placebtn"
-            onClick={() => setPickerOpen((v) => !v)}
-            aria-expanded={pickerOpen}
-            aria-label={`Location: ${place.name}. Change location`}
-          >
-            <span className="placebtn-name">{place.name}</span>
-            <span className="placebtn-action">Change</span>
-          </button>
+          <>
+            {/* Platsen som text – ändras med en egen knapp, inte genom att klicka på namnet */}
+            <p className="place" title={place.name}>
+              <svg className="place-pin" width={12} height={14} viewBox="0 0 12 14" aria-hidden>
+                <path d="M6 13.2s4.4-4.1 4.4-7.3a4.4 4.4 0 0 0-8.8 0c0 3.2 4.4 7.3 4.4 7.3z" />
+                <circle cx={6} cy={5.9} r={1.5} />
+              </svg>
+              <span className="place-name">{place.name}</span>
+            </p>
+            <button
+              type="button"
+              className="btn place-change"
+              onClick={() => setPickerOpen((v) => !v)}
+              aria-expanded={pickerOpen}
+              aria-label="Change location"
+            >
+              Change
+            </button>
+          </>
         )}
       </header>
 
@@ -254,8 +262,7 @@ export function WxgeekApp() {
               <Readout snap={snap} now={now}>
                 <section className="timeline-wrap" aria-label="Timeline">
                   <div className="tl-controls">
-                    {/* Centrerad över markören, där NU står */}
-                    <div className="tl-buttons" style={cursorX === null ? undefined : { left: cursorX }}>
+                    <div className="tl-buttons">
                       {/* "Now" always keeps its place, even when now is selected */}
                       <button
                         type="button"
@@ -274,7 +281,6 @@ export function WxgeekApp() {
                     data={chart}
                     onCursor={onCursor}
                     recenterSignal={recenter}
-                    onCursorX={setCursorX}
                   />
                 </section>
               </Readout>

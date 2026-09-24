@@ -47,11 +47,9 @@ type Props = {
   onCursor: (t: number) => void;
   /** Ökas för att be tidslinjen återgå till NU */
   recenterSignal: number;
-  /** Markörens läge (px från diagrammets vänsterkant), så att Now-knappen kan stå över den */
-  onCursorX?: (x: number) => void;
 };
 
-export const Timeline = memo(function Timeline({ now, until, data, onCursor, recenterSignal, onCursorX }: Props) {
+export const Timeline = memo(function Timeline({ now, until, data, onCursor, recenterSignal }: Props) {
   const scroller = useRef<HTMLDivElement>(null);
   const [viewW, setViewW] = useState(0);
   const followNow = useRef(true);
@@ -66,7 +64,6 @@ export const Timeline = memo(function Timeline({ now, until, data, onCursor, rec
   const cursorX = Math.round(AXIS_W + CURSOR_AT * Math.max(0, viewW - AXIS_W));
   const padL = cursorX;
   const padR = Math.max(0, viewW - cursorX);
-  useLayoutEffect(() => onCursorX?.(cursorX), [cursorX, onCursorX]);
   const x = useCallback((t: number) => ((t - start) / HOUR) * PX_PER_HOUR, [start]);
   const tAt = useCallback((scrollLeft: number) => start + (scrollLeft / PX_PER_HOUR) * HOUR, [start]);
   const maxOffsetH = Math.max(1, Math.round((until - now) / HOUR));

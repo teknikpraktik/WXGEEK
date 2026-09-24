@@ -62,7 +62,7 @@ export function Readout({ snap, now, children }: Props) {
         <Cell label="Visibility" short="Vis" r={snap.visibility} old={stale(snap.visibility)} sub={visSub(snap)}>
           {snap.visibility && <Val {...splitUnit(fmtVisibility(snap.visibility.value.m, snap.visibility.value.atLeast))} />}
         </Cell>
-        <Cell label="Clouds" r={skyR} old={stale(skyR)} sub={fog ? fogSub(fog, snap) : skySub(snap)}>
+        <Cell label="Clouds" r={skyR} old={stale(skyR)} sub={fog ? fogSub(fog, snap) : cloudHeight(snap)}>
           <Val
             v={fog ? fog.code : cloud.code}
             // Åttondelarna i enhetens stil – "5–7/8" i full storlek ryms inte bredvid ikonen
@@ -102,7 +102,7 @@ export function Readout({ snap, now, children }: Props) {
 
 function windSub(w: { deg?: number; variable?: boolean; speed?: number }, gust: number | undefined): string {
   if (w.speed !== undefined && w.speed < 0.5) return "Calm";
-  const dir = w.variable ? "Variable" : w.deg !== undefined ? `From ${fmtWindDeg(w.deg)}` : "";
+  const dir = w.variable ? "Variable" : w.deg !== undefined ? fmtWindDeg(w.deg) : "";
   const g = gust !== undefined && gust >= (w.speed ?? 0) + 1 ? `gusts ${fmtWindSpeed(gust)} m/s` : "";
   return [dir, g].filter(Boolean).join(" · ");
 }
@@ -118,60 +118,42 @@ function mainLayer(snap: Snapshot): CloudLayer | undefined {
   return ls.find((l) => l.cover === "BKN" || l.cover === "OVC" || l.cover === "VV") ?? ls[0];
 }
 
-/**
- * Huvudvärdet: täckning i åttondelar, t.ex. "OVC 8/8" – största kategorin, som symbolen. VV
- * (skymd himmel) står utan åttondelar; höjden står i undertexten.
- */
+// Molnrutan i två led: huvudvärdet säger hur mycket av himlen som är täckt ("OVC 8/8"),
+// undertexten hur lågt molnen ligger ("Ceiling 340 m"). Ingen rad upprepar den andra i ord.
+
+/** Hur mycket: kod + åttondelar, t.ex. "OVC 8/8" – största kategorin, som symbolen. */
 function cloudMain(snap: Snapshot): { code: string; oktas?: string } {
   const k = snap.sky.kind;
-  if (TEXT_SKY.has(k) || k === "SKC" || k === "VV") return { code: skyCode(k) };
+  if (k === "SKC") return { code: k, oktas: "0/8" };
+  if (TEXT_SKY.has(k) || k === "VV") return { code: skyCode(k) };
   return { code: k, oktas: COVER_OKTAS[k] };
 }
 
 /**
- * Undertext: ceiling (lägsta BKN/OVC/VV), annars lägsta molnbasen – t.ex. "Ceiling 340 m" eller
- * "Base 900 m" – och CB/TCU om något lager har det. Övriga lager visas inte. Utan lager:
- * SMHI-prognosens molnbas.
+ * Hur lågt: ceiling (lägsta BKN/OVC/VV) eller lägsta bas, t.ex. "Ceiling 340 m" eller
+ * "Base 900 m", och CB/TCU om något lager har det. CAVOK/NSC: inga moln under 1 500 m.
+ * Klart eller okänd höjd: tomt.
  */
-function skySub(snap: Snapshot): string {
+function cloudHeight(snap: Snapshot): string {
   const k = snap.sky;
-  switch (k.kind) {
-    case "SKC":
-      return "Clear sky · 0/8";
-    case "CAVOK":
-      return "No cloud below 1,500 m";
-    case "NSC":
-      return "No significant cloud";
-    case "UNKNOWN":
-      return "Amount unknown";
-    case "MISSING":
-      return "";
-  }
+  if (k.kind === "CAVOK" || k.kind === "NSC") return `None below ${fmtCloudBase(1500)}`;
+  if (k.kind === "SKC" || k.kind === "MISSING") return "";
   const main = mainLayer(snap);
   if (!main) {
-    // CAVOK kompletterad med SMHI:s molnmängd: inga moln under 1 500 m, oavsett modellens bas.
-    if (k.cavok) return "No cloud below 1,500 m";
+    const what = k.kind === "BKN" || k.kind === "OVC" ? "Ceiling" : "Base";
+    // CAVOK kompletterad med SMHI:s molnmängd: molnen ligger över 1 500 m, oavsett modellens bas.
+    if (k.cavok) return `${what} ≥ ${fmtCloudBase(1500)}`;
     const b = snap.cloud?.value.baseM;
-    return `${k.kind === "BKN" || k.kind === "OVC" ? "Ceiling" : "Base"} ${b === undefined ? "unknown" : fmtCloudBase(b)}`;
+    return b === undefined ? "" : `${what} ${fmtCloudBase(b)}`;
   }
   const layers = snap.cloud?.value.layers ?? [];
   const cb = layers.some((l) => l.type === "CB") ? "CB" : layers.some((l) => l.type === "TCU") ? "TCU" : "";
   return `${main.cover === "FEW" || main.cover === "SCT" ? "Base" : "Ceiling"} ${fmtCloudBase(main.baseM)}${cb ? ` · ${cb}` : ""}`;
 }
 
-/** Molnen kort, t.ex. "OVC 520 m" – till undertexten vid dimma. */
-function cloudShort(snap: Snapshot): string {
-  const k = snap.sky.kind;
-  if (k === "MISSING" || k === "UNKNOWN") return "";
-  if (TEXT_SKY.has(k) || k === "SKC") return k;
-  const l = mainLayer(snap);
-  const b = l?.baseM ?? snap.cloud?.value.baseM;
-  return b === undefined ? k : `${l?.cover ?? k} ${fmtCloudBase(b)}`;
-}
-
-/** Undertext vid dimma: vad det är, TAF-gruppen om den bara är möjlig, och molnen – t.ex. "Fog (PROB40) · OVC 520 m". */
+/** Undertext vid dimma: TAF-gruppen om dimman bara är möjlig, och höjden – t.ex. "PROB40 · Ceiling 520 m". */
 function fogSub(fog: Fog, snap: Snapshot): string {
-  return [`${fog.label}${fog.group ? ` (${fog.group})` : ""}`, cloudShort(snap)].filter(Boolean).join(" · ");
+  return [fog.group, cloudHeight(snap)].filter(Boolean).join(" · ");
 }
 
 /** Lägre sikt i TAF:ens TEMPO/PROB vid vald tid, t.ex. "PROB40 300 m". */
