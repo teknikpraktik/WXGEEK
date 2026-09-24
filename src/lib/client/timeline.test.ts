@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { buildChart, modeAt, segments, snapshotAt } from "./timeline";
-import type { WeatherBundle, WeatherObservation } from "../types";
+import { buildChart, fogOf, modeAt, segments, snapshotAt, tafLowVisibility, type Reading } from "./timeline";
+import type { Phenomenon, TafPeriod, WeatherBundle, WeatherObservation } from "../types";
 
 const H = 3_600_000;
 const now = Date.UTC(2026, 8, 23, 14, 0);
@@ -86,4 +86,47 @@ test("luckor i historiken dras inte ihop och fylls inte med prognos", () => {
   assert.equal(chart.temp.observed.length, 2, "luckan mellan -9,5 h och -2 h syns");
   assert.equal(chart.temp.forecast.length, 0, "ingen prognos när SMHI saknas");
   assert.equal(chart.missing.forecast, "No forecast");
+});
+
+test("dimma i avläsningen: rapporterad, underkyld vid minusgrader, i TAF:ens PROB och vid låg sikt", () => {
+  const r = <T>(value: T) => ({ value, origin: { kind: "METAR", timestamp: now } }) as Reading<T>;
+  const fog = (o: Partial<Parameters<typeof fogOf>[0]>) =>
+    fogOf({ mode: "forecast", phenomena: null, supplements: [], visibility: null, precipitation: null, temperature: null, ...o });
+  const fg: Phenomenon = { kind: "dimma", label: "Fog", code: "FG" };
+  const vis = (m: number) => r({ m });
+
+  assert.deepEqual(fog({ phenomena: r([fg]), temperature: r(3) }), { code: "FG", label: "Fog", severe: true, group: undefined });
+  assert.deepEqual(fog({ phenomena: r([fg]), temperature: r(-2) }), { code: "FZFG", label: "Freezing fog", severe: true, group: undefined });
+  // Dis blir aldrig underkyld; SMHI:s sifferkoder får METAR-kod via beskrivningen.
+  assert.equal(fog({ phenomena: r([{ kind: "dis", label: "Mist", code: "BR" }]), temperature: r(-2) })?.code, "BR");
+  assert.equal(fog({ phenomena: r([{ kind: "dimma", label: "Fog", code: "7" }]) })?.code, "FG");
+
+  // Dimma bara i en PROB-grupp syns i prognosläget, med gruppen – men inte vid NU, där observationen gäller.
+  const prob: TafPeriod = { change: "PROB", probability: 40, from: iso(now), to: iso(now + 4 * H), visibilityM: 300, phenomena: [fg], summary: "" };
+  assert.deepEqual(fog({ supplements: [prob], temperature: r(-1) }), { code: "FZFG", label: "Freezing fog", severe: true, group: "PROB40" });
+  assert.equal(fog({ mode: "now", supplements: [prob] }), undefined);
+
+  // Låg sikt utan rapporterat väder: dimma under 1 km, dis under 5 km – men inte när nederbörden skymmer.
+  assert.equal(fog({ visibility: vis(600) })?.code, "FG");
+  assert.equal(fog({ visibility: vis(3000) })?.code, "BR");
+  assert.equal(fog({ visibility: vis(600), phenomena: r([{ kind: "snö", label: "Heavy snow", code: "+SN" }]) }), undefined);
+  assert.equal(fog({ visibility: vis(3000), precipitation: r({ mm: 0.4, from: now, to: now + H }) }), undefined);
+  assert.equal(fog({ visibility: vis(10000) }), undefined);
+});
+
+test("lägre sikt i TAF:ens TEMPO/PROB syns i prognosläget, lägsta först", () => {
+  const vis = (m: number) => ({ value: { m }, origin: { kind: "TAF", timestamp: now } }) as Reading<{ m: number }>;
+  const span = { from: iso(now), to: iso(now + 4 * H), summary: "" };
+  const prob: TafPeriod = { ...span, change: "PROB", probability: 40, visibilityM: 2500 };
+  const tempo: TafPeriod = { ...span, change: "TEMPO", visibilityM: 800 };
+
+  assert.deepEqual(tafLowVisibility({ mode: "forecast", supplements: [prob], visibility: vis(10000) }), {
+    group: "PROB40",
+    m: 2500,
+    atLeast: undefined,
+  });
+  assert.equal(tafLowVisibility({ mode: "forecast", supplements: [prob, tempo], visibility: vis(10000) })?.group, "TEMPO");
+  // Inte när huvudvärdet redan är lägre, och inte vid NU (då gäller observationen).
+  assert.equal(tafLowVisibility({ mode: "forecast", supplements: [prob], visibility: vis(2000) }), undefined);
+  assert.equal(tafLowVisibility({ mode: "now", supplements: [tempo], visibility: vis(10000) }), undefined);
 });

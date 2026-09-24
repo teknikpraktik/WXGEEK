@@ -498,10 +498,11 @@ const PR_BAR_MAX = PRECIP_H - 14;
 const fmtMm = (mm: number) => (mm < 10 ? mm.toFixed(1) : String(Math.round(mm)));
 /**
  * En timmes nederbörd: stapel från nollinjen, linjär skala 0–max. Mörk del = trolig/uppmätt
- * mängd, ljus förlängning = möjlig (övre delen av SMHI:s spridning). Nollinjen ritas bara för
- * timmar med uppgift, så att saknade data inte ser ut som 0 mm.
+ * mängd, ljus förlängning = möjlig (övre delen av SMHI:s spridning). Nollinjen ritas bara under
+ * en trolig/uppmätt mängd; torra timmar ritas inte alls.
  */
 function PrecipHourBar({ p, x, base, max }: { p: PrecipHour; x: (t: number) => number; base: number; max: number }) {
+  if (p.possible <= 0) return null;
   const x0 = x(p.t0) + 3;
   const w = Math.max(1, x(p.t1) - x(p.t0) - 6);
   const cx = (x(p.t0) + x(p.t1)) / 2;
@@ -510,7 +511,7 @@ function PrecipHourBar({ p, x, base, max }: { p: PrecipHour; x: (t: number) => n
   const interval = `${fmtTime(p.t0)}–${fmtTime(p.t1)}`;
   return (
     <g className={`tl-prh ${p.kind === "snö" ? "snow" : "rain"}${p.forecast ? " fc" : ""}`}>
-      <line x1={x(p.t0) + 1} x2={x(p.t1) - 1} y1={base + 0.5} y2={base + 0.5} className="zero" />
+      {p.likely > 0 && <line x1={x(p.t0) + 1} x2={x(p.t1) - 1} y1={base + 0.5} y2={base + 0.5} className="zero" />}
       {p.forecast && p.possible > p.likely && <rect x={x0} y={base - h(p.possible)} width={w} height={h(p.possible)} className="possible" />}
       {p.likely > 0 && <rect x={x0} y={base - h(p.likely)} width={w} height={h(p.likely)} className="likely" />}
       {p.likely > 0 ? (

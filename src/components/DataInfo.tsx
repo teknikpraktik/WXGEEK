@@ -3,7 +3,7 @@
 import type { StationRef, WeatherBundle, WeatherWarning } from "@/lib/types";
 import type { Snapshot } from "@/lib/client/timeline";
 import type { AviationAlert } from "@/lib/client/alerts";
-import { fmtDateTime } from "@/lib/format";
+import { fmtDateTime, fmtDistance } from "@/lib/format";
 
 const LEVEL_LABEL: Record<WeatherWarning["level"], string> = {
   RED: "Red warning",
@@ -56,9 +56,20 @@ export function Warnings({ warnings, alerts }: { warnings: WeatherWarning[]; ale
   );
 }
 
-/** Raw METAR and TAF at the bottom of the page. Service errors are shown when present. */
+/** "Torsby flygplats, 12 km away" – the airport a METAR/TAF is from, in plain text. */
+const place = (name: string, km: number) => `${name}, ${fmtDistance(km)} away`;
+
+/**
+ * Raw METAR and TAF at the bottom of the page, under the airport they are from. The raw text
+ * already starts with METAR/TAF, so there is no separate label. Service errors are shown when present.
+ */
 export function DataInfo({ bundle, snap }: { bundle: WeatherBundle; snap: Snapshot }) {
   const down = bundle.sources.filter((s) => s.failed && s.message);
+  const metar = snap.metar;
+  const metarStation = metar
+    ? bundle.stations.find((s) => s.station.source === "METAR" && s.station.stationId === metar.stationId)?.station
+    : undefined;
+  const taf = bundle.taf;
   return (
     <section className="datainfo" aria-label="METAR and TAF">
       {down.length > 0 && (
@@ -70,17 +81,22 @@ export function DataInfo({ bundle, snap }: { bundle: WeatherBundle; snap: Snapsh
           ))}
         </p>
       )}
-      {snap.metar && (
-        <p className="raw-line">
-          <span className="raw-tag">METAR</span>
-          <code className="raw-text">{snap.metar.raw}</code>
-        </p>
+      {metar && (
+        <>
+          {metarStation && <p className="raw-place">{place(metarStation.stationName, metarStation.distanceKm)}</p>}
+          <p className="raw-line">
+            <code className="raw-text">{metar.raw}</code>
+          </p>
+        </>
       )}
-      {bundle.taf && (
-        <p className="raw-line">
-          <span className="raw-tag">TAF</span>
-          <code className="raw-text">{bundle.taf.raw}</code>
-        </p>
+      {taf && (
+        <>
+          {/* Same airport as the METAR above: the place is not repeated */}
+          {taf.stationId !== metar?.stationId && <p className="raw-place">{place(taf.stationName ?? taf.stationId, taf.distanceKm)}</p>}
+          <p className="raw-line">
+            <code className="raw-text">{taf.raw}</code>
+          </p>
+        </>
       )}
     </section>
   );

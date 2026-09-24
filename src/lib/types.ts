@@ -43,6 +43,8 @@ export type WeatherObservation = {
   distanceKm?: number;
 
   temperatureC?: number;
+  /** Daggpunkt (METAR) */
+  dewPointC?: number;
 
   windDirectionDeg?: number;
   windVariable?: boolean;
@@ -72,6 +74,8 @@ export type ForecastPoint = {
   /** Start på intervallet för nederbörd etc. */
   intervalStart?: string;
   temperatureC?: number;
+  /** Relativ fuktighet i % – ger daggpunkt */
+  relativeHumidity?: number;
   windDirectionDeg?: number;
   windSpeedMs?: number;
   windGustMs?: number;

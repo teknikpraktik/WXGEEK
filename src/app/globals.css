@@ -1185,13 +1185,6 @@ main {
   gap: 8px;
   padding: 6px 0 10px;
 }
-.raw-tag {
-  font-family: var(--font-num);
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--ink-2);
-  padding-top: 2px;
-}
 .raw-text {
   font-family: var(--font-num);
   font-size: 12.5px;
@@ -1306,6 +1299,15 @@ main {
   margin: 0 0 4px;
   padding: 0;
 }
+/* The airport a METAR/TAF is from, in plain text above the raw line */
+.raw-place {
+  margin: 0 0 2px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.raw-line + .raw-place {
+  margin-top: 10px;
+}
 .foot {
   flex-direction: column;
   gap: 2px;
@@ -1378,7 +1380,7 @@ main {
   color: var(--muted);
 }
 
-/* Precipitation per hour: zero line only where there is data */
+/* Precipitation per hour: zero line only under a likely or measured amount */
 .tl-prh line.zero {
   stroke: var(--ev-regn);
   stroke-opacity: 0.45;
@@ -1427,3 +1429,71 @@ main {
   .si-fog.severe line { stroke: #aab0b9; }
 }
 .cell .val .sky-inline { display: inline-flex; margin-right: 4px; }
+
+/* ------------------------------------------------------------------------- */
+/* Avläsning: temperatur/daggpunkt och moln (täckning + höjd)                  */
+/* ------------------------------------------------------------------------- */
+/* Daggpunkten direkt efter temperaturen, nedtonad: "12/11 °C" */
+.cell .val b.val-extra {
+  margin-left: 1px;
+}
+.cell .val b.val-dew {
+  color: var(--ink-2);
+  margin-left: -2px;
+}
+
+/* Kort rubrik bara på smala skärmar */
+.cell dt .dt-short {
+  display: none;
+}
+
+/* Alla rutor på en rad även på mobil: 4 kolumner, 5 när nederbörd visas.
+   Mindre siffror och text så att "OVC 300 m" och "12/11 °C" ryms. Kolumnerna är fasta men
+   olika breda efter innehållet: moln ("BKN 1200 m") och temperatur ("−12/−15 °C") behöver
+   mest plats, sikt minst – med lika breda kolumner krockar molnen med nästa ruta vid 320 px. */
+@media (max-width: 560px) {
+  .readout-grid {
+    grid-template-columns: 1.25fr 1fr 0.75fr 1.35fr;
+  }
+  .readout-grid.has-precip {
+    grid-template-columns: 1.25fr 1.05fr 0.8fr 1.4fr 1fr;
+  }
+  .cell dt .dt-long {
+    display: none;
+  }
+  .cell dt .dt-short {
+    display: inline;
+  }
+  .cell {
+    --val-size: clamp(15px, 4.6vw, 20px);
+    padding-right: 6px;
+  }
+  .readout-grid.has-precip .cell {
+    --val-size: clamp(13px, 3.9vw, 18px);
+    padding-right: 4px;
+  }
+  .cell dt {
+    font-size: 9px;
+    letter-spacing: 0.04em;
+  }
+  /* Samma höjd med och utan nederbördsruta (där siffrorna är mindre), så att diagrammet
+     under inte hoppar när rutan kommer och går */
+  .cell .val {
+    gap: 2px;
+    height: calc(clamp(15px, 4.6vw, 20px) * 1.15);
+  }
+  .cell .val .unit {
+    font-size: 9.5px;
+  }
+  .cell .sub {
+    font-size: 10.5px;
+  }
+  /* Ikonen upprepar molnkoden – plats går före */
+  .cell .val .sky-inline {
+    display: none;
+  }
+  .cell .val .windarrow {
+    width: 14px;
+    height: 14px;
+  }
+}

@@ -6,6 +6,7 @@ export type AwcMetar = {
   icaoId: string;
   obsTime: number;
   temp?: number | null;
+  dewp?: number | null;
   wdir?: number | "VRB" | null;
   wspd?: number | null;
   wgst?: number | null;
@@ -113,6 +114,7 @@ export function normalizeMetar(m: AwcMetar, distanceKm?: number): WeatherObserva
     longitude: m.lon,
     distanceKm,
     temperatureC: m.temp ?? undefined,
+    dewPointC: m.dewp ?? undefined,
     windDirectionDeg: typeof m.wdir === "number" ? m.wdir : undefined,
     windVariable: variable || undefined,
     windSpeedMs: typeof m.wspd === "number" ? ktToMs(m.wspd) : undefined,

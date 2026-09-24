@@ -10,7 +10,7 @@ import type {
 } from "../types";
 import { PHENOMENON_GROUP, symbolLabel } from "../weather/phenomena";
 import { isDaylight } from "../sun";
-import { oktasCover } from "../format";
+import { dewPointFromRh, oktasCover } from "../format";
 import {
   mergedForecastAt,
   smhiPointAt,
@@ -587,10 +587,7 @@ export function buildChart(bundle: WeatherBundle, now: number, prevTempDomain?: 
         forecast: true,
         severe: (vis ?? 5000) < 1000 || fog?.kind === "dimma" || !!altFog,
         phenomenon: !!(fog || altFog),
-        label:
-          alt && altFog
-            ? `${altFog.label} (${alt.change === "PROB" ? `PROB${alt.probability ?? ""}` : "TEMPO"})`
-            : (fog?.label ?? `Visibility ${vis} m`),
+        label: alt && altFog ? `${altFog.label} (${tafGroupName(alt)})` : (fog?.label ?? `Visibility ${vis} m`),
       });
     }
     const ts_ = wx.find((x) => x.kind === "åska");
@@ -645,6 +642,8 @@ export type Snapshot = {
   mode: "now" | "observed" | "forecast";
   time: number;
   temperature: Reading<number>;
+  /** Daggpunkt: METAR vid observationer, ur SMHI:s relativa fuktighet i prognosen */
+  dewPoint: Reading<number>;
   wind: Reading<{ deg?: number; variable?: boolean; speed?: number }>;
   /** Byvind. value undefined = METAR utan G-grupp (inga kraftiga byar rapporterade). */
   gust: Reading<number | undefined>;
@@ -765,6 +764,7 @@ export function snapshotAt(bundle: WeatherBundle, t: number, now: number): Snaps
       mode,
       time: t,
       temperature: read(m.temperature, (v) => v),
+      dewPoint: forecastDewPoint(m.temperature?.value, p),
       wind: read(m.wind, (v) => ({ deg: v.deg, variable: v.variable, speed: v.speed })),
       gust: read(m.wind, (v) => v.gust),
       visibility: read(m.visibility, (v) => v),
@@ -794,6 +794,7 @@ export function snapshotAt(bundle: WeatherBundle, t: number, now: number): Snaps
   if (gust && Number.isNaN(gust.value)) gust.value = undefined;
 
   const cloud = pickObs(bundle, "cloudBase", t, mode, obsCloud);
+  const temperature = pickObs(bundle, "temperature", t, mode, (o) => o.temperatureC);
 
   // Nederbörd: SMHI:s timsumma avser timmen före tidsstämpeln.
   const precip = pickObs(bundle, "precipitation", t, mode, (o) =>
@@ -803,7 +804,8 @@ export function snapshotAt(bundle: WeatherBundle, t: number, now: number): Snaps
   return {
     mode,
     time: t,
-    temperature: pickObs(bundle, "temperature", t, mode, (o) => o.temperatureC),
+    temperature,
+    dewPoint: obsDewPoint(bundle, t, mode, temperature),
     wind,
     gust,
     visibility: pickObs(bundle, "visibility", t, mode, (o) =>
@@ -818,4 +820,137 @@ export function snapshotAt(bundle: WeatherBundle, t: number, now: number): Snaps
     supplements: mode === "now" ? tafSupplementsAt(bundle.taf, t) : [],
     transition: mode === "now" && bundle.taf ? (tafMainAt(bundle.taf, t)?.transition ?? undefined) : undefined,
   };
+}
+
+// ---------------------------------------------------------------------------
+// Daggpunkt
+// ---------------------------------------------------------------------------
+
+/**
+ * Observerad daggpunkt. Helst från samma station och tid som temperaturen; annars närmaste
+ * METAR. Aldrig över visad temperatur (olika stationer kan annars ge negativ spread).
+ */
+function obsDewPoint(bundle: WeatherBundle, t: number, mode: Snapshot["mode"], temp: Reading<number>): Reading<number> {
+  if (temp) {
+    const s = bundle.stations.find((x) => x.station.stationId === temp.origin.stationId);
+    const o = s?.observations.find((x) => ts(x) === temp.origin.timestamp && x.dewPointC !== undefined);
+    if (o) return { value: Math.min(o.dewPointC!, temp.value), origin: temp.origin };
+  }
+  const s = bundle.stations.find((x) => x.station.source === "METAR");
+  if (!s) return null;
+  let best: WeatherObservation | undefined;
+  let bestD = Infinity;
+  for (const o of s.observations) {
+    if (o.dewPointC === undefined) continue;
+    if (mode === "now" && ts(o) > t) continue;
+    const d = Math.abs(ts(o) - t);
+    if (d < bestD) {
+      best = o;
+      bestD = d;
+    }
+  }
+  const maxAge = mode === "now" ? NOW_MAX_AGE.METAR : TOL.METAR;
+  if (!best || bestD > maxAge) return null;
+  return {
+    value: temp ? Math.min(best.dewPointC!, temp.value) : best.dewPointC!,
+    origin: {
+      kind: "METAR",
+      stationId: s.station.stationId,
+      stationName: s.station.stationName,
+      distanceKm: s.station.distanceKm,
+      timestamp: ts(best),
+    },
+  };
+}
+
+/**
+ * Prognosens daggpunkt ur SMHI:s fuktighet. Spreaden räknas på SMHI:s egen temperatur och
+ * läggs på den visade (observationsjusterade) temperaturen, så att spreaden blir modellens.
+ */
+function forecastDewPoint(shownT: number | undefined, p: ForecastPoint | undefined): Reading<number> {
+  if (!p || p.temperatureC === undefined || p.relativeHumidity === undefined) return null;
+  const spread = p.temperatureC - dewPointFromRh(p.temperatureC, p.relativeHumidity);
+  const base = shownT ?? p.temperatureC;
+  return {
+    value: Math.round((base - Math.max(0, spread)) * 10) / 10,
+    origin: { kind: "SMHI-PROGNOS", timestamp: ts(p), validFrom: p.intervalStart ? Date.parse(p.intervalStart) : undefined },
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Dimma och dis i avläsningen
+// ---------------------------------------------------------------------------
+
+/** TAF-gruppen som bara ger något som möjligt: "PROB40" eller "TEMPO". */
+export function tafGroupName(g: TafPeriod): string {
+  return g.change === "PROB" ? `PROB${g.probability ?? ""}` : "TEMPO";
+}
+
+export type Fog = {
+  /** METAR-kod, t.ex. FG, FZFG, BCFG eller BR */
+  code: string;
+  /** I ord, t.ex. "Freezing fog" */
+  label: string;
+  /** Dimma (tre streck) eller dis (två streck), som i diagrammet */
+  severe: boolean;
+  /** TAF-gruppen när dimman bara är möjlig, t.ex. "PROB40" */
+  group?: string;
+};
+
+/** Koder för SMHI:s dimma/dis, som bara har sifferkoder. */
+const FOG_CODE: Record<string, string> = {
+  Fog: "FG",
+  "Freezing fog": "FZFG",
+  "Shallow fog": "MIFG",
+  "Fog patches": "BCFG",
+  Mist: "BR",
+  Haze: "HZ",
+  Smoke: "FU",
+};
+
+/**
+ * Dimma/dis vid vald tid, med samma regel som diagrammets dimsymbol: rapporterad eller
+ * prognostiserad dimma/dis, dimma i TAF:ens TEMPO/PROB (bara i prognosläget), annars sikt under
+ * 1 km, eller under 5 km – men aldrig när det är nederbörden som skymmer sikten. Dimma vid
+ * minusgrader är underkyld (FZFG).
+ */
+export function fogOf(
+  s: Pick<Snapshot, "mode" | "phenomena" | "supplements" | "visibility" | "precipitation" | "temperature">,
+): Fog | undefined {
+  const freezing = (f: Fog): Fog =>
+    f.code === "FG" && s.temperature && s.temperature.value < 0 ? { ...f, code: "FZFG", label: "Freezing fog" } : f;
+  const of = (p: Phenomenon, group?: string): Fog =>
+    freezing({
+      code: /^[A-Z]{2,4}$/.test(p.code ?? "") ? p.code! : (FOG_CODE[p.label] ?? (p.kind === "dimma" ? "FG" : "BR")),
+      label: p.label,
+      severe: p.kind === "dimma",
+      group,
+    });
+
+  const wx = s.phenomena?.value ?? [];
+  const reported = wx.find((p) => p.kind === "dimma") ?? wx.find((p) => p.kind === "dis");
+  if (reported) return of(reported);
+  if (s.mode === "forecast") {
+    for (const g of s.supplements) {
+      const f = g.phenomena?.find((p) => p.kind === "dimma");
+      if (f) return of(f, tafGroupName(g));
+    }
+  }
+  const vis = s.visibility?.value.m;
+  const wet =
+    (s.precipitation?.value.mm ?? 0) > 0 || wx.some((p) => PHENOMENON_GROUP[p.kind] === "regn" || PHENOMENON_GROUP[p.kind] === "snö");
+  if (vis === undefined || vis >= 5000 || wet) return undefined;
+  return vis < 1000 ? freezing({ code: "FG", label: "Fog", severe: true }) : { code: "BR", label: "Mist", severe: false };
+}
+
+/** Lägsta sikten i TAF:ens TEMPO/PROB vid vald tid, när den är under huvudvärdet och under 5 km (bara i prognosläget). */
+export function tafLowVisibility(
+  s: Pick<Snapshot, "mode" | "supplements" | "visibility">,
+): { group: string; m: number; atLeast?: boolean } | undefined {
+  if (s.mode !== "forecast") return undefined;
+  const main = s.visibility?.value.m ?? Infinity;
+  const low = s.supplements
+    .filter((g) => g.visibilityM !== undefined && g.visibilityM < Math.min(main, 5000))
+    .sort((a, b) => a.visibilityM! - b.visibilityM!)[0];
+  return low ? { group: tafGroupName(low), m: low.visibilityM!, atLeast: low.visibilityAtLeast } : undefined;
 }

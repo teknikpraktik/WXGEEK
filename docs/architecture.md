@@ -127,10 +127,10 @@ Tre nivåer:
 ```
 WxgeekApp              – plats, datahämtning, auto-uppdatering (5 min när fliken syns), klocka
 ├─ PlacePicker         – "Use my location" + ortsökning (sök vid submit, inte per tangent)
-├─ Readout             – temperatur, vind, sikt, molnbas (+ nederbörd när data finns) vid markörens tid
+├─ Readout             – temperatur/daggpunkt, vind, sikt, moln (+ nederbörd när data finns) vid markörens tid
 │  └─ Timeline         – diagrammet −12 h … +24 h
 ├─ Warnings            – SMHI-varningar, SIGMET, betydande väder ur METAR/TAF
-├─ DataInfo            – rå METAR och TAF; källfel bara när en tjänst inte svarar
+├─ DataInfo            – rå METAR och TAF under flygplatsens namn; källfel bara när en tjänst inte svarar
 └─ sidfot              – källor, © år Per Björkman · Teknikpraktik
 ```
 
@@ -210,17 +210,34 @@ WxgeekApp              – plats, datahämtning, auto-uppdatering (5 min när fl
   text när en annan tid är vald. Samma storlek och placering i båda lägena.
 - **Vind under tidsaxeln**: en pil per timme (varifrån det blåser) med m/s under;
   byar visas under när de är minst 3 m/s högre.
-- Lufttryck och luftfuktighet visas inte (och hämtas inte).
+- Lufttryck och luftfuktighet visas inte. SMHI:s relativa fuktighet hämtas bara för daggpunkten.
 - TAF ritas inte i diagrammet (för plottrigt). Den styr prognosfönstrets längd,
   visas som aktiva perioder i avläsningen (t.ex. "40 % risk 14–18: molnbas 310 m")
   och i rått format under diagrammet. TAF omvandlas aldrig till timvärden.
 
 ### Avläsning
 
-- Rutnät: temperatur, vind, sikt, molnbas – och nederbörd bara när data finns för vald tid
-  (uppmätt, eller SMHI-prognos med intervall och sannolikhet).
+- En rad rutor: temperatur/daggpunkt, vind, sikt, moln – och nederbörd bara när data finns för
+  vald tid (uppmätt, eller SMHI-prognos med intervall och sannolikhet). Dator: alltid 5 kolumner.
+  Under 560 px: 4 kolumner, 5 med nederbörd, mindre typografi och ingen molnikon. Fasta höjder,
+  så att diagrammet under aldrig hoppar.
+- Temp / Dew pt: "12/11 °C" i hela grader med nedtonad daggpunkt; undertext "Spread 1°", plus
+  "fog risk" vid spread ≤ 2°. Observerat: daggpunkt från samma station och tid som temperaturen,
+  annars närmaste METAR. Prognos: ur SMHI:s relativa fuktighet (Magnus); spreaden räknas på
+  SMHI:s egen temperatur och dras av från den visade, justerade. Aldrig över temperaturen.
 - Vind: pil + m/s, "From 140° · gusts 7 m/s" (riktning i hela tiotal grader), "Calm" under 0,5 m/s.
-- Molnbas: höjd + typ och åttondelar, t.ex. "Broken · 5–7/8 · CB", "Overcast · 8/8".
+- Clouds: täckning + höjd för ceiling (lägsta BKN/OVC/VV), annars lägsta lagret, t.ex.
+  "OVC 300 m"; SMHI-prognos utan lager: kategori + molnbas. Undertext: åttondelar och övriga
+  lager, t.ex. "8/8 · FEW 180", eller "Overcast · 8/8" med ett lager. CAVOK, NSC, SKC och okänt
+  utan höjd.
+- Dimma/dis (`fogOf`, samma regel som diagrammets dimsymbol – men aldrig när nederbörden är det
+  som skymmer): molnrutan visar koden (FG, BR, BCFG …; FZFG för dimma vid minusgrader) med
+  dimsymbolen, och undertexten säger vad det är, TAF-gruppen och molnen, t.ex.
+  "Fog (PROB40) · OVC 520 m". Dimma i TAF:ens TEMPO/PROB räknas bara i prognosläget – vid NU
+  gäller observationen.
+- Sikt: lägre sikt i TAF:ens TEMPO/PROB i undertexten, t.ex. "PROB40 2.5 km" (prognosläget,
+  `tafLowVisibility`).
+- Korta rubriker under 560 px: "Temp / Dew", "Vis", "Precip".
 - Observationer äldre än 90 min markeras "old"; äldre än maxåldern visas som saknade.
 - Väderläget på en egen rad utan etikett. Ingen detaljvy. Alla tider lokala (Europe/Stockholm).
 
@@ -240,7 +257,8 @@ WxgeekApp              – plats, datahämtning, auto-uppdatering (5 min när fl
 - **Temperaturskala** (`tempScale`): 20 °C, gränser på 5 °C, 2 °C marginal; behålls så länge
   alla värden ligger ≥ 1 °C innanför, flyttas annars i steg om 5 °C; ett utökat spann krymps
   inte. Skalan sparas i appens state per plats.
-- **Nederbörd per timme**: en serie staplar från nollinje, linjär skala 0–max (minst 2 mm).
+- **Nederbörd per timme**: en serie staplar från nollinje (bara under trolig/uppmätt mängd),
+  linjär skala 0–max (minst 2 mm).
   Mängd per timme (SMHI param 7 = summa 1 h; prognosens timsteg = mängd). Prognos: median
   (mörk) och övre spridning (ljus). Den ackumulerade vattenytan/snödjupet är borttaget.
 - **Tidsaxel**: varje timme; midnatt med kraftigare linje och datum på båda sidor.

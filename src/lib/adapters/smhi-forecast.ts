@@ -35,6 +35,7 @@ export function normalizeSmhiForecast(raw: SmhiForecastRaw): Forecast {
       timestamp: ts.time,
       intervalStart: ts.intervalParametersStartTime,
       temperatureC: num(d, "air_temperature"),
+      relativeHumidity: num(d, "relative_humidity"),
       windDirectionDeg: num(d, "wind_from_direction"),
       windSpeedMs: num(d, "wind_speed"),
       windGustMs: num(d, "wind_speed_of_gust"),

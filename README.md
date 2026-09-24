@@ -11,9 +11,15 @@ situation **now**, and the **forecast** for the next 24 hours, all on the same a
      observed             forecast
 ```
 
-- The header shows temperature, wind (m/s, direction in whole tens of degrees),
-  visibility and **cloud cover** (symbol, description and code, e.g. "Broken · BKN · 5–7/8").
-  Precipitation appears only when data exists for the selected time.
+- The header shows **temperature / dew point** in whole degrees ("12/11 °C", with the spread
+  and "fog risk" at ≤ 2°), wind (m/s, direction in whole tens of degrees), visibility and
+  **clouds** (cover and base of the ceiling – the lowest BKN/OVC/VV – or else the lowest
+  layer, e.g. "OVC 300 m", with oktas and other layers below). With fog or mist – the same rule
+  as the chart's fog symbol, including fog in a TAF TEMPO/PROB group – the clouds cell shows
+  FG, BR or FZFG (fog below 0 °C) instead, with e.g. "Fog (PROB40) · OVC 520 m" below. Lower
+  visibility in a TAF TEMPO/PROB group is shown under the visibility, e.g. "PROB40 2.5 km".
+  Precipitation appears only when data exists for the selected time. All cells stay on one
+  row, also on mobile.
 - Temperature chart (left axis): an adaptive scale chosen from all temperatures in the
   window – the smallest range on multiples of 5 °C with margin and at least a 20 °C span,
   preferring one that also shows 0 and −5 °C when that costs at most 5 °C extra. The scale
@@ -28,8 +34,9 @@ situation **now**, and the **forecast** for the next 24 hours, all on the same a
   (including fog in a TAF TEMPO/PROB group, e.g. BCFG), when visibility is below 1 km, or when
   it is below 5 km without precipitation.
 - **Precipitation, mm per hour**: one series of bars from a zero line (dark = measured or
-  expected, light = possible; "≤0.3" = most likely dry, but up to 0.3 mm possible). Hours
-  without data have no zero line, so missing is not 0 mm. Every hour with precipitation gets a
+  expected, light = possible; "≤0.3" = most likely dry, but up to 0.3 mm possible). The zero
+  line is drawn only under a measured or expected amount, not under "≤"; dry hours show
+  nothing, just like hours without data. Every hour with precipitation gets a
   cloud symbol with a few short rain strokes (snow: dots) just below it – they only signal
   precipitation, the bars show the amount.
 - Wind arrows run below the time axis, which labels every hour. Midnight is marked by a line
@@ -39,7 +46,8 @@ situation **now**, and the **forecast** for the next 24 hours, all on the same a
 - The forecast uses **TAF first** for wind, visibility, cloud and weather at the airport
   while the TAF is valid. **SMHI** covers temperature, precipitation, missing values and
   the rest of the window.
-- Raw METAR and TAF are printed at the bottom of the page, followed by discreet warnings:
+- Raw METAR and TAF are printed at the bottom of the page under the name of the airport they
+  are from, followed by discreet warnings:
   SMHI weather warnings (meteorological only – not water shortage, high flows, flooding,
   sea level or fire risk), SIGMETs and warnings from METAR/TAF. METAR/TAF warnings cover only
   weather that can affect society: thunderstorms, CB, strong wind (mean ≥ 14 m/s or gusts
@@ -96,7 +104,7 @@ Architecture, station selection and caching: [`docs/architecture.md`](docs/archi
 
 - **Station based.** Local showers between stations are not observed.
 - **SMHI observations are published with ~1 h delay.** METAR is often fresher but only exists at airports.
-- **METAR temperature is reported in whole degrees.** WXGEEK shows it without a decimal.
+- **METAR temperature is reported in whole degrees**, so WXGEEK shows all temperatures and dew points in whole degrees.
 - **METAR gusts** are reported only when strong, so SMHI gusts are preferred when available.
 - **SMHI forecast cloud base** has no documented reference level (ground or sea), so it is treated as approximate.
 - **Precipitation gauges** are sparse.

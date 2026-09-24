@@ -56,10 +56,10 @@ const nf1 = new Intl.NumberFormat(LOCALE, { minimumFractionDigits: 1, maximumFra
 /** Typographic minus sign. */
 const minus = (s: string) => s.replace("-", "−");
 
-export function fmtTemp(c: number | undefined, decimals = true): string {
+/** Temperature and dew point in whole degrees, as in METAR. */
+export function fmtTemp(c: number | undefined): string {
   if (c === undefined) return "–";
-  // Whole degrees from METAR are shown without a decimal to avoid implying precision.
-  const s = decimals && !Number.isInteger(c) ? nf1.format(c) : nf0.format(Math.round(c));
+  const s = nf0.format(Math.round(c));
   return minus(s === "-0" ? "0" : s);
 }
 
@@ -87,6 +87,13 @@ export function fmtVisibility(m: number | undefined, atLeast?: boolean): string 
   if (m < 1000) return `${Math.round(m / 50) * 50} m`;
   if (m < 5000) return `${nf1.format(Math.round(m / 100) / 10)} km`;
   return `${nf0.format(Math.round(m / 1000))} km`;
+}
+
+/** Daggpunkt ur temperatur och relativ fuktighet (Magnus, Alduchov–Eskridge). */
+export function dewPointFromRh(tC: number, rh: number): number {
+  const a = 17.625, b = 243.04;
+  const g = Math.log(Math.max(1, Math.min(100, rh)) / 100) + (a * tC) / (b + tC);
+  return (b * g) / (a - g);
 }
 
 /** Cloud base: 10 m steps below 1 km, 100 m above – METAR resolution is 30 m. */

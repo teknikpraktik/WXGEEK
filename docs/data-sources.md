@@ -182,6 +182,7 @@ Senaste körning: `.../snow1g/version/1/createdtime.json`
 | Parameter | Enhet |
 |---|---|
 | `air_temperature` | °C |
+| `relative_humidity` | % – bara för daggpunkt (Magnus) |
 | `wind_from_direction`, `wind_speed`, `wind_speed_of_gust` | °, m/s |
 | `visibility_in_air` | **km** |
 | `cloud_area_fraction`, `low_type_cloud_area_fraction` | **oktas** (0–8) |

@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { fmtDateTime, fmtInterval, fmtOffset, fmtTime, fmtWindText, localHour } from "./format";
+import { dewPointFromRh, fmtDateTime, fmtInterval, fmtOffset, fmtTemp, fmtTime, fmtWindText, localHour } from "./format";
 
 const H = 3_600_000;
 
@@ -42,4 +42,19 @@ test("wind text with degrees in tens, unit, gusts and calm", () => {
   assert.equal(fmtWindText({ deg: 357, speed: 5 }), "From 360° · 5 m/s");
   // Gusts barely above the mean wind are not shown.
   assert.equal(fmtWindText({ deg: 270, speed: 5 }, 5.4), "From 270° · 5 m/s");
+});
+
+test("temperature and dew point in whole degrees, with a typographic minus", () => {
+  assert.equal(fmtTemp(12.4), "12");
+  assert.equal(fmtTemp(11.6), "12");
+  assert.equal(fmtTemp(-0.4), "0");
+  assert.equal(fmtTemp(-2.6), "−3");
+  assert.equal(fmtTemp(undefined), "–");
+});
+
+test("dew point from temperature and relative humidity (Magnus)", () => {
+  const dp = (t: number, rh: number) => Math.round(dewPointFromRh(t, rh) * 10) / 10;
+  assert.equal(dp(20, 100), 20);
+  assert.equal(dp(20, 50), 9.3);
+  assert.equal(dp(-5, 80), -7.9);
 });
