@@ -224,8 +224,9 @@ WxgeekApp              – plats, datahämtning, auto-uppdatering (5 min när fl
 - Ingen förklaring (legend) och inga instruktionstexter under diagrammet.
 - **Tidsaxel direkt under diagrammet** (tim-streck, "09:00" var 3:e timme, veckodag vid midnatt).
   Vänsteraxeln har solid bakgrund så att moln tonar bort innan de når etiketterna.
-- **Now-knappen**: neutral kontur och lugn text när NU är vald; mörk blågrå fyllning med vit
-  text när en annan tid är vald. Samma storlek och placering i båda lägena.
+- **Now-knappen**: samma ljusa ton i båda lägena – aldrig NU-linjens mörka blågrå, så att den
+  inte förväxlas med linjerna i diagrammet. Mörk text och tydligare kant när en annan tid är
+  vald, lugn grå text vid NU. Samma storlek och placering i båda lägena.
 - **Vind under tidsaxeln**: en pil per timme (varifrån det blåser) med m/s under;
   byar visas under när de är minst 3 m/s högre.
 - Lufttryck och luftfuktighet visas inte. SMHI:s relativa fuktighet hämtas bara för daggpunkten.

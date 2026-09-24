@@ -1031,16 +1031,17 @@ main {
   padding: 6px 12px;
   font-size: 14px;
 }
-/* Now: mörk blågrå fyllning när en annan tid är vald; neutral kontur och lugn text vid NU.
-   Samma storlek och placering i båda lägena. */
+/* Now: samma ljusa ton i båda lägena – aldrig NU-linjens mörka blågrå, som fick knappen att
+   se ut som en del av tidslinjerna. När en annan tid är vald: mörk text och tydligare kant;
+   vid NU: lugn grå text. Samma storlek och placering i båda lägena. */
 .btn-now {
-  background: var(--now);
-  border-color: var(--now);
-  color: var(--on-now);
+  background: var(--surface);
+  border-color: var(--ink-2);
+  color: var(--ink);
   font-weight: 600;
 }
 .btn-now:hover:not(:disabled) {
-  background: var(--ink);
+  background: var(--rule-2);
   border-color: var(--ink);
 }
 .btn-now:disabled {
