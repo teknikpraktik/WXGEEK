@@ -201,10 +201,6 @@ const SYMBOLS: Record<number, { label: string; kind?: PhenomenonKind; intensity?
   27: { label: "Heavy snowfall", kind: "snö", intensity: "kraftig" },
 };
 
-export function symbolLabel(code: number | undefined): string | undefined {
-  return code ? SYMBOLS[code]?.label : undefined;
-}
-
 export function phenomenonFromSymbol(code: number | undefined): Phenomenon | undefined {
   if (!code) return undefined;
   const s = SYMBOLS[code];

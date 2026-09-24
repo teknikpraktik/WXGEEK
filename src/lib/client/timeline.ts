@@ -8,7 +8,7 @@ import type {
   WeatherBundle,
   WeatherObservation,
 } from "../types";
-import { PHENOMENON_GROUP, symbolLabel } from "../weather/phenomena";
+import { PHENOMENON_GROUP } from "../weather/phenomena";
 import { isDaylight } from "../sun";
 import { dewPointFromRh, oktasCover } from "../format";
 import {
@@ -657,8 +657,6 @@ export type Snapshot = {
   precipitation: Reading<{ mm: number; from: number; to: number }>;
   precipProbability?: { value: number; origin: Origin };
   phenomena: Reading<Phenomenon[]>;
-  /** Symboltext från SMHI-prognosen, t.ex. "Halvklart" */
-  forecastSummary?: string;
   metar?: { raw: string; stationId: string; timestamp: number };
   /** TAF: TEMPO/PROB som gäller vid vald tid (kompletterande information) */
   supplements: TafPeriod[];
@@ -775,7 +773,6 @@ export function snapshotAt(bundle: WeatherBundle, t: number, now: number): Snaps
       precipProbability:
         pr?.value.probability !== undefined ? { value: pr.value.probability, origin: originOf(pr.source) } : undefined,
       phenomena: read(m.weather, (v) => v),
-      forecastSummary: m.clouds?.source.kind === "SMHI-PROGNOS" ? symbolLabel(p?.symbolCode) : undefined,
       metar,
       supplements: m.supplements,
       transition: m.transition,

@@ -195,10 +195,10 @@ function precipSub(snap: Snapshot): string {
   return snap.precipProbability ? `${iv} · ${Math.round(snap.precipProbability.value)} %` : iv;
 }
 
+/** Väder på en egen rad: nederbörd, dimma, åska. Molnen står redan i rutan och upprepas inte här. */
 function weatherSummary(snap: Snapshot): string {
   const ph = snap.phenomena;
   if (ph?.value.length) return ph.value.map((p) => p.label).join(", ");
-  if (snap.forecastSummary) return snap.forecastSummary;
   return " ";
 }
 

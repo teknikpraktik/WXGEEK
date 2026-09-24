@@ -47,6 +47,7 @@ export function WxgeekApp() {
   const [now, setNow] = useState(() => Date.now());
   const [cursor, setCursor] = useState<number | null>(null);
   const [recenter, setRecenter] = useState(0);
+  const [cursorX, setCursorX] = useState<number | null>(null);
 
   // ---------------------------------------------------------------------------
   // Location
@@ -253,7 +254,8 @@ export function WxgeekApp() {
               <Readout snap={snap} now={now}>
                 <section className="timeline-wrap" aria-label="Timeline">
                   <div className="tl-controls">
-                    <div className="tl-buttons">
+                    {/* Centrerad över markören, där NU står */}
+                    <div className="tl-buttons" style={cursorX === null ? undefined : { left: cursorX }}>
                       {/* "Now" always keeps its place, even when now is selected */}
                       <button
                         type="button"
@@ -272,6 +274,7 @@ export function WxgeekApp() {
                     data={chart}
                     onCursor={onCursor}
                     recenterSignal={recenter}
+                    onCursorX={setCursorX}
                   />
                 </section>
               </Readout>

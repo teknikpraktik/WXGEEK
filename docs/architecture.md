@@ -157,7 +157,8 @@ WxgeekApp              – plats, datahämtning, auto-uppdatering (5 min när fl
   start (efter vänsteraxeln), så att vyn visar ungefär 25 % observerat och 75 % prognos.
 - Tid väljs genom att dra grafen under en **fast markör en fjärdedel in** (native scroll på
   touch, musdrag på desktop). Klick flyttar inte grafen. Knappen **Now** återgår till NU
-  och behåller alltid sin plats. Tangentbord: pilar (±1 h, Shift ±6 h) och `N`.
+  och står alltid centrerad över markören, där NU-linjen står vid NU. Tangentbord: pilar
+  (±1 h, Shift ±6 h) och `N`.
 - **Vald tid** och **NU** har olika markörer som fungerar utan färgseende: NU är en tunn
   heldragen linje i mörk blågrå med etiketten "NOW 17:12" ovanför grafen; vald tid är en
   streckad linje i samma blågrå med en liten cirkel och en fylld etikett "18:00" (vit text).
@@ -242,7 +243,8 @@ WxgeekApp              – plats, datahämtning, auto-uppdatering (5 min när fl
 - Korta rubriker under 560 px: "Temp/Dew", "Vis", "Precip". Där blir "old" en liten klocka
   i varningsfärg efter rubriken (texten finns kvar för skärmläsare), så att rubriken inte klipps.
 - Observationer äldre än 90 min markeras "old"; äldre än maxåldern visas som saknade.
-- Väderläget på en egen rad utan etikett. Ingen detaljvy. Alla tider lokala (Europe/Stockholm).
+- Väderläget på en egen rad utan etikett – bara väder (nederbörd, dimma, åska); molnen står
+  redan i rutan och upprepas inte. Ingen detaljvy. Alla tider lokala (Europe/Stockholm).
 
 ## Molnighet, temperaturskala och nederbörd (senaste versionen)
 

@@ -1238,14 +1238,19 @@ main {
   stroke-width: 1.3;
   stroke-linecap: round;
 }
+/* Knappraden har samma utfallande kanter som diagrammet (.tl), så att "Now" kan stå centrerad
+   över markören/NU-linjen – läget kommer från Timeline (onCursorX). */
 .tl-controls {
   display: block;
-  margin-top: 2px;
+  position: relative;
+  height: 40px;
+  margin: 2px -16px 6px;
 }
-/* "Now" exakt i mitten, över markören (som sitter på 50 % av .tl) */
 .tl-buttons {
-  display: flex;
-  justify-content: center;
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
 }
 
 /* Warnings at the bottom of the page, under METAR/TAF – discreet */
