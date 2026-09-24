@@ -1031,15 +1031,15 @@ main {
   padding: 6px 12px;
   font-size: 14px;
 }
-/* Now: alltid samma ljusa utseende – ändras inte när tiden scrollas, och aldrig NU-linjens
-   mörka blågrå, som fick knappen att se ut som en del av tidslinjerna. Vid NU är den inaktiv
-   men ser likadan ut; bara hovring ger en mörkare kant. */
+/* Now: samma utseende som Change (.btn: ljus yta, ljus kant, mörk text) och ändras inte när
+   tiden scrollas – aldrig NU-linjens mörka blågrå, som fick knappen att se ut som en del av
+   tidslinjerna. Vid NU är den inaktiv men ser likadan ut; bara hovring ger en mörkare kant. */
 .btn-now,
 .btn-now:disabled {
-  background: transparent;
+  background: var(--surface);
   border-color: var(--rule);
-  color: var(--muted);
-  font-weight: 600;
+  color: var(--ink);
+  font-weight: 500;
   opacity: 1;
 }
 .btn-now:hover:not(:disabled) {
