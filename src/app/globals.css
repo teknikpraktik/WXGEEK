@@ -476,6 +476,16 @@ main {
   /* Solid bakom etiketterna, kort toning i kanten – molnen försvinner innan de når axeln */
   background: linear-gradient(to right, var(--bg) 0, var(--bg) 46px, transparent 60px);
 }
+/* Körfälten under diagrammet (nederbörd, tidsaxel, vind) har bredare etiketter än
+   temperaturskalan – "PRECIP" slutar vid ~54 px. Där går bakgrunden längre ut, så att värden
+   och pilar tonar bort en bit från etiketterna i stället för att krocka med dem. */
+.tl-lanebg {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 76px;
+  background: linear-gradient(to right, var(--bg) 0, var(--bg) 62px, transparent 76px);
+}
 .tl-yaxis span {
   position: absolute;
   left: 16px;

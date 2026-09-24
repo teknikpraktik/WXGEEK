@@ -11,8 +11,8 @@ situation **now**, and the **forecast** for the next 24 hours, all on the same a
      observed             forecast
 ```
 
-- The header shows **temperature / dew point** in whole degrees ("12/11 °C", with the spread
-  and "fog risk" at ≤ 2°), wind (m/s, direction in whole tens of degrees), visibility and
+- The header shows **temperature / dew point** in whole degrees ("12/11 °C", with "Fog risk"
+  when the dew point is within 1°), wind (m/s, direction in whole tens of degrees), visibility and
   **clouds** (cover in oktas, e.g. "OVC 8/8", with the ceiling – the lowest BKN/OVC/VV – or
   else the lowest base below, e.g. "Ceiling 340 m", plus CB/TCU if reported). With fog or
   mist – the same rule as the chart's fog symbol, including fog in a TAF TEMPO/PROB group –

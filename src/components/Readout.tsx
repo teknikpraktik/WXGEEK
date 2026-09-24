@@ -65,8 +65,8 @@ export function Readout({ snap, now, children }: Props) {
         <Cell label="Clouds" r={skyR} old={stale(skyR)} sub={fog ? fogSub(fog, snap) : skySub(snap)}>
           <Val
             v={fog ? fog.code : cloud.code}
-            extra={fog ? undefined : cloud.oktas}
-            unit=""
+            // Åttondelarna i enhetens stil – "5–7/8" i full storlek ryms inte bredvid ikonen
+            unit={fog ? "" : (cloud.oktas ?? "")}
             icon={
               fog ? (
                 <svg className="sky-inline" width={26} height={22} viewBox="-13 -11 26 22" aria-hidden>
@@ -180,13 +180,12 @@ function visSub(snap: Snapshot): string {
   return low ? `${low.group} ${fmtVisibility(low.m, low.atLeast)}` : "";
 }
 
-/** Daggpunkt och spread. Liten spread = risk för dimma och låga moln. */
+/** Dimrisk när daggpunkten ligger inom 1° från temperaturen, i hela grader som de visas. */
 function dewSub(snap: Snapshot): string {
   const t = snap.temperature?.value;
   const d = snap.dewPoint?.value;
   if (t === undefined || d === undefined) return "";
-  const spread = Math.max(0, Math.round(t) - Math.round(d));
-  return `Spread ${spread}°${spread <= 2 ? " · fog risk" : ""}`;
+  return Math.round(t) - Math.round(d) <= 1 ? "Fog risk" : "";
 }
 
 function precipSub(snap: Snapshot): string {

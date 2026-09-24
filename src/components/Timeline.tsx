@@ -269,6 +269,8 @@ export const Timeline = memo(function Timeline({ now, until, data, onCursor, rec
     <div className="tl" style={{ height: H }}>
       {/* Vänster axel: temperatur (°C) */}
       <div className="tl-yaxis" aria-hidden>
+        {/* Bredare bakgrund bakom körfälten, där etiketterna är bredast ("Precip") */}
+        <i className="tl-lanebg" style={{ top: precipTop }} />
         <span className="tl-axtitle temp" style={{ top: 4 }}>
           °C
         </span>

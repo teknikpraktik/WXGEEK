@@ -221,9 +221,9 @@ WxgeekApp              – plats, datahämtning, auto-uppdatering (5 min när fl
   vald tid (uppmätt, eller SMHI-prognos med intervall och sannolikhet). Dator: alltid 5 kolumner.
   Under 560 px: 4 kolumner, 5 med nederbörd, mindre typografi och ingen molnikon. Fasta höjder,
   så att diagrammet under aldrig hoppar.
-- Temp / Dew pt: "12/11 °C" i hela grader med nedtonad daggpunkt; undertext "Spread 1°", plus
-  "fog risk" vid spread ≤ 2°. Observerat: daggpunkt från samma station och tid som temperaturen,
-  annars närmaste METAR. Prognos: ur SMHI:s relativa fuktighet (Magnus); spreaden räknas på
+- Temp / Dew pt: "12/11 °C" i hela grader med nedtonad daggpunkt; undertext "Fog risk" när
+  daggpunkten ligger inom 1° (som de visas), annars tom. Observerat: daggpunkt från samma
+  station och tid som temperaturen, annars närmaste METAR. Prognos: ur SMHI:s relativa fuktighet (Magnus); spreaden räknas på
   SMHI:s egen temperatur och dras av från den visade, justerade. Aldrig över temperaturen.
 - Vind: pil + m/s, "From 140° · gusts 7 m/s" (riktning i hela tiotal grader), "Calm" under 0,5 m/s.
 - Clouds: täckning i åttondelar, t.ex. "OVC 8/8" – största kategorin, som symbolen; VV utan
