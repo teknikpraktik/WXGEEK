@@ -14,7 +14,7 @@ situation **now**, and the **forecast** for the next 24 hours, all on the same a
 - The header shows **temperature / dew point** in whole degrees ("12/11 °C", with the spread
   and "fog risk" at ≤ 2°), wind (m/s, direction in whole tens of degrees), visibility and
   **clouds** (cover in oktas, e.g. "OVC 8/8", with the ceiling – the lowest BKN/OVC/VV – or
-  else the lowest base below, e.g. "Ceiling 340 m", followed by other layers). With fog or
+  else the lowest base below, e.g. "Ceiling 340 m", plus CB/TCU if reported). With fog or
   mist – the same rule as the chart's fog symbol, including fog in a TAF TEMPO/PROB group –
   the clouds cell shows FG, BR or FZFG (fog below 0 °C) instead, with e.g.
   "Fog (PROB40) · OVC 520 m" below. Lower visibility in a TAF TEMPO/PROB group is shown under

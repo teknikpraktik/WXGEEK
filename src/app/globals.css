@@ -1220,6 +1220,14 @@ main {
   text-transform: none;
   letter-spacing: 0;
 }
+/* Klockan ersätter " · old" bara på smala skärmar (se längst ned) */
+.old-flag .old-icon {
+  display: none;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.3;
+  stroke-linecap: round;
+}
 .tl-controls {
   display: block;
   margin-top: 2px;
@@ -1463,6 +1471,21 @@ main {
   }
   .cell dt .dt-short {
     display: inline;
+  }
+  /* " · old" klipper rubriken i smala rutor: en liten klocka i samma färg i stället. Texten
+     finns kvar för skärmläsare. */
+  .old-flag .old-text {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  .old-flag .old-icon {
+    display: inline-block;
+    margin-left: 3px;
+    vertical-align: -1px;
   }
   .cell {
     --val-size: clamp(15px, 4.6vw, 20px);

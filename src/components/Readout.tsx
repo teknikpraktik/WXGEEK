@@ -40,7 +40,7 @@ export function Readout({ snap, now, children }: Props) {
   return (
     <section className={`readout readout-${snap.mode}`} aria-live="polite">
       <dl className={`readout-grid${pr ? " has-precip" : ""}`}>
-        <Cell label="Temp / Dew pt" short="Temp / Dew" r={snap.temperature} old={stale(snap.temperature)} sub={dewSub(snap)}>
+        <Cell label="Temp / Dew pt" short="Temp/Dew" r={snap.temperature} old={stale(snap.temperature)} sub={dewSub(snap)}>
           {snap.temperature && (
             <Val
               v={fmtTemp(snap.temperature.value)}
@@ -118,9 +118,6 @@ function mainLayer(snap: Snapshot): CloudLayer | undefined {
   return ls.find((l) => l.cover === "BKN" || l.cover === "OVC" || l.cover === "VV") ?? ls[0];
 }
 
-/** Siffra utan enhet: "300 m" → "300", "1200 m" → "1200". */
-const baseNum = (m: number) => fmtCloudBase(m).replace(/\s*m$/, "");
-
 /**
  * Huvudvärdet: täckning i åttondelar, t.ex. "OVC 8/8" – största kategorin, som symbolen. VV
  * (skymd himmel) står utan åttondelar; höjden står i undertexten.
@@ -132,8 +129,9 @@ function cloudMain(snap: Snapshot): { code: string; oktas?: string } {
 }
 
 /**
- * Undertext: ceiling (lägsta BKN/OVC/VV), annars lägsta molnbasen, och övriga lager – t.ex.
- * "Ceiling 340 m · FEW 180" eller "Base 900 m". Utan lager: SMHI-prognosens molnbas.
+ * Undertext: ceiling (lägsta BKN/OVC/VV), annars lägsta molnbasen – t.ex. "Ceiling 340 m" eller
+ * "Base 900 m" – och CB/TCU om något lager har det. Övriga lager visas inte. Utan lager:
+ * SMHI-prognosens molnbas.
  */
 function skySub(snap: Snapshot): string {
   const k = snap.sky;
@@ -156,9 +154,9 @@ function skySub(snap: Snapshot): string {
     const b = snap.cloud?.value.baseM;
     return `${k.kind === "BKN" || k.kind === "OVC" ? "Ceiling" : "Base"} ${b === undefined ? "unknown" : fmtCloudBase(b)}`;
   }
-  const head = `${main.cover === "FEW" || main.cover === "SCT" ? "Base" : "Ceiling"} ${fmtCloudBase(main.baseM)}${main.type ? ` ${main.type}` : ""}`;
-  const others = (snap.cloud?.value.layers ?? []).filter((l) => l !== main).map((l) => `${l.cover} ${baseNum(l.baseM)}${l.type ?? ""}`);
-  return [head, ...others].join(" · ");
+  const layers = snap.cloud?.value.layers ?? [];
+  const cb = layers.some((l) => l.type === "CB") ? "CB" : layers.some((l) => l.type === "TCU") ? "TCU" : "";
+  return `${main.cover === "FEW" || main.cover === "SCT" ? "Base" : "Ceiling"} ${fmtCloudBase(main.baseM)}${cb ? ` · ${cb}` : ""}`;
 }
 
 /** Molnen kort, t.ex. "OVC 520 m" – till undertexten vid dimma. */
@@ -260,7 +258,16 @@ function Cell<T>({
         ) : (
           label
         )}
-        {old && <span className="old-flag"> · old</span>}
+        {old && (
+          <span className="old-flag" title="Observation older than 90 minutes">
+            <span className="old-text"> · old</span>
+            {/* Smala rutor: en liten klocka i stället för texten, som annars klipper rubriken */}
+            <svg className="old-icon" width={9} height={9} viewBox="0 0 10 10" aria-hidden>
+              <circle cx={5} cy={5} r={4} />
+              <path d="M5 2.6V5l1.7 1.1" />
+            </svg>
+          </span>
+        )}
       </dt>
       <dd>
         {r ? children : <span className="val missing-val">–</span>}

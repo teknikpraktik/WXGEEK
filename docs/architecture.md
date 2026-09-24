@@ -227,8 +227,9 @@ WxgeekApp              – plats, datahämtning, auto-uppdatering (5 min när fl
   SMHI:s egen temperatur och dras av från den visade, justerade. Aldrig över temperaturen.
 - Vind: pil + m/s, "From 140° · gusts 7 m/s" (riktning i hela tiotal grader), "Calm" under 0,5 m/s.
 - Clouds: täckning i åttondelar, t.ex. "OVC 8/8" – största kategorin, som symbolen; VV utan
-  åttondelar. Undertext: ceiling (lägsta BKN/OVC/VV), annars lägsta molnbasen, och övriga
-  lager, t.ex. "Ceiling 340 m · FEW 180" eller "Base 900 m"; SMHI-prognos utan lager: molnbasen.
+  åttondelar. Undertext: ceiling (lägsta BKN/OVC/VV), annars lägsta molnbasen, t.ex.
+  "Ceiling 340 m" eller "Base 900 m", plus CB/TCU om något lager har det – övriga lager visas
+  inte; SMHI-prognos utan lager: molnbasen.
   CAVOK, NSC, SKC och okänt behåller sina texter.
 - Dimma/dis (`fogOf`, samma regel som diagrammets dimsymbol – men aldrig när nederbörden är det
   som skymmer): molnrutan visar koden (FG, BR, BCFG …; FZFG för dimma vid minusgrader) med
@@ -237,7 +238,8 @@ WxgeekApp              – plats, datahämtning, auto-uppdatering (5 min när fl
   gäller observationen.
 - Sikt: lägre sikt i TAF:ens TEMPO/PROB i undertexten, t.ex. "PROB40 2.5 km" (prognosläget,
   `tafLowVisibility`).
-- Korta rubriker under 560 px: "Temp / Dew", "Vis", "Precip".
+- Korta rubriker under 560 px: "Temp/Dew", "Vis", "Precip". Där blir "old" en liten klocka
+  i varningsfärg efter rubriken (texten finns kvar för skärmläsare), så att rubriken inte klipps.
 - Observationer äldre än 90 min markeras "old"; äldre än maxåldern visas som saknade.
 - Väderläget på en egen rad utan etikett. Ingen detaljvy. Alla tider lokala (Europe/Stockholm).
 
