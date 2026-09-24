@@ -153,8 +153,9 @@ WxgeekApp              – plats, datahämtning, auto-uppdatering (5 min när fl
 
 ### Tidslinjen
 
-- **Fast fönster**: 12 h bakåt och 24 h framåt, NU i mitten vid start.
-- Tid väljs genom att dra grafen under en **fast markör i mitten** (native scroll på
+- **Fast fönster**: 12 h bakåt och 24 h framåt. NU står en fjärdedel in i diagramytan vid
+  start (efter vänsteraxeln), så att vyn visar ungefär 25 % observerat och 75 % prognos.
+- Tid väljs genom att dra grafen under en **fast markör en fjärdedel in** (native scroll på
   touch, musdrag på desktop). Klick flyttar inte grafen. Knappen **Now** återgår till NU
   och behåller alltid sin plats. Tangentbord: pilar (±1 h, Shift ±6 h) och `N`.
 - **Vald tid** och **NU** har olika markörer som fungerar utan färgseende: NU är en tunn

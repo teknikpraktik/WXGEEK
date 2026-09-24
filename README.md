@@ -42,7 +42,8 @@ situation **now**, and the **forecast** for the next 24 hours, all on the same a
 - Wind arrows run below the time axis, which labels every hour. Midnight is marked by a line
   through the time axis with the new day's name.
 - Drag the chart (or use the arrow keys) to select a time within the fixed −12 h … +24 h
-  window; **Now** returns to the current time.
+  window; **Now** returns to the current time. The selected time – NOW at start – sits a
+  quarter into the chart, so about 25 % of the view is observed and 75 % forecast.
 - The forecast uses **TAF first** for wind, visibility, cloud and weather at the airport
   while the TAF is valid. **SMHI** covers temperature, precipitation, missing values and
   the rest of the window.

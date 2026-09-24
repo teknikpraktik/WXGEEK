@@ -470,7 +470,7 @@ main {
   left: 0;
   top: 0;
   bottom: 0;
-  width: 60px;
+  width: 60px; /* = AXIS_W i Timeline.tsx */
   z-index: 2;
   pointer-events: none;
   /* Solid bakom etiketterna, kort toning i kanten – molnen försvinner innan de når axeln */
@@ -1026,9 +1026,9 @@ main {
    ovanför grafen (samma rad som NOW-etiketten, som flyttas undan vid behov). NU skiljs
    ut av heldragen linje och etiketten "NOW hh:mm" utan fyllning.
    Linjen (2 px) centreras på markörens x; barnen utgår från padding-boxen, dvs. efter bordern. */
+/* Läget (left) sätts i Timeline.tsx: en fjärdedel in i diagramytan (CURSOR_AT) */
 .tl-cursor {
   position: absolute;
-  left: 50%;
   width: 0;
   margin-left: -1px;
   border-left: 2px dashed var(--now-line);

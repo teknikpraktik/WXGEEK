@@ -23,6 +23,10 @@ const CHART_H = 250; // temperatur (vänster axel) med molnsymboler och regn på
 const PRECIP_H = 30; // mm per timme
 const WIND_H = 50;
 const AXIS_H = 30;
+/** Vänsteraxelns bredd (.tl-yaxis) – den ligger över diagrammets vänsterkant. */
+const AXIS_W = 60;
+/** Markören (NU vid start) står en fjärdedel in i diagramytan: 25 % observerat, 75 % prognos. */
+const CURSOR_AT = 0.25;
 /** Vald tid räknas som NU inom 10 minuter (px) – då visas bara NU-linjen och dess etikett. */
 const AT_NOW_PX = (10 / 60) * PX_PER_HOUR;
 /** NOW-etiketten centreras när vald tid ligger minst så här långt bort (px), annars flyttas den
@@ -55,7 +59,11 @@ export const Timeline = memo(function Timeline({ now, until, data, onCursor, rec
   const start = useMemo(() => Math.floor(now / HOUR) * HOUR - PAST_HOURS * HOUR, [now]);
   const end = Math.max(Math.ceil(until / HOUR) * HOUR, start + (PAST_HOURS + 1) * HOUR);
   const W = ((end - start) / HOUR) * PX_PER_HOUR;
-  const pad = viewW / 2;
+  // Markörens läge i vyn. Utfyllnaden till vänster är lika stor, så att scrollLeft alltid är
+  // markörens x i SVG:n, och utfyllnaden till höger gör att hela fönstret nås åt båda hållen.
+  const cursorX = Math.round(AXIS_W + CURSOR_AT * Math.max(0, viewW - AXIS_W));
+  const padL = cursorX;
+  const padR = Math.max(0, viewW - cursorX);
   const x = useCallback((t: number) => ((t - start) / HOUR) * PX_PER_HOUR, [start]);
   const tAt = useCallback((scrollLeft: number) => start + (scrollLeft / PX_PER_HOUR) * HOUR, [start]);
   const maxOffsetH = Math.max(1, Math.round((until - now) / HOUR));
@@ -310,11 +318,11 @@ export const Timeline = memo(function Timeline({ now, until, data, onCursor, rec
         aria-valuemax={maxOffsetH}
         aria-valuenow={0}
       >
-        <div style={{ width: W + pad * 2, height: H, position: "relative" }}>
+        <div style={{ width: W + padL + padR, height: H, position: "relative" }}>
           <svg
             width={W}
             height={H}
-            style={{ position: "absolute", left: pad, top: 0 }}
+            style={{ position: "absolute", left: padL, top: 0 }}
             role="img"
             aria-label="Chart: cloud base in metres (left axis), temperature in °C (right axis), precipitation from the cloud base, wind below. Solid is observed, dashed is forecast."
           >
@@ -450,8 +458,8 @@ export const Timeline = memo(function Timeline({ now, until, data, onCursor, rec
         </div>
       </div>
 
-      {/* Fast markör i mitten */}
-      <div ref={cursorEl} className="tl-cursor at-now" style={{ top: TOP - 4, height: H - TOP + 4 }} aria-hidden>
+      {/* Fast markör en fjärdedel in i diagramytan */}
+      <div ref={cursorEl} className="tl-cursor at-now" style={{ left: cursorX, top: TOP - 4, height: H - TOP + 4 }} aria-hidden>
         <span ref={cursorLabel} className="tl-cursor-label" />
       </div>
     </div>
