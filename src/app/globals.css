@@ -129,7 +129,8 @@ pre {
 .app {
   max-width: 780px;
   margin: 0 auto;
-  padding: max(12px, env(safe-area-inset-top)) 16px max(24px, env(safe-area-inset-bottom));
+  /* Ingen toppmarginal här – den ligger i det låsta sidhuvudet (.top) */
+  padding: 0 16px max(24px, env(safe-area-inset-bottom));
   min-height: 100dvh;
   display: flex;
   flex-direction: column;
@@ -139,16 +140,25 @@ main {
   flex: 1;
 }
 
-/* Sidhuvud: logga, platsen som text och en egen Change-knapp. På mobil två rader (logga +
-   Change, platsen under) och låst överst – se längst ned. */
+/* Sidhuvud: logga, platsen som text och en egen Change-knapp. Låst överst när man scrollar,
+   så att man alltid ser vilken plats vädret gäller. Bakgrunden täcker diagrammets fulla bredd
+   (.tl går 16 px utanför innehållet), linjen ligger i innehållets bredd. Toppmarginalen –
+   säker yta på iPhone – ligger här i stället för i .app, så att den följer med när huvudet
+   låses. På mobil två rader (logga + Change, platsen under) – se längre ned. */
 .top {
+  position: sticky;
+  top: 0;
+  z-index: 20;
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
   grid-template-areas: "logo place change";
   align-items: center;
   gap: 12px;
-  padding: 4px 0 12px;
-  border-bottom: 1px solid var(--ink);
+  margin: 0 -16px;
+  padding: max(16px, env(safe-area-inset-top)) 16px 12px;
+  background:
+    linear-gradient(var(--ink), var(--ink)) center bottom / calc(100% - 32px) 1px no-repeat,
+    var(--bg);
 }
 
 /* Loggan (SVG): sol, moln, horisont och ordbild; bläcket följer temat */
@@ -454,8 +464,7 @@ main {
 /* ------------------------------------------------------------------------- */
 
 .timeline-wrap {
-  margin: 4px 0 14px;
-  padding-top: 6px;
+  margin: 0 0 14px;
 }
 
 .tl {
@@ -857,10 +866,6 @@ main {
 .foot .stale-note {
   color: var(--warn);
 }
-/* Källorna på en rad ovanför copyrightraderna, i samma diskreta stil */
-.source-note {
-  margin-bottom: 4px;
-}
 
 .cell .val .val-prefix {
   font-size: 0.5em;
@@ -902,28 +907,14 @@ main {
   padding: 6px 14px;
   font-size: 14px;
 }
-/* Mobil: sidhuvudet låst överst, så att man alltid ser vilken plats vädret gäller – två rader
-   (logga + Change, platsen under) med bakgrund över hela bredden. Toppmarginalen (säker yta på
-   iPhone) ligger i huvudet i stället för i .app, så att den följer med när huvudet låses. */
+/* Mobil: sidhuvudet i två rader (logga + Change, platsen på hela bredden under), tätare */
 @media (max-width: 560px) {
-  .app {
-    padding-top: 0;
-  }
   .top {
-    position: sticky;
-    top: 0;
-    z-index: 20;
     grid-template-areas:
       "logo . change"
       "place place place";
     row-gap: 4px;
-    margin: 0 -16px;
     padding: max(10px, env(safe-area-inset-top)) 16px 8px;
-    border-bottom: none;
-    /* Linjen i innehållets bredd, bakgrunden över hela bredden */
-    background:
-      linear-gradient(var(--ink), var(--ink)) center bottom / calc(100% - 32px) 1px no-repeat,
-      var(--bg);
   }
   .place {
     justify-self: start;
@@ -1001,7 +992,7 @@ main {
 }
 
 .readout-summary {
-  margin: 6px 0 2px;
+  margin: 4px 0 0;
   height: 1.4em;
   line-height: 1.4;
   font-size: 13.5px;
@@ -1285,7 +1276,7 @@ main {
    markören, där den såg ut att höra till vald tid. */
 .tl-controls {
   display: block;
-  margin-top: 2px;
+  margin: 0 0 2px;
 }
 .tl-buttons {
   display: flex;
@@ -1370,9 +1361,10 @@ main {
 .raw-line + .raw-place {
   margin-top: 10px;
 }
+/* Sidfotens rader (källor, data, copyright) med samma avstånd */
 .foot {
   flex-direction: column;
-  gap: 2px;
+  gap: 6px;
   font-size: 11.5px;
 }
 /* Ingen statusrad längre – en linje räcker under sidhuvudet */

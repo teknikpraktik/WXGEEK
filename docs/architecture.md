@@ -159,9 +159,10 @@ WxgeekApp              – plats, datahämtning, auto-uppdatering (5 min när fl
 - **Loggan** är en knapp: laddar om platsen (förbi webbläsarens cache) och går till NU. Samma
   sak händer varje gång sidan öppnas – ny laddning, efter minst 1 min dold (mobilen låst,
   annan app) eller återställd ur webbläsarens bakåtcache. Kortare flikbyten behåller vald tid.
-- Under 560 px: två rader (logga + Change, platsen på hela bredden under) och låst överst
-  (`position: sticky`), så att man alltid ser vilken plats vädret gäller. Säker yta på iPhone
-  ligger i huvudet, så att den följer med när huvudet låses.
+- Låst överst på alla bredder (`position: sticky`), så att man alltid ser vilken plats vädret
+  gäller; bakgrunden täcker diagrammets fulla bredd, linjen innehållets. Säker yta på iPhone
+  ligger i huvudet, så att den följer med när huvudet låses. Under 560 px två rader (logga +
+  Change, platsen på hela bredden under).
 
 ### Tidslinjen
 
