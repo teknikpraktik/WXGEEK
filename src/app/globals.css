@@ -17,12 +17,14 @@
   --fc-soft: rgba(94, 103, 114, 0.14);
   --now: #334155; /* nutidsmarkering */
   --now-text: #334155;
-  --now-line: rgba(51, 65, 85, 0.6); /* NU- och vald tid-linjerna, nedtonade mot övriga linjer */
+  --now-line: rgba(51, 65, 85, 0.6); /* NU-linjen, nedtonad mot övriga linjer */
   --on-now: #ffffff;
-  --accent: #365f83; /* interaktiv accent (fokusmarkering) */
+  --accent: #365f83; /* vald tid och interaktiv accent (fokusmarkering) */
   --accent-line: #365f83;
   --on-accent: #ffffff;
+  /* Vald tid i dämpad blå – egen färg, så att den inte förväxlas med NU och Now-knappen */
   --cursor: var(--accent);
+  --cursor-line: rgba(54, 95, 131, 0.75);
   --temp: #c64b40; /* temperaturkurva */
   --warn: #b35c00;
   --ev-regn: #397caf; /* nederbörd */
@@ -62,6 +64,7 @@
     --accent: #4a7aa5;
     --accent-line: #7fa7cc;
     --on-accent: #ffffff;
+    --cursor-line: rgba(127, 167, 204, 0.7);
     --temp: #e0776c;
     --warn: #f0a24a;
     --ev-regn: #5b9bd0;
@@ -1061,16 +1064,17 @@ main {
   min-height: 28px;
 }
 
-/* Vald tid: streckad linje i samma gråsvarta ton som NU, liten cirkel och fylld etikett
-   ovanför grafen (samma rad som NOW-etiketten, som flyttas undan vid behov). NU skiljs
-   ut av heldragen linje och etiketten "NOW hh:mm" utan fyllning.
-   Linjen (2 px) centreras på markörens x; barnen utgår från padding-boxen, dvs. efter bordern. */
+/* Vald tid: streckad linje, liten cirkel och fylld etikett i dämpad blå (--cursor) ovanför
+   grafen (samma rad som NOW-etiketten, som flyttas undan vid behov). Egen färg: NU – linjen,
+   etiketten "NOW hh:mm" och Now-knappen – är mörk blågrå, och med samma färg såg Now ut att
+   höra till vald tid. Linjen (2 px) centreras på markörens x; barnen utgår från
+   padding-boxen, dvs. efter bordern. */
 /* Läget (left) sätts i Timeline.tsx: en fjärdedel in i diagramytan (CURSOR_AT) */
 .tl-cursor {
   position: absolute;
   width: 0;
   margin-left: -1px;
-  border-left: 2px dashed var(--now-line);
+  border-left: 2px dashed var(--cursor-line);
   pointer-events: none;
   z-index: 3;
 }
@@ -1082,7 +1086,7 @@ main {
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  background: var(--now);
+  background: var(--cursor);
 }
 .tl-cursor-label {
   position: absolute;
@@ -1094,8 +1098,8 @@ main {
   font-size: 11px;
   font-weight: 600;
   line-height: 14px;
-  color: var(--on-now);
-  background: var(--now);
+  color: var(--on-accent);
+  background: var(--cursor);
   padding: 1px 5px;
   border-radius: 3px;
 }

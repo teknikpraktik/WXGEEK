@@ -29,7 +29,8 @@ const STALE_MS = 90 * 60 * 1000;
 export function Readout({ snap, now, children }: Props) {
   const w = snap.wind?.value;
   const gust = snap.gust?.value;
-  const pr = snap.precipitation?.value;
+  // Nederbördsrutan bara när det faktiskt faller något (mer än 0 mm) vid vald tid.
+  const pr = snap.precipitation && snap.precipitation.value.mm > 0 ? snap.precipitation.value : undefined;
   const stale = (r: Reading<unknown>) =>
     snap.mode === "now" && !!r && (r.origin.kind === "METAR" || r.origin.kind === "SMHI") && now - r.origin.timestamp > STALE_MS;
   const cloud = cloudMain(snap);
@@ -83,7 +84,7 @@ export function Readout({ snap, now, children }: Props) {
             }
           />
         </Cell>
-        {/* Precipitation only when there is data; its column is always reserved so the other cells never move */}
+        {/* Precipitation only when something falls (> 0 mm); on desktop its column is always reserved so the other cells never move */}
         {pr && (
           <Cell label="Precipitation" short="Precip" r={snap.precipitation} old={stale(snap.precipitation)} sub={precipSub(snap)}>
             <Val {...splitUnit(fmtPrecip(pr.mm))} />

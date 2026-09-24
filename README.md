@@ -19,8 +19,8 @@ situation **now**, and the **forecast** for the next 24 hours, all on the same a
   chart's fog symbol, including fog in a TAF TEMPO/PROB group – the clouds cell shows FG, BR
   or FZFG (fog below 0 °C) instead, with e.g. "PROB40 · Ceiling 520 m" below. Lower
   visibility in a TAF TEMPO/PROB group is shown under
-  the visibility, e.g. "PROB40 2.5 km". Precipitation appears only when data exists for the
-  selected time. All cells stay on one row, also on mobile.
+  the visibility, e.g. "PROB40 2.5 km". Precipitation appears only when something falls
+  (more than 0 mm) at the selected time. All cells stay on one row, also on mobile.
 - Temperature chart (left axis): an adaptive scale chosen from all temperatures in the
   window – the smallest range on multiples of 5 °C with margin and at least a 20 °C span,
   preferring one that also shows 0 and −5 °C when that costs at most 5 °C extra. The scale

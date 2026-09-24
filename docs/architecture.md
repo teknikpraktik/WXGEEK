@@ -174,7 +174,9 @@ WxgeekApp              – plats, datahämtning, auto-uppdatering (5 min när fl
   Shift ±6 h) och `N`.
 - **Vald tid** och **NU** har olika markörer som fungerar utan färgseende: NU är en tunn
   heldragen linje i mörk blågrå med etiketten "NOW 17:12" ovanför grafen; vald tid är en
-  streckad linje i samma blågrå med en liten cirkel och en fylld etikett "18:00" (vit text).
+  streckad linje i dämpad blå med en liten cirkel och en fylld etikett "18:00" (vit text).
+  Egen färg för vald tid – med samma blågrå som NU och Now-knappen såg Now ut att höra till
+  vald tid.
   Står vald tid på NU visas bara NU-linjen och dess etikett. Etiketterna krockar aldrig:
   NOW-etiketten flyttas till sidan bort från vald tid, och döljs när även det skulle krocka.
   Vald tid avrundas till 5 min.
@@ -232,8 +234,9 @@ WxgeekApp              – plats, datahämtning, auto-uppdatering (5 min när fl
 
 ### Avläsning
 
-- En rad rutor: temperatur/daggpunkt, vind, sikt, moln – och nederbörd bara när data finns för
-  vald tid (uppmätt, eller SMHI-prognos med intervall och sannolikhet). Dator: alltid 5 kolumner.
+- En rad rutor: temperatur/daggpunkt, vind, sikt, moln – och nederbörd bara när det faller
+  något (mer än 0 mm) vid vald tid (uppmätt, eller SMHI-prognos med intervall och
+  sannolikhet). Dator: alltid 5 kolumner.
   Under 560 px: 4 kolumner, 5 med nederbörd, mindre typografi och ingen molnikon. Fasta höjder,
   så att diagrammet under aldrig hoppar.
 - Temp / Dew pt: "12/11 °C" i hela grader med nedtonad daggpunkt; undertext "Fog risk" när
