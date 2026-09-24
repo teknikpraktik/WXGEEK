@@ -160,6 +160,18 @@ main {
   height: clamp(18px, 5vw, 24px);
   width: auto;
 }
+/* Loggan är en knapp: laddar om platsen och går till NU */
+.wordmark-btn {
+  display: block;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  line-height: 0;
+}
+.wordmark-btn:hover .logo {
+  opacity: 0.8;
+}
 .logo-ink {
   fill: var(--ink);
 }

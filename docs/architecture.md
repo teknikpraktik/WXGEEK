@@ -125,7 +125,8 @@ Tre nivåer:
 ## UI-struktur
 
 ```
-WxgeekApp              – plats, datahämtning, auto-uppdatering (5 min när fliken syns), klocka
+WxgeekApp              – plats, datahämtning, auto-uppdatering (5 min när fliken syns), klocka,
+                         ny laddning + NU när loggan trycks eller sidan öppnas igen (≥ 1 min dold)
 ├─ PlacePicker         – "Use my location" + ortsökning (sök vid submit, inte per tangent)
 ├─ Readout             – temperatur/daggpunkt, vind, sikt, moln (+ nederbörd när data finns) vid markörens tid
 │  └─ Timeline         – diagrammet −12 h … +24 h
@@ -155,6 +156,9 @@ WxgeekApp              – plats, datahämtning, auto-uppdatering (5 min när fl
 
 - Logga, platsen som text med en kartnål och en egen knapp **Change** – platsen är ingen
   knapp och byts inte genom att klicka på namnet.
+- **Loggan** är en knapp: laddar om platsen (förbi webbläsarens cache) och går till NU. Samma
+  sak händer varje gång sidan öppnas – ny laddning, efter minst 1 min dold (mobilen låst,
+  annan app) eller återställd ur webbläsarens bakåtcache. Kortare flikbyten behåller vald tid.
 - Under 560 px: två rader (logga + Change, platsen på hela bredden under) och låst överst
   (`position: sticky`), så att man alltid ser vilken plats vädret gäller. Säker yta på iPhone
   ligger i huvudet, så att den följer med när huvudet låses.

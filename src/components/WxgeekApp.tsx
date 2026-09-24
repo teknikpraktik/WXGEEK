@@ -14,6 +14,8 @@ const PLACE_KEY = "wxgeek:place";
 /** Previous app name – read once so existing users keep their place. */
 const LEGACY_PLACE_KEYS = ["geekwx:place", "vaderlek:place"];
 const REFRESH_MS = 5 * 60 * 1000;
+/** Sidan räknas som öppnad igen när den varit dold minst så här länge (mobilen låst, annan app). */
+const REOPEN_MS = 60 * 1000;
 
 type StoredPlace = Place & { fromGeolocation?: boolean };
 
@@ -117,12 +119,17 @@ export function WxgeekApp() {
   // Data
   // ---------------------------------------------------------------------------
   const reqId = useRef(0);
+  const lastLoad = useRef(0);
   const load = useCallback(async (p: Place, silent = false) => {
     const id = ++reqId.current;
+    lastLoad.current = Date.now();
     if (!silent) setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`/api/weather?lat=${p.latitude.toFixed(3)}&lon=${p.longitude.toFixed(3)}`);
+      // Aldrig från webbläsarens cache – varje laddning hämtar från servern.
+      const res = await fetch(`/api/weather?lat=${p.latitude.toFixed(3)}&lon=${p.longitude.toFixed(3)}`, {
+        cache: "no-store",
+      });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error ?? "Could not load weather data");
       if (id === reqId.current) {
@@ -144,32 +151,58 @@ export function WxgeekApp() {
     load(place);
   }, [place, load]);
 
-  // Clock + automatic refresh while the tab is visible.
+  /** Loggan, och varje gång sidan öppnas: ladda om platsen och gå till NU. */
+  const reopen = useCallback(() => {
+    if (!place) return;
+    setPickerOpen(false);
+    setNow(Date.now());
+    setCursor(null);
+    setRecenter((n) => n + 1);
+    load(place);
+  }, [place, load]);
+
+  // Clock + automatic refresh while the tab is visible. When the page is opened again – after
+  // at least REOPEN_MS hidden, or restored from the back/forward cache – it reloads and goes to
+  // now, just like a fresh page load.
   useEffect(() => {
     const tick = setInterval(() => setNow(Date.now()), 30_000);
-    let lastLoad = Date.now();
     const refresh = setInterval(() => {
-      if (document.visibilityState === "visible" && place && Date.now() - lastLoad >= REFRESH_MS) {
-        lastLoad = Date.now();
-        load(place, true);
-      }
+      if (document.visibilityState === "visible" && place && Date.now() - lastLoad.current >= REFRESH_MS) load(place, true);
     }, 60_000);
+    let hiddenAt: number | null = null;
+    let lastReopen = 0;
+    const open = () => {
+      // visibilitychange och pageshow kan båda komma vid samma återkomst
+      if (Date.now() - lastReopen < 2000) return;
+      lastReopen = Date.now();
+      reopen();
+    };
     const onVis = () => {
-      if (document.visibilityState === "visible") {
-        setNow(Date.now());
-        if (place && Date.now() - lastLoad >= REFRESH_MS) {
-          lastLoad = Date.now();
-          load(place, true);
-        }
+      if (document.visibilityState === "hidden") {
+        hiddenAt = Date.now();
+        return;
       }
+      const away = hiddenAt === null ? 0 : Date.now() - hiddenAt;
+      hiddenAt = null;
+      if (away >= REOPEN_MS) {
+        open();
+        return;
+      }
+      setNow(Date.now());
+      if (place && Date.now() - lastLoad.current >= REFRESH_MS) load(place, true);
+    };
+    const onShow = (e: PageTransitionEvent) => {
+      if (e.persisted) open();
     };
     document.addEventListener("visibilitychange", onVis);
+    window.addEventListener("pageshow", onShow);
     return () => {
       clearInterval(tick);
       clearInterval(refresh);
       document.removeEventListener("visibilitychange", onVis);
+      window.removeEventListener("pageshow", onShow);
     };
-  }, [place, load]);
+  }, [place, load, reopen]);
 
   // ---------------------------------------------------------------------------
   // Derived data
@@ -199,7 +232,14 @@ export function WxgeekApp() {
     <div className="app">
       <header className="top">
         <h1 className="wordmark">
-          <Logo className="logo" />
+          {place ? (
+            // Loggan laddar om platsen och går till NU
+            <button type="button" className="wordmark-btn" onClick={reopen} aria-label="WXGEEK – reload and go to now">
+              <Logo className="logo" />
+            </button>
+          ) : (
+            <Logo className="logo" />
+          )}
         </h1>
         {place && (
           <>

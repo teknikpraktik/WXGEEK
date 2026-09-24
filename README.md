@@ -45,6 +45,9 @@ situation **now**, and the **forecast** for the next 24 hours, all on the same a
 - Drag the chart (or use the arrow keys) to select a time within the fixed −12 h … +24 h
   window; **Now** returns to the current time. The selected time – NOW at start – sits a
   quarter into the chart, so about 25 % of the view is observed and 75 % forecast.
+- Tapping the **logo** reloads the place and returns to now. The same happens every time the
+  page is opened – a fresh load, or coming back after at least a minute in the background
+  (phone locked, another app) – and the data is never taken from the browser cache.
 - The forecast uses **TAF first** for wind, visibility, cloud and weather at the airport
   while the TAF is valid. **SMHI** covers temperature, precipitation, missing values and
   the rest of the window.
