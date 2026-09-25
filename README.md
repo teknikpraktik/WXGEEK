@@ -13,23 +13,28 @@ situation **now**, and the **forecast** for the next 24 hours, all on the same a
 
 - The header shows **temperature / dew point** in whole degrees ("12/11 °C", with "Fog risk"
   when the dew point is within 1°), wind (m/s, direction in whole tens of degrees), visibility and
-  **clouds** – how much of the sky is covered, e.g. "OVC 8/8", and below it how low: the
-  ceiling (the lowest BKN/OVC/VV) or else the lowest base, e.g. "Ceiling 340 m", plus CB/TCU
-  if reported; CAVOK/NSC give "None below 1500 m". With fog or mist – the same rule as the
-  chart's fog symbol, including fog in a TAF TEMPO/PROB group – the clouds cell shows FG, BR
-  or FZFG (fog below 0 °C) instead, with e.g. "PROB40 · Ceiling 520 m" below. Lower
-  visibility in a TAF TEMPO/PROB group is shown under
-  the visibility, e.g. "PROB40 2.5 km". Precipitation appears only when something falls
-  (more than 0 mm) at the selected time. All cells stay on one row, also on mobile.
+  **clouds** in three short rows: the symbol and code for how much of the sky is covered
+  ("BKN"), the amount in oktas ("5–7/8", plus CB/TCU if reported) and how low: the ceiling
+  (the lowest BKN/OVC/VV) or else the lowest base, e.g. "Ceiling 850 m" ("Ceil." on a narrow
+  phone when the precipitation cell is shown); CAVOK/NSC give "None below 1500 m". With fog or
+  mist – the same rule as the chart's fog symbol, including fog in a TAF TEMPO/PROB group –
+  the clouds cell shows the fog symbol and FG, BR or FZFG (fog below 0 °C) instead, with the
+  TAF group (e.g. "PROB40") and the height below. Lower visibility in a TAF TEMPO/PROB group
+  is shown under the visibility, e.g. "PROB40 2.5 km". Precipitation appears only when
+  something falls (more than 0 mm) at the selected time. All cells stay on one row, also on
+  mobile, and keep the same height.
 - Temperature chart (left axis): an adaptive scale chosen from all temperatures in the
   window – the smallest range on multiples of 5 °C with margin and at least a 20 °C span,
   preferring one that also shows 0 and −5 °C when that costs at most 5 °C extra. The scale
   stays put while you select times and across small data updates, never shrinks while in
   use, and is recomputed for a new place. The settings are collected in `TEMP_AXIS`. The axis
-  is titled "Temperature °C", and a dot marks the latest temperature observation at its
-  actual time (never moved to now) with the measured value beside it, e.g. "11 °C".
+  is titled "Temperature °C" – below the symbol row, just above the scale – and a dot marks
+  the latest temperature observation at its actual time (never moved to now) with the
+  measured value beside it, e.g. "11 °C".
 - **Weather symbols** sit in their own row above the temperature chart – all at the same
-  height and at their hour on the same time axis, so the curve is never read as a cloud base:
+  height and at their hour on the same time axis, so the curve is never read as a cloud base.
+  The row lies outside the shaded plot with some air below it (also under rain strokes), so a
+  symbol is never read as a value above the top of the scale:
   one every 2 hours plus every hour with precipitation and at least one per fog period; on
   narrow screens only every 3 hours. Sun, sun with a small cloud (FEW), sun partly
   behind cloud (SCT), mostly cloud (BKN), full cloud (OVC); moon instead of sun at night. The

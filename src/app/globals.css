@@ -975,17 +975,60 @@ main {
    texterna ändras med vald tid. */
 .cell {
   --val-size: clamp(20px, 5.2vw, 26px);
+  /* Värdets och undertextens höjd – molnrutans tre rader delar på samma totalhöjd */
+  --val-h: calc(var(--val-size) * 1.15);
+  --sub-h: 15.6px; /* en rad à 12 px × 1,3 */
 }
 .cell .val {
-  height: calc(var(--val-size) * 1.15);
+  height: var(--val-h);
 }
-.cell .val .sky-inline {
-  width: 22px;
-  height: 19px;
+/* Molnrutan i tre rader – [symbol] kod / åttondelar / höjd – inom samma höjd som övriga rutors
+   värde och undertext, så att raden aldrig växer. Kompakt radavstånd, vänsterställt. */
+.cell-clouds dd {
+  flex-direction: column;
+  flex-wrap: nowrap;
+  align-items: flex-start;
+  gap: 0;
+  height: calc(var(--val-h) + var(--sub-h));
+}
+.cell-clouds .cloud-main {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 21px;
+}
+.cell-clouds .cloud-main b {
+  font-family: var(--font-ui);
+  font-size: 22px;
+  font-weight: 300;
+  line-height: 1;
+  letter-spacing: -0.01em;
+}
+.cell-clouds .cloud-icon {
+  flex: none;
+  width: 20px;
+  height: 17px;
+}
+.cell-clouds .cloud-line {
+  font-size: 11px;
+  line-height: 1.1;
+  color: var(--ink-2);
+  white-space: nowrap;
+}
+/* Ensam rad (CAVOK/NSC: "None below 1500 m") får bryta över två rader */
+.cell-clouds .cloud-line.wrap {
+  display: -webkit-box;
+  white-space: normal;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.cloud-line .w-short {
+  display: none;
 }
 .cell .sub {
   display: block;
-  height: 1.3em;
+  height: var(--sub-h);
   font-size: 12px;
   line-height: 1.3;
   color: var(--ink-2);
@@ -998,7 +1041,7 @@ main {
 @media (max-width: 560px) {
   .cell .sub {
     display: -webkit-box;
-    height: 2.6em;
+    height: var(--sub-h);
     white-space: normal;
     -webkit-line-clamp: 2;
     -webkit-box-orient: vertical;
@@ -1436,6 +1479,13 @@ main {
   stroke-dasharray: 3 3;
 }
 .tl-yaxis .tl-lane-2 { line-height: 1.15; }
+/* Temperaturrubriken: en rad under symbolraden, precis ovanför skalan. Egen bakgrund, så att
+   NU-linjen eller markören inte syns genom texten när de scrollas under den. */
+.tl-yaxis .tl-ttitle {
+  line-height: 1;
+  padding-right: 4px;
+  background: var(--bg);
+}
 .tl-yaxis .tl-prscale {
   left: 40px;
   transform: none;
@@ -1491,7 +1541,6 @@ main {
   .si-fog line { stroke: #8a9099; }
   .si-fog.severe line { stroke: #aab0b9; }
 }
-.cell .val .sky-inline { display: inline-flex; margin-right: 4px; }
 
 /* ------------------------------------------------------------------------- */
 /* Avläsning: temperatur/daggpunkt och moln (täckning + höjd)                  */
@@ -1511,7 +1560,7 @@ main {
 }
 
 /* Alla rutor på en rad även på mobil: 4 kolumner, 5 när nederbörd visas.
-   Mindre siffror och text så att "BKN 5–7/8" och "12/11 °C" ryms. Kolumnerna är fasta men
+   Mindre siffror och text så att "Ceiling 1200 m" och "12/11 °C" ryms. Kolumnerna är fasta men
    olika breda efter innehållet: moln och temperatur ("−12/−15 °C") behöver mest plats, sikt
    minst – med lika breda kolumner krockar molnen med nästa ruta vid 320 px. */
 @media (max-width: 560px) {
@@ -1544,6 +1593,10 @@ main {
   }
   .cell {
     --val-size: clamp(15px, 4.6vw, 20px);
+    /* Samma höjd med och utan nederbördsruta (där siffrorna är mindre), så att diagrammet
+       under inte hoppar när rutan kommer och går; undertexten har två rader à 10,5 px */
+    --val-h: calc(clamp(15px, 4.6vw, 20px) * 1.15);
+    --sub-h: 27.3px;
     padding-right: 6px;
   }
   .readout-grid.has-precip .cell {
@@ -1554,11 +1607,8 @@ main {
     font-size: 9px;
     letter-spacing: 0.04em;
   }
-  /* Samma höjd med och utan nederbördsruta (där siffrorna är mindre), så att diagrammet
-     under inte hoppar när rutan kommer och går */
   .cell .val {
     gap: 2px;
-    height: calc(clamp(15px, 4.6vw, 20px) * 1.15);
   }
   .cell .val .unit {
     font-size: 9.5px;
@@ -1566,12 +1616,25 @@ main {
   .cell .sub {
     font-size: 10.5px;
   }
-  /* Ikonen upprepar molnkoden – plats går före */
-  .cell .val .sky-inline {
-    display: none;
-  }
   .cell .val .windarrow {
     width: 14px;
     height: 14px;
+  }
+  /* Molnrutan: mindre kod och symbol, och "Ceil." när nederbördsrutan gör kolumnen smal */
+  .cell-clouds .cloud-main {
+    height: 17px;
+  }
+  .cell-clouds .cloud-main b {
+    font-size: min(18px, var(--val-size));
+  }
+  .cell-clouds .cloud-icon {
+    width: 16px;
+    height: 14px;
+  }
+  .readout-grid.has-precip .cloud-line .w-long {
+    display: none;
+  }
+  .readout-grid.has-precip .cloud-line .w-short {
+    display: inline;
   }
 }

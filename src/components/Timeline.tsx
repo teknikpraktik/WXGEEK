@@ -21,11 +21,15 @@ const snap5 = (t: number) => Math.round(t / 300_000) * 300_000;
 // Layout (px)
 const TOP = 26; // NU-etiketten och vald tids etikett
 /** Symbolrad ovanför temperaturdiagrammet: alla vädersymboler på samma höjd, skilda från kurvan
- *  – symboler som följde kurvan fick den att se ut som molnens undersida. */
-const SKY_ROW_H = 30;
-/** Symbolens mitt i raden (px från radens överkant): solstrålar når ~13 px upp, regn ~16 px ner. */
+ *  – symboler som följde kurvan fick den att se ut som molnens undersida. Raden slutar ~5 px
+ *  under regnstrecken, så att även en symbol med regn går fri från rubriken under. */
+const SKY_ROW_H = 35;
+/** Symbolens mitt i raden (px från radens överkant): solstrålar når ~13 px upp, regn ~17 px ner. */
 const SKY_CY = 13;
-const CHART_H = 220; // temperatur (vänster axel); symbolraden tar resten av den tidigare höjden
+/** Rubriken "Temperature °C" och luften ned till ritytan: rubriken står precis ovanför skalan
+ *  utan att krocka med dess översta värde, och symbolerna läses inte som värden över skalans topp. */
+const TITLE_H = 18;
+const CHART_H = 220; // temperatur (vänster axel)
 const PRECIP_H = 30; // mm per timme
 const WIND_H = 50;
 const AXIS_H = 30;
@@ -74,9 +78,10 @@ export const Timeline = memo(function Timeline({ now, until, data, onCursor, rec
   const tAt = useCallback((scrollLeft: number) => start + (scrollLeft / PX_PER_HOUR) * HOUR, [start]);
   const maxOffsetH = Math.max(1, Math.round((until - now) / HOUR));
 
-  // Layout: NU-rad, symbolrad, temperatur, nederbörd, tidsaxel, vind
+  // Layout: NU-rad, symbolrad, rubrik "Temperature °C", temperatur, nederbörd, tidsaxel, vind
   const skyTop = TOP;
-  const chartTop = skyTop + SKY_ROW_H;
+  const titleTop = skyTop + SKY_ROW_H;
+  const chartTop = titleTop + TITLE_H;
   const chartBottom = chartTop + CHART_H;
   const precipTop = chartBottom;
   const axisTop = precipTop + PRECIP_H;
@@ -151,15 +156,9 @@ export const Timeline = memo(function Timeline({ now, until, data, onCursor, rec
 
   const cursorLabel = useRef<HTMLSpanElement>(null);
   const nowLabel = useRef<SVGTextElement>(null);
-  const axisTitle = useRef<HTMLSpanElement>(null);
-  /** Temperaturrubrikens högerkant och NOW-etikettens bredd (px) – mäts efter varje rendering,
-   *  inte vid varje scroll. */
-  const titleRight = useRef(0);
-  const nowLabelW = useRef(0);
   const nowX = x(now);
   /**
-   * Vald tid vid NU: bara NU-linjen och dess etikett. Annars får etiketterna aldrig överlappa –
-   * inte heller temperaturrubriken till vänster på samma rad.
+   * Vald tid vid NU: bara NU-linjen och dess etikett. Annars får etiketterna aldrig överlappa.
    * Markörens etikett sätts bara här (React renderar den tom) – annars skriver en omrendering,
    * t.ex. när klockan går, över vald tid med aktuell tid.
    */
@@ -172,26 +171,14 @@ export const Timeline = memo(function Timeline({ now, until, data, onCursor, rec
       cursorEl.current?.classList.toggle("at-now", atNow);
       const lbl = nowLabel.current;
       if (!lbl) return;
-      let side = atNow || ax >= NOW_LABEL_CLEAR_PX ? 0 : dx < 0 ? -1 : 1;
-      // Temperaturrubriken till vänster på samma rad: vid NU flyttas etiketten till höger om
-      // linjen (ingen marköretikett i vägen där); annars döljs den när den hamnar under rubriken.
-      const nowViewX = cursorX + dx;
-      const w = nowLabelW.current;
-      const clearOfTitle = (s: number) =>
-        (s === 0 ? nowViewX - w / 2 : s < 0 ? nowViewX - 6 - w : nowViewX + 6) >= titleRight.current + 4;
-      if (atNow && !clearOfTitle(side)) side = 1;
+      const side = atNow || ax >= NOW_LABEL_CLEAR_PX ? 0 : dx < 0 ? -1 : 1;
       lbl.setAttribute("x", String(nowX + side * 6));
       lbl.setAttribute("text-anchor", side < 0 ? "end" : side > 0 ? "start" : "middle");
-      lbl.style.visibility = (!atNow && ax < NOW_LABEL_SIDE_PX) || !clearOfTitle(side) ? "hidden" : "";
+      lbl.style.visibility = !atNow && ax < NOW_LABEL_SIDE_PX ? "hidden" : "";
     },
-    [nowX, tAt, cursorX],
+    [nowX, tAt],
   );
-  useLayoutEffect(() => {
-    const title = axisTitle.current;
-    titleRight.current = title ? title.offsetLeft + title.offsetWidth : 0;
-    nowLabelW.current = nowLabel.current?.getComputedTextLength() ?? 0;
-    placeMarkers(scroller.current?.scrollLeft ?? 0);
-  });
+  useLayoutEffect(() => placeMarkers(scroller.current?.scrollLeft ?? 0));
   const onScroll = () => {
     if (scroller.current) placeMarkers(scroller.current.scrollLeft);
     cancelAnimationFrame(raf.current);
@@ -325,11 +312,10 @@ export const Timeline = memo(function Timeline({ now, until, data, onCursor, rec
       <div className="tl-yaxis" aria-hidden>
         {/* Bredare bakgrund bakom körfälten, där etiketterna är bredast ("Precip") */}
         <i className="tl-lanebg" style={{ top: precipTop }} />
-        {/* Rubriken säger vad axeln är – ett ensamt "°C" gjorde kurvan tvetydig */}
-        <span ref={axisTitle} className="tl-lane tl-lane-2" style={{ top: 2 }}>
-          Temperature
-          <br />
-          °C
+        {/* Rubriken säger vad axeln är – ett ensamt "°C" gjorde kurvan tvetydig. Under
+            symbolraden och precis ovanför skalan; bakgrunden täcker NU-linjen om den scrollas hit. */}
+        <span className="tl-lane tl-ttitle" style={{ top: titleTop }}>
+          Temperature °C
         </span>
         <i className="tl-taxis" style={{ top: yTemp(t1), height: yTemp(t0) - yTemp(t1) }} />
         {data.temp.ticks.map((v) => (
@@ -384,9 +370,10 @@ export const Timeline = memo(function Timeline({ now, until, data, onCursor, rec
               </pattern>
             </defs>
 
-            {/* Bakgrund: observerat vs prognos – även bakom symbolraden, som hör till samma tidsaxel */}
-            <rect x={0} y={skyTop} width={nowX} height={H - skyTop} className="tl-bg-obs" />
-            <rect x={nowX} y={skyTop} width={Math.max(0, W - nowX)} height={H - skyTop} fill="url(#hatch)" />
+            {/* Bakgrund: observerat vs prognos – bara ritytan och fälten under; symbolraden ligger
+                på sidans bakgrund, utanför temperaturens rityta */}
+            <rect x={0} y={chartTop} width={nowX} height={H - chartTop} className="tl-bg-obs" />
+            <rect x={nowX} y={chartTop} width={Math.max(0, W - nowX)} height={H - chartTop} fill="url(#hatch)" />
 
             {/* Diskreta stödlinjer per 5 °C; 0 °C något tydligare. Den lägsta sammanfaller med
                 fältgränsen nedan och ritas inte separat – en linje i nederkanten. */}

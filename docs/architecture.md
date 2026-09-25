@@ -196,8 +196,9 @@ WxgeekApp              – plats, datahämtning, auto-uppdatering (5 min när fl
     (FEW 2/8, SCT 4/8, BKN 6/8, OVC 8/8; SMHI-oktas direkt) via SVG-gradienter `cov0`…`cov8`.
   - **Vänster axel – temperatur (°C)**: adaptiv skala (`TEMP_AXIS` i
     `src/lib/client/timeline.ts`); siffror, enhet och axellinje i neutral skiffergrå. Rubriken
-    "Temperature °C" (tvåradig, som "Precip mm/h") – ett ensamt "°C" gjorde kurvan tvetydig;
-    NOW-etiketten flyttas till höger om linjen eller döljs hellre än att krocka med rubriken.
+    "Temperature °C" på en rad under symbolraden, precis ovanför skalans översta värde (egen
+    18 px rad, `TITLE_H`) – ett ensamt "°C" gjorde kurvan tvetydig. Rubriken har sidans
+    bakgrund, så att NU-linjen inte syns genom texten.
   - **Senaste temperaturobservationen**: en punkt på kurvan vid mätningens egen tid (aldrig
     flyttad till NU) och mätvärdet bredvid, t.ex. "11 °C". Etiketten (`placeTempLabel` i
     `src/lib/client/tempLabel.ts`) står ovanför eller under kurvan, vänster om NU-linjen; nära
@@ -245,26 +246,33 @@ WxgeekApp              – plats, datahämtning, auto-uppdatering (5 min när fl
 - En rad rutor: temperatur/daggpunkt, vind, sikt, moln – och nederbörd bara när det faller
   något (mer än 0 mm) vid vald tid (uppmätt, eller SMHI-prognos med intervall och
   sannolikhet). Dator: alltid 5 kolumner.
-  Under 560 px: 4 kolumner, 5 med nederbörd, mindre typografi och ingen molnikon. Fasta höjder,
-  så att diagrammet under aldrig hoppar.
+  Under 560 px: 4 kolumner, 5 med nederbörd, och mindre typografi. Fasta höjder (`--val-h`
+  och `--sub-h` per ruta), så att diagrammet under aldrig hoppar.
 - Temp / Dew pt: "12/11 °C" i hela grader med nedtonad daggpunkt; undertext "Fog risk" när
   daggpunkten ligger inom 1° (som de visas), annars tom. Observerat: daggpunkt från samma
   station och tid som temperaturen, annars närmaste METAR. Prognos: ur SMHI:s relativa fuktighet (Magnus); spreaden räknas på
   SMHI:s egen temperatur och dras av från den visade, justerade. Aldrig över temperaturen.
 - Vind: pil + m/s, "140° · gusts 7 m/s" (riktning i hela tiotal grader, utan "From" för att
   spara plats), "Calm" under 0,5 m/s.
-- Clouds i två led – huvudvärdet säger hur mycket av himlen som är täckt, undertexten hur lågt
-  molnen ligger; ingen rad upprepar den andra i ord:
-  - Täckning: kod + åttondelar, t.ex. "OVC 8/8", "SKC 0/8" – största kategorin, som symbolen.
-    VV, CAVOK och NSC utan åttondelar; okänd mängd "?".
-  - Höjd: ceiling (lägsta BKN/OVC/VV), annars lägsta molnbasen, t.ex. "Ceiling 340 m" eller
-    "Base 900 m", plus CB/TCU om något lager har det – övriga lager visas inte. SMHI-prognos
-    utan lager: molnbasen. CAVOK/NSC: "None below 1500 m"; CAVOK kompletterad med SMHI:s
-    molnmängd: t.ex. "BKN 5–7/8" med "Ceiling ≥ 1500 m". Klart eller okänd höjd: tom.
+- Clouds i tre korta rader (`.cell-clouds`) inom samma höjd som övriga rutors värde och
+  undertext, så att raden aldrig växer; ingen rad upprepar en annan i ord:
+  - Rad 1: symbol (som i diagrammet) och kod – största kategorin, t.ex. "BKN". Kod 22 px och
+    symbol 20 px (mobil högst 18/16 px), vertikalt centrerade. CAVOK, NSC och okänt ("?")
+    utan symbol.
+  - Rad 2: åttondelar, t.ex. "5–7/8", "0/8" vid SKC, plus CB/TCU om något lager har det
+    ("5–7/8 · CB"). VV, CAVOK och NSC: ingen rad.
+  - Rad 3: höjden – ceiling (lägsta BKN/OVC/VV), annars lägsta molnbasen, t.ex.
+    "Ceiling 340 m" eller "Base 900 m"; övriga lager visas inte. SMHI-prognos utan lager:
+    molnbasen. CAVOK/NSC: "None below 1500 m" (får bryta över två rader, där rad 2 saknas);
+    CAVOK kompletterad med SMHI:s molnmängd: t.ex. "BKN" / "5–7/8" / "Ceiling ≥1500 m".
+    Klart eller okänd höjd: ingen rad. Under 560 px med nederbördsruta: "Ceil." – siffran
+    kapas aldrig.
+  - Rad 2–3 i 11 px med radavstånd 1,1, vänsterställda under symbolen. Saknade moln: "–"
+    som i övriga rutor.
 - Dimma/dis (`fogOf`, samma regel som diagrammets dimsymbol – men aldrig när nederbörden är det
-  som skymmer): molnrutan visar koden (FG, BR, BCFG …; FZFG för dimma vid minusgrader) med
-  dimsymbolen, och undertexten TAF-gruppen och höjden, t.ex. "PROB40 · Ceiling 520 m". Ordet
-  ("Fog") står på väderraden. Dimma i TAF:ens TEMPO/PROB räknas bara i prognosläget – vid NU
+  som skymmer): molnrutan visar dimsymbolen och koden (FG, BR, BCFG …; FZFG för dimma vid
+  minusgrader), TAF-gruppen på rad 2 (t.ex. "PROB40") och höjden på rad 3. Ordet ("Fog")
+  står på väderraden. Dimma i TAF:ens TEMPO/PROB räknas bara i prognosläget – vid NU
   gäller observationen.
 - Sikt: lägre sikt i TAF:ens TEMPO/PROB i undertexten, t.ex. "PROB40 2.5 km" (prognosläget,
   `tafLowVisibility`).
@@ -282,9 +290,12 @@ WxgeekApp              – plats, datahämtning, auto-uppdatering (5 min när fl
   SMHI – aldrig TEMPO/PROB). Regel: största kategorin bland samtidiga lager. CAVOK → SMHI:s
   totala molnmängd om den finns (märkt "SMHI model"), annars neutral CAVOK-markering. NSC →
   NSC-markering, saknas → "–". Dag/natt med solhöjd för platsen och tiden (`src/lib/sun.ts`).
-  Symbolerna ligger i en egen rad (30 px) ovanför temperaturdiagrammet, alla på samma höjd och
-  i samma tidsskala som diagrammet – symboler som följde kurvan fick den att se ut som
-  molnens undersida. Ritytan krympte lika mycket (220 px), så diagrammet blev inte högre.
+  Symbolerna ligger i en egen rad (35 px, `SKY_ROW_H`) ovanför temperaturdiagrammet, alla på
+  samma höjd och i samma tidsskala som diagrammet – symboler som följde kurvan fick den att se
+  ut som molnens undersida. Raden ligger utanför den tonade/skrafferade ritytan, och under den
+  kommer rubriken "Temperature °C" med luft emellan (~16 px under en torr symbol, ~6 px under
+  regnstrecken), så att symbolerna inte läses som värden över skalans topp. Ordning uppifrån:
+  NOW-etiketten, symbolraden, luft, rubriken, skalans översta värde och ritytan (220 px).
   Var 2:a timme plus timmar med nederbörd och minst en per dimperiod; under 520 px vybredd
   bara var 3:e timme, så att raden inte blir trång.
 - Molnbasens höjdaxel och höjdplacerade moln är borttagna. Molnbas och alla lager visas i

@@ -1,7 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { fogOf, tafLowVisibility, type Fog, type Reading, type Snapshot } from "@/lib/client/timeline";
+import { fogOf, tafLowVisibility, type Reading, type Snapshot } from "@/lib/client/timeline";
 import type { CloudLayer } from "@/lib/types";
 import {
   COVER_OKTAS,
@@ -33,10 +33,18 @@ export function Readout({ snap, now, children }: Props) {
   const pr = snap.precipitation && snap.precipitation.value.mm > 0 ? snap.precipitation.value : undefined;
   const stale = (r: Reading<unknown>) =>
     snap.mode === "now" && !!r && (r.origin.kind === "METAR" || r.origin.kind === "SMHI") && now - r.origin.timestamp > STALE_MS;
-  const cloud = cloudMain(snap);
-  // Dimma/dis ersätter molnen, som symbolen i diagrammet; molnen står då i undertexten.
+  // Dimma/dis ersätter molnen, som symbolen i diagrammet; höjden står kvar på rad 3.
   const fog = fogOf(snap);
   const skyR: Reading<unknown> = fog ? (snap.phenomena ?? snap.visibility) : snap.sky.kind === "MISSING" ? null : snap.cloud;
+  // Molnrutans rader 2–3: mängden (vid dimma TAF-gruppen) och höjden; tomma rader hoppas över.
+  const cloudSecond = fog ? fog.group : cloudAmount(snap);
+  const height = cloudHeight(snap);
+  const cloudIcon = fog ? (
+    <FogIcon severe={fog.severe} />
+  ) : (
+    // Symboler som bara är text (CAVOK, NSC, ?) upprepar koden – visas inte.
+    !TEXT_SKY.has(snap.sky.kind) && <SkyIcon sky={snap.sky} day={snap.day} />
+  );
 
   return (
     <section className={`readout readout-${snap.mode}`} aria-live="polite">
@@ -63,26 +71,23 @@ export function Readout({ snap, now, children }: Props) {
         <Cell label="Visibility" short="Vis" r={snap.visibility} old={stale(snap.visibility)} sub={visSub(snap)}>
           {snap.visibility && <Val {...splitUnit(fmtVisibility(snap.visibility.value.m, snap.visibility.value.atLeast))} />}
         </Cell>
-        <Cell label="Clouds" r={skyR} old={stale(skyR)} sub={fog ? fogSub(fog, snap) : cloudHeight(snap)}>
-          <Val
-            v={fog ? fog.code : cloud.code}
-            // Åttondelarna i enhetens stil – "5–7/8" i full storlek ryms inte bredvid ikonen
-            unit={fog ? "" : (cloud.oktas ?? "")}
-            icon={
-              fog ? (
-                <svg className="sky-inline" width={26} height={22} viewBox="-13 -11 26 22" aria-hidden>
-                  <FogIcon severe={fog.severe} />
-                </svg>
-              ) : (
-                // Symboler som bara är text (CAVOK, NSC, ?) upprepar värdet – visas inte här.
-                !TEXT_SKY.has(snap.sky.kind) && (
-                  <svg className="sky-inline" width={26} height={22} viewBox="-13 -11 26 22" aria-hidden>
-                    <SkyIcon sky={snap.sky} day={snap.day} />
-                  </svg>
-                )
-              )
-            }
-          />
+        {/* Tre rader inom samma höjd som övriga rutor: [symbol] kod / åttondelar / höjd */}
+        <Cell label="Clouds" className="cell-clouds" r={skyR} old={stale(skyR)} sub={null}>
+          <span className="cloud-main">
+            {cloudIcon && (
+              <svg className="cloud-icon" viewBox="-13 -11 26 22" aria-hidden>
+                {cloudIcon}
+              </svg>
+            )}
+            <b>{fog ? fog.code : skyCode(snap.sky.kind)}</b>
+          </span>
+          {cloudSecond && <span className="cloud-line">{cloudSecond}</span>}
+          {height && (
+            // Ensam rad (t.ex. CAVOK: "None below 1500 m") får bryta över två rader.
+            <span className={cloudSecond ? "cloud-line" : "cloud-line wrap"}>
+              <HeightText h={height} />
+            </span>
+          )}
         </Cell>
         {/* Precipitation only when something falls (> 0 mm); on desktop its column is always reserved so the other cells never move */}
         {pr && (
@@ -119,42 +124,55 @@ function mainLayer(snap: Snapshot): CloudLayer | undefined {
   return ls.find((l) => l.cover === "BKN" || l.cover === "OVC" || l.cover === "VV") ?? ls[0];
 }
 
-// Molnrutan i två led: huvudvärdet säger hur mycket av himlen som är täckt ("OVC 8/8"),
-// undertexten hur lågt molnen ligger ("Ceiling 340 m"). Ingen rad upprepar den andra i ord.
+// Molnrutan i tre rader: koden (största kategorin, som symbolen), mängden i åttondelar och
+// höjden. Ingen rad upprepar en annan i ord.
 
-/** Hur mycket: kod + åttondelar, t.ex. "OVC 8/8" – största kategorin, som symbolen. */
-function cloudMain(snap: Snapshot): { code: string; oktas?: string } {
+/** Rad 2: mängden i åttondelar, t.ex. "5–7/8", och CB/TCU om något lager har det. */
+function cloudAmount(snap: Snapshot): string {
   const k = snap.sky.kind;
-  if (k === "SKC") return { code: k, oktas: "0/8" };
-  if (TEXT_SKY.has(k) || k === "VV") return { code: skyCode(k) };
-  return { code: k, oktas: COVER_OKTAS[k] };
-}
-
-/**
- * Hur lågt: ceiling (lägsta BKN/OVC/VV) eller lägsta bas, t.ex. "Ceiling 340 m" eller
- * "Base 900 m", och CB/TCU om något lager har det. CAVOK/NSC: inga moln under 1 500 m.
- * Klart eller okänd höjd: tomt.
- */
-function cloudHeight(snap: Snapshot): string {
-  const k = snap.sky;
-  if (k.kind === "CAVOK" || k.kind === "NSC") return `None below ${fmtCloudBase(1500)}`;
-  if (k.kind === "SKC" || k.kind === "MISSING") return "";
-  const main = mainLayer(snap);
-  if (!main) {
-    const what = k.kind === "BKN" || k.kind === "OVC" ? "Ceiling" : "Base";
-    // CAVOK kompletterad med SMHI:s molnmängd: molnen ligger över 1 500 m, oavsett modellens bas.
-    if (k.cavok) return `${what} ≥ ${fmtCloudBase(1500)}`;
-    const b = snap.cloud?.value.baseM;
-    return b === undefined ? "" : `${what} ${fmtCloudBase(b)}`;
-  }
+  const oktas = k === "SKC" ? "0/8" : TEXT_SKY.has(k) || k === "VV" ? "" : COVER_OKTAS[k];
   const layers = snap.cloud?.value.layers ?? [];
   const cb = layers.some((l) => l.type === "CB") ? "CB" : layers.some((l) => l.type === "TCU") ? "TCU" : "";
-  return `${main.cover === "FEW" || main.cover === "SCT" ? "Base" : "Ceiling"} ${fmtCloudBase(main.baseM)}${cb ? ` · ${cb}` : ""}`;
+  return [oktas, cb].filter(Boolean).join(" · ");
 }
 
-/** Undertext vid dimma: TAF-gruppen om dimman bara är möjlig, och höjden – t.ex. "PROB40 · Ceiling 520 m". */
-function fogSub(fog: Fog, snap: Snapshot): string {
-  return [fog.group, cloudHeight(snap)].filter(Boolean).join(" · ");
+type CloudHeight = { word: "Ceiling" | "Base" | "None below"; value: string };
+
+/**
+ * Rad 3: hur lågt – ceiling (lägsta BKN/OVC/VV) eller lägsta bas, t.ex. "Ceiling 340 m" eller
+ * "Base 900 m". CAVOK/NSC: inga moln under 1 500 m. Klart eller okänd höjd: ingen rad.
+ */
+function cloudHeight(snap: Snapshot): CloudHeight | null {
+  const k = snap.sky;
+  if (k.kind === "CAVOK" || k.kind === "NSC") return { word: "None below", value: fmtCloudBase(1500) };
+  if (k.kind === "SKC" || k.kind === "MISSING") return null;
+  const main = mainLayer(snap);
+  if (!main) {
+    const word = k.kind === "BKN" || k.kind === "OVC" ? "Ceiling" : "Base";
+    // CAVOK kompletterad med SMHI:s molnmängd: molnen ligger över 1 500 m, oavsett modellens bas.
+    // "≥1500 m" utan mellanslag, som "≥10 km" i siktrutan – ryms då i smal kolumn på 320 px.
+    if (k.cavok) return { word, value: `≥${fmtCloudBase(1500)}` };
+    const b = snap.cloud?.value.baseM;
+    return b === undefined ? null : { word, value: fmtCloudBase(b) };
+  }
+  return { word: main.cover === "FEW" || main.cover === "SCT" ? "Base" : "Ceiling", value: fmtCloudBase(main.baseM) };
+}
+
+/** "Ceiling 850 m" – "Ceil." när nederbördsrutan gör molnkolumnen smal på mobil; siffran kapas aldrig. */
+function HeightText({ h }: { h: CloudHeight }) {
+  return (
+    <>
+      {h.word === "Ceiling" ? (
+        <>
+          <span className="w-long">Ceiling</span>
+          <span className="w-short">Ceil.</span>
+        </>
+      ) : (
+        h.word
+      )}{" "}
+      {h.value}
+    </>
+  );
 }
 
 /** Lägre sikt i TAF:ens TEMPO/PROB vid vald tid, t.ex. "PROB40 300 m". */
@@ -216,6 +234,7 @@ function splitUnit(s: string): { v: string; unit: string } {
 function Cell<T>({
   label,
   short,
+  className,
   r,
   sub,
   old,
@@ -224,13 +243,16 @@ function Cell<T>({
   label: string;
   /** Kortare rubrik på smala skärmar, där rutorna är smala */
   short?: string;
+  /** Extra klass, t.ex. för molnrutans tre rader */
+  className?: string;
   r: Reading<T>;
-  sub?: string;
+  /** Undertext; null = ingen undertextrad (rutan lägger själv ut sina rader inom samma höjd) */
+  sub?: string | null;
   old?: boolean;
   children: ReactNode;
 }) {
   return (
-    <div className={`cell${r ? "" : " cell-missing"}${old ? " cell-old" : ""}`}>
+    <div className={`cell${className ? ` ${className}` : ""}${r ? "" : " cell-missing"}${old ? " cell-old" : ""}`}>
       <dt>
         {short ? (
           <>
@@ -254,9 +276,11 @@ function Cell<T>({
       <dd>
         {r ? children : <span className="val missing-val">–</span>}
         {/* The sub line always reserves its height so the grid never jumps */}
-        <span className="sub" title={sub || undefined}>
-          {sub || " "}
-        </span>
+        {sub !== null && (
+          <span className="sub" title={sub || undefined}>
+            {sub || " "}
+          </span>
+        )}
       </dd>
     </div>
   );
