@@ -13,6 +13,9 @@
   --grid: rgba(32, 37, 43, 0.09); /* stödlinjer – syns på både observerad och prognosbakgrund */
   --obs: #20252b;
   --obs-bg: rgba(32, 37, 43, 0.035);
+  /* Natt i diagrammets bakgrund: svagt blågrå, så att kurva, staplar och text syns tydligt */
+  --night: #e1e6ed;
+  --sun-mark: #e0a400; /* solmarkeringarnas halvsol – liten, inget färgfält */
   --fc: #5e6772;
   --fc-soft: rgba(94, 103, 114, 0.14);
   --now: #334155; /* nutidsmarkering */
@@ -56,6 +59,8 @@
     --grid: rgba(255, 255, 255, 0.08);
     --obs: #eef0f2;
     --obs-bg: rgba(255, 255, 255, 0.035);
+    --night: #172030;
+    --sun-mark: #d9a520;
     --fc: #8d939c;
     --fc-soft: rgba(141, 147, 156, 0.18);
     --now: #cbd5e1;
@@ -119,6 +124,16 @@ pre {
 
 .muted {
   color: var(--muted);
+}
+/* Bara för skärmläsare */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 .small {
   font-size: 12px;
@@ -526,8 +541,9 @@ main {
   white-space: nowrap;
 }
 
-.tl-bg-obs {
-  fill: var(--obs-bg);
+/* Dagsljusbakgrunden: nattfärgen med nattgraden som opacitet (dag = sidans bakgrund) */
+.tl-night {
+  stop-color: var(--night);
 }
 .tl-grid {
   stroke: var(--grid);
@@ -592,6 +608,78 @@ main {
 }
 .tl-side.obs {
   fill: var(--ink-2);
+}
+/* "← OBS." i den smala historiken på mobil */
+.tl-side.short {
+  letter-spacing: 0.04em;
+}
+
+/* Soluppgång och solnedgång vid tidsaxeln: liten symbol på exakt tid, lokal tid bredvid */
+.tl-sun {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  height: 12px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  font-family: var(--font-num);
+  font-size: 9.5px;
+  line-height: 1;
+  cursor: default;
+  -webkit-tap-highlight-color: transparent;
+}
+/* Större träffyta för tryck än själva symbolen */
+.tl-sun::before {
+  content: "";
+  position: absolute;
+  inset: -8px -3px;
+}
+.tl-sun svg {
+  flex: none;
+  overflow: visible;
+}
+.tl-sun:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+.tl-sun-disc {
+  fill: var(--sun-mark);
+  opacity: 0.85;
+}
+.tl-sun-line,
+.tl-sun-arrow {
+  fill: none;
+  stroke: var(--muted);
+  stroke-width: 1.2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.tl-sun-tip {
+  position: absolute;
+  z-index: 1;
+  transform: translate(-50%, -100%);
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 4px 7px;
+  white-space: nowrap;
+  font-size: 11.5px;
+  line-height: 1.3;
+  color: var(--ink-2);
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  pointer-events: none;
+}
+.tl-sun-tip b {
+  font-weight: 600;
+  color: var(--ink);
 }
 .tl-side.fc {
   fill: var(--fc);
@@ -1052,8 +1140,28 @@ main {
   color: var(--muted);
 }
 
+/* Källraden: var och när värdena kommer ifrån – diskret, fast höjd så att diagrammet inte hoppar */
+.readout-source {
+  margin: 5px 0 0;
+  height: 1.35em;
+  font-size: 11.5px;
+  line-height: 1.35;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+@media (max-width: 560px) {
+  .readout-source {
+    display: -webkit-box;
+    height: 2.7em;
+    white-space: normal;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+  }
+}
 .readout-summary {
-  margin: 4px 0 0;
+  margin: 2px 0 0;
   height: 1.4em;
   line-height: 1.4;
   font-size: 13.5px;
@@ -1154,13 +1262,6 @@ main {
 /* Vald tid = nu: bara NU-linjen och en gemensam etikett */
 .tl-cursor.at-now {
   display: none;
-}
-
-/* Prognosens bakgrundsmönster – nedtonat */
-.tl-hatch {
-  stroke: var(--fc);
-  stroke-width: 1;
-  opacity: 0.05;
 }
 
 /* TAF slutar · SMHI fortsätter */

@@ -50,3 +50,12 @@ test("låg temperatur nära ritytans botten: etiketten stannar inom ritytan och 
   assertClear(267, bend(267, -2));
   assertClear(267, bend(267, -0.26));
 });
+
+test("smal historik (mobil): etiketten hålls till höger om vänsteraxeln och före NU-linjen", () => {
+  // 320 px: NU vid 105,6 px, synlig historik från 60 px; punkten 17 px före NU; "−12 °C" ~41 px.
+  const l = placeTempLabel({ ...base, cx: 88.6, nowX: 105.6, width: 41, minX: 62, cy: 160, curveY: flat(160) });
+  assert.ok(l.x - 41 >= 60.5 && l.x <= 105.6 - 4, `etiketten ${l.x - 41}–${l.x}`);
+  assert.equal(l.above, true);
+  // Utan gräns står den som förut, högerjusterad mot punkten.
+  assert.equal(placeTempLabel({ ...base, cx: 88.6, nowX: 105.6, width: 41, cy: 160, curveY: flat(160) }).x, 92.6);
+});

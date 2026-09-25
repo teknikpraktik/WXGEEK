@@ -2,6 +2,7 @@
 
 import type { ReactNode } from "react";
 import { fogOf, tafLowVisibility, type Reading, type Snapshot } from "@/lib/client/timeline";
+import { sourceLine } from "@/lib/client/sourceLine";
 import type { CloudLayer } from "@/lib/types";
 import {
   COVER_OKTAS,
@@ -29,8 +30,10 @@ const STALE_MS = 90 * 60 * 1000;
 export function Readout({ snap, now, children }: Props) {
   const w = snap.wind?.value;
   const gust = snap.gust?.value;
-  // Nederbördsrutan bara när det faktiskt faller något (mer än 0 mm) vid vald tid.
-  const pr = snap.precipitation && snap.precipitation.value.mm > 0 ? snap.precipitation.value : undefined;
+  // Nederbördsrutan när det faller något vid vald tid – i prognosen även när det bara kan falla:
+  // "≤0.3 mm" som staplarna (troligen uppehåll, men upp till 0,3 mm möjligt), med sannolikheten.
+  const pr = snap.precipitation?.value;
+  const prText = !pr ? undefined : pr.mm > 0 ? fmtPrecip(pr.mm) : pr.possibleMm ? `≤${fmtPrecip(pr.possibleMm)}` : undefined;
   const stale = (r: Reading<unknown>) =>
     snap.mode === "now" && !!r && (r.origin.kind === "METAR" || r.origin.kind === "SMHI") && now - r.origin.timestamp > STALE_MS;
   // Dimma/dis ersätter molnen, som symbolen i diagrammet; höjden står kvar på rad 3.
@@ -45,10 +48,23 @@ export function Readout({ snap, now, children }: Props) {
     // Symboler som bara är text (CAVOK, NSC, ?) upprepar koden – visas inte.
     !TEXT_SKY.has(snap.sky.kind) && <SkyIcon sky={snap.sky} day={snap.day} />
   );
+  // Källraden: var och när de värden som visas kommer ifrån (mättid och station, eller prognoskälla).
+  const gustShown = !!w && (w.speed ?? 0) >= 0.5 && gust !== undefined && gust >= (w.speed ?? 0) + 1;
+  const shown: Array<[string, Reading<unknown>]> = [
+    ["temperature", snap.temperature],
+    ["dew point", snap.dewPoint],
+    ["wind", snap.wind],
+    ["gusts", gustShown ? snap.gust : null],
+    ["visibility", snap.visibility],
+    ["clouds", skyR],
+    ["precipitation", prText ? snap.precipitation : null],
+    ["weather", snap.phenomena?.value.length ? snap.phenomena : null],
+  ];
+  const source = sourceLine(snap.mode, snap.time, now, shown.flatMap(([what, r]) => (r ? [{ what, origin: r.origin }] : [])));
 
   return (
     <section className={`readout readout-${snap.mode}`} aria-live="polite">
-      <dl className={`readout-grid${pr ? " has-precip" : ""}`}>
+      <dl className={`readout-grid${prText ? " has-precip" : ""}`}>
         <Cell label="Temp / Dew pt" short="Temp/Dew" r={snap.temperature} old={stale(snap.temperature)} sub={dewSub(snap)}>
           {snap.temperature && (
             <Val
@@ -89,14 +105,18 @@ export function Readout({ snap, now, children }: Props) {
             </span>
           )}
         </Cell>
-        {/* Precipitation only when something falls (> 0 mm); on desktop its column is always reserved so the other cells never move */}
-        {pr && (
+        {/* Precipitation only when something falls or may fall; on desktop its column is always reserved so the other cells never move */}
+        {prText && (
           <Cell label="Precipitation" short="Precip" r={snap.precipitation} old={stale(snap.precipitation)} sub={precipSub(snap)}>
-            <Val {...splitUnit(fmtPrecip(pr.mm))} />
+            <Val {...splitUnit(prText)} />
           </Cell>
         )}
       </dl>
 
+      {/* Fast höjd (en rad, två på mobil), så att diagrammet under inte hoppar */}
+      <p className="readout-source" title={source || undefined}>
+        {source || " "}
+      </p>
       <p className="readout-summary">{weatherSummary(snap)}</p>
 
       {children}
@@ -209,9 +229,9 @@ function Val({ v, unit, icon, extra, muted }: { v: string; unit: string; icon?: 
     <span className="val">
       {icon}
       <b>
-        {v.startsWith("≥") ? (
+        {v.startsWith("≥") || v.startsWith("≤") ? (
           <>
-            <span className="val-prefix">≥</span>
+            <span className="val-prefix">{v[0]}</span>
             {v.slice(1)}
           </>
         ) : (

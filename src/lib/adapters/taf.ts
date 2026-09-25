@@ -164,8 +164,10 @@ export function normalizeTaf(t: AwcTaf, distanceKm: number): Taf {
       } else if (["NSC", "SKC", "CAVOK", "CLR"].includes(c.cover)) nsc = true;
     }
     // Vertikal sikt: AWC anger ibland bara "OVX" utan höjd – läs VV ur råtexten.
+    // AWC för dessutom vidare VV från tidigare grupp in i BECMG ("BECMG 9999 SCT020" efter
+    // "VV002" fick VV kvar) – finns gruppens råtext gäller bara den.
     const vvRaw = g.match(/\bVV(\d{3})\b/);
-    const vvFt = f.vertVis ?? (vvRaw ? parseInt(vvRaw[1], 10) * 100 : null);
+    const vvFt = g ? (vvRaw ? parseInt(vvRaw[1], 10) * 100 : null) : (f.vertVis ?? null);
     if (vvFt != null) layers.push({ cover: "VV", baseM: Math.round(vvFt * FT_TO_M) });
 
     const changes = g ? elementsInGroup(g) : undefined;

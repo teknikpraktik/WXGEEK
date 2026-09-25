@@ -33,10 +33,14 @@ export function placeTempLabel(o: {
   plotBottom: number;
   /** Underkant för raden med OBSERVED/FORECAST överst i ritytan */
   labelsBottom: number;
+  /** Vänstergräns: synliga ritytans vänsterkant vid NU. Är historiken smal (mobil) flyttas
+   *  etiketten hellre mot NU-linjen – ovanför eller under punkten – än in under axeln. */
+  minX?: number;
   /** Kurvans y vid ett x */
   curveY: (x: number) => number;
 }): TempLabel {
-  const end0 = Math.min(o.cx + 4, o.nowX - 4);
+  const lo = o.minX ?? -Infinity;
+  const end0 = Math.min(Math.max(o.cx + 4, lo + o.width), o.nowX - 4);
   /** Går kurvan helt under eller helt över texten (y top–bottom) när den slutar vid `end`? */
   const clear = (end: number, top: number, bottom: number) => {
     const ys = Array.from({ length: 9 }, (_, i) => o.curveY(end - (o.width * i) / 8));
@@ -65,7 +69,7 @@ export function placeTempLabel(o: {
     const bottom = e.top + TEXT_H;
     const besideDot = bottom > o.cy - GAP && e.top < o.cy + GAP;
     const start = besideDot ? Math.min(end0, o.cx - DOT_CLEAR) : end0;
-    for (let end = start; end >= start - MAX_SHIFT; end -= 2) {
+    for (let end = start; end >= start - MAX_SHIFT && end - o.width >= lo; end -= 2) {
       if (clear(end, e.top, bottom)) return label(end, bottom, e.above);
     }
   }

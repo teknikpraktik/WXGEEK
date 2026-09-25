@@ -130,3 +130,14 @@ test("lägre sikt i TAF:ens TEMPO/PROB syns i prognosläget, lägsta först", ()
   assert.equal(tafLowVisibility({ mode: "forecast", supplements: [prob], visibility: vis(2000) }), undefined);
   assert.equal(tafLowVisibility({ mode: "now", supplements: [tempo], visibility: vis(10000) }), undefined);
 });
+
+test("uppmätt nederbörd bakåt: timmen som vald tid ligger i, som stapeln under markören", () => {
+  const pr = (t: number, mm: number): WeatherObservation => ({ ...ob(t, 10), precipitationMm: mm });
+  const b = bundle([pr(now - 3 * H, 0.4), pr(now - 2 * H, 0.3)], true);
+  // 2 h 40 min sedan ligger i timmen (−3 h, −2 h] – inte i timmen före, fast den mätningen är närmast.
+  const s = snapshotAt(b, now - 2 * H - 40 * 60 * 1000, now);
+  assert.equal(s.precipitation?.value.mm, 0.3);
+  assert.equal(s.precipitation?.value.from, now - 3 * H);
+  // Vid NU: senaste mätningen.
+  assert.equal(snapshotAt(b, now, now).precipitation?.value.mm, 0.3);
+});

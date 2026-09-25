@@ -42,6 +42,10 @@ datakälla påverkar bara en adapter och `sources.ts`.
 | `src/lib/client/forecast.ts` | Prognosens källor: TAF-huvudprognos, BECMG, TEMPO/PROB, SMHI-komplettering, källa per variabel |
 | `src/lib/client/alerts.ts` | Varningar ur senaste METAR och TAF, bara väder med samhällspåverkan (åska, CB, medelvind ≥ 14 m/s eller byar ≥ 20 m/s, kraftig eller underkyld nederbörd, hagel, iskorn, yrsnö) – inte dimma, sikt eller låga moln |
 | `src/lib/client/timeline.ts` | Klientlogik: diagramdata, avläsning vid en tidpunkt |
+| `src/lib/client/sourceLine.ts` | Källraden under rutorna: mättid och station, eller prognoskälla, per värde |
+| `src/lib/client/sunMarks.ts` | Soluppgångens och solnedgångens markeringar vid tidsaxeln: läge, krockar, tooltip-text |
+| `src/lib/client/tempLabel.ts` | Placering av temperaturetiketten vid senaste observationen |
+| `src/lib/sun.ts` | Solens höjd (NOAA:s solkalkylator), solhändelser och nattgrad för dagsljusbakgrunden |
 | `*.test.ts` | Tester för tids-, TAF- och datalogik (`npm test`) |
 | `src/lib/format.ts` | Engelsk formatering (en-GB, Europe/Stockholm), avrundning mot falsk precision |
 | `src/app/api/*/route.ts` | API-routes |
@@ -143,7 +147,12 @@ WxgeekApp              – plats, datahämtning, auto-uppdatering (5 min när fl
   variabler TAF saknar och efter TAF:s slut. Utan TAF används SMHI för allt.
 - **Huvudprognos** = BASE/FM. **BECMG** ändrar bara de element gruppen anger (läses ur
   rå-TAF); under övergångsintervallet gäller tidigare läge och övergången redovisas
-  som "någon gång under 16–18" – aldrig som ett exakt ögonblick.
+  som "någon gång under 16–18" – aldrig som ett exakt ögonblick. Undantag: dimma och dis
+  som den nya sikten utesluter följer inte med när gruppen saknar väder (och NSW) – FG vid
+  1 km eller mer (MIFG/BCFG/PRFG står kvar), BR/HZ/FU över 5 km. "0200 FG BECMG 2506/2508
+  9999" betyder alltså att dimman har lättat 08Z. Nederbörd står kvar tills NSW. Vertikal
+  sikt (VV) läses bara ur gruppens egen råtext – AWC:s avkodning för vidare VV från tidigare
+  grupp ("BECMG 9999 SCT020" efter "VV002" fick VV kvar).
 - **TEMPO/PROB** används bara som komplement (varningar under diagrammet).
   PROB40 blir aldrig en generell regnsannolikhet.
 - **CAVOK** = sikt ≥ 10 km, inga moln under 1 500 m, ingen CB/TCU, inget väder. Ingen
@@ -166,9 +175,14 @@ WxgeekApp              – plats, datahämtning, auto-uppdatering (5 min när fl
 
 ### Tidslinjen
 
-- **Fast fönster**: 12 h bakåt och 24 h framåt. NU står en fjärdedel in i diagramytan vid
-  start (efter vänsteraxeln), så att vyn visar ungefär 25 % observerat och 75 % prognos.
-- Tid väljs genom att dra grafen under en **fast markör en fjärdedel in** (native scroll på
+- **Fast fönster**: 12 h bakåt och 24 h framåt. NU står en femtedel in i ritytan (efter
+  vänsteraxeln) vid start och efter Now, så att vyn visar 20 % observerat och 80 % prognos.
+  Samma pixlar per timme på båda sidor (linjär axel, `CURSOR_AT`), så att den synliga
+  historiken är en fjärdedel av den synliga prognosen – t.ex. ~4 h bakåt och ~17 h framåt på
+  en dator, ~1,5 h och ~6,5 h på mobil. Manuell navigering bevaras. I den smala historiken
+  på mobil står "← OBS." i stället för "← OBSERVED", och temperaturetiketten hålls till
+  höger om vänsteraxeln (`minX` i `placeTempLabel`).
+- Tid väljs genom att dra grafen under en **fast markör en femtedel in** (native scroll på
   touch, musdrag på desktop). Klick flyttar inte grafen. Knappen **Now** återgår till NU
   och står fast ovanför diagrammet till vänster, i linje med axeletiketterna – inte över
   markören, där den skulle se ut att höra till vald tid. Tangentbord: pilar (±1 h,
@@ -186,10 +200,29 @@ WxgeekApp              – plats, datahämtning, auto-uppdatering (5 min när fl
 - **Färger** (samlade som variabler överst i `src/app/globals.css`): varm neutral bakgrund
   (#F3F1EB) och text (#20252B, sekundärt #5E6772), NU och vald tid i mörk blågrå (#334155),
   fokusmarkering i dämpad blå (#365F83), temperatur i tegelrött (#C64B40) och nederbörd i
-  mellanblått (#397CAF; små siffror i mörkare #2C6594). Observerat och prognos skiljs med stil
-  (heldraget vs streckat) och bakgrund (tonad vs skrafferad). Gula solar, grå moln och mörka
-  vindpilar. Text och kontroller klarar WCAG AA mot sina bakgrunder, även i mörkt läge.
-  Linjer dras aldrig över luckor i data.
+  mellanblått (#397CAF; små siffror i mörkare #2C6594). Observerat och prognos skiljs med
+  NU-linjen, rubrikerna OBSERVED/FORECAST och linjestilen (heldraget vs streckat) – inte med
+  bakgrunden. Gula solar, grå moln och mörka vindpilar. Text och kontroller klarar WCAG AA
+  mot sina bakgrunder, även i mörkt läge. Linjer dras aldrig över luckor i data.
+- **Dagsljusbakgrund** (ersätter den tonade historiken och den skrafferade prognosen): natt
+  svagt blågrå (`--night`, #E1E6ED; mörkt läge #172030), dag sidans bakgrund, och under
+  borgerlig gryning (solen från 6° under horisonten till soluppgång) och borgerlig skymning
+  (solnedgång till 6° under) en mjuk övergång. Nattgraden (0 dag – 1 natt, linjär i solhöjd
+  mellan −0,833° och −6°) räknas för platsens koordinater över hela fönstret, även över
+  midnatt (`nightProfile` i `src/lib/sun.ts`), och ritas som en horisontell SVG-gradient med
+  stopp var 5:e minut under gryning och skymning. Den täcker temperatur- och nederbördsytan
+  ned till tidsaxeln; symbolraden och vinden ligger på sidans bakgrund. Midnattssol, polarnatt
+  och ljusa sommarnätter (skymning hela natten) blir rätt utan påhittade händelser.
+- **Soluppgång och solnedgång** (`sunEvents`, `layoutSunMarks` i `src/lib/client/sunMarks.ts`,
+  `SunMarkers`): en liten halvsol med pil upp/ned på händelsens exakta tid, på tidsaxelns
+  nedre rad under timtalen, med lokal tid bredvid ("06:57"). Tiden döljs när den skulle krocka
+  med dygnsetiketten eller en annan markering; står en symbol där dygnsetiketten brukar stå
+  flyttas etiketten till vänster om dygnsstrecket. Knappar: tooltip vid hovring, fokus och
+  tryck ("Sunset 18:57 · Civil dusk until 19:37", eller "Civil twilight all night"), och
+  samma text för skärmläsare via `aria-describedby` på tidslinjen.
+- **Solen** beräknas med NOAA:s solkalkylator (Jean Meeus) – soluppgång och solnedgång inom
+  någon minut upp till 72° latitud. Den förenklade varianten (Spencers serier) felade 3–5 min
+  kring dagjämningarna.
 - **Ett diagram med två y-axlar**:
   - **Höger axel – molnbas (m)**, linjär 0–3 000 m. Molnlager ritas som molnformer med platt underkant vid molnbasen;
     angränsande block på samma höjd slås ihop. Molnikonen fylls nerifrån med andelen åttondelar som täcks
@@ -210,7 +243,7 @@ WxgeekApp              – plats, datahämtning, auto-uppdatering (5 min när fl
     används för prognostemperaturen i avläsningen. Observationer äldre än 2 h används inte.
   - **Klar himmel**: CAVOK, SKC eller CLR i METAR (och 0 oktas i prognosen) ritas som
     en sol på dagen och en måne på natten, i stället för moln. Dag/natt avgörs med solens
-    höjd för platsen (`src/lib/sun.ts`, förenklad NOAA-algoritm).
+    höjd för platsen (`src/lib/sun.ts`, NOAA:s solkalkylator).
   - Nederbörd vid minusgrader (enligt kurvan vid samma tid) visas som snö.
   - Temperaturkurvan: tegelröd, heldragen (observerat) / streckad (prognos).
   - **Regn under molnen**: tre korta streck (snö: prickar) direkt under varje symbol med
@@ -243,9 +276,12 @@ WxgeekApp              – plats, datahämtning, auto-uppdatering (5 min när fl
 
 ### Avläsning
 
-- En rad rutor: temperatur/daggpunkt, vind, sikt, moln – och nederbörd bara när det faller
-  något (mer än 0 mm) vid vald tid (uppmätt, eller SMHI-prognos med intervall och
-  sannolikhet). Dator: alltid 5 kolumner.
+- En rad rutor: temperatur/daggpunkt, vind, sikt, moln – och nederbörd när det faller
+  något under timmen som vald tid ligger i (samma stapel som under markören; vid NU senaste
+  mätningen). I prognosen även när det bara kan falla: "≤0.3 mm" som staplarna (troligen
+  uppehåll, men upp till 0,3 mm möjligt), med intervall och SMHI:s sannolikhet under –
+  trolig och möjlig mängd räknas med samma regel som staplarna (`precipRange`). Torrt: ingen
+  ruta. Dator: alltid 5 kolumner.
   Under 560 px: 4 kolumner, 5 med nederbörd, och mindre typografi. Fasta höjder (`--val-h`
   och `--sub-h` per ruta), så att diagrammet under aldrig hoppar.
 - Temp / Dew pt: "12/11 °C" i hela grader med nedtonad daggpunkt; undertext "Fog risk" när
@@ -279,6 +315,15 @@ WxgeekApp              – plats, datahämtning, auto-uppdatering (5 min när fl
 - Korta rubriker under 560 px: "Temp/Dew", "Vis", "Precip". Där blir "old" en liten klocka
   i varningsfärg efter rubriken (texten finns kvar för skärmläsare), så att rubriken inte klipps.
 - Observationer äldre än 90 min markeras "old"; äldre än maxåldern visas som saknade.
+- **Källrad** direkt under rutorna (`sourceLine`, 11,5 px, dämpad): när och var de visade
+  värdena mättes, ur värdenas egna källor – "Observed at 09:20 local time · Karlstad
+  flygplats", med datum när observationen inte är från samma lokala dag som nu. Huvudkällan
+  är den flest värden kommer från; värden från en annan station eller tid nämns med vad de
+  gäller ("; precipitation 08–09 · Kilsbergen-Suttarboda A", "; temperature at 09:00 · …"),
+  daggpunkt och byar bara när de har en egen källa. I prognosläget: "Forecast for 14:00 · TAF
+  Karlstad flygplats; temperature, precipitation · SMHI". Saknas station står bara tiden,
+  saknas värden är raden tom. Fast höjd – en rad, två på mobil där texten får bryta – så att
+  diagrammet inte hoppar när man drar mellan observation och prognos.
 - Väderläget på en egen rad utan etikett – bara väder (nederbörd, dimma, åska); molnen står
   redan i rutan och upprepas inte. Ingen detaljvy. Alla tider lokala (Europe/Stockholm).
 
@@ -292,7 +337,7 @@ WxgeekApp              – plats, datahämtning, auto-uppdatering (5 min när fl
   NSC-markering, saknas → "–". Dag/natt med solhöjd för platsen och tiden (`src/lib/sun.ts`).
   Symbolerna ligger i en egen rad (35 px, `SKY_ROW_H`) ovanför temperaturdiagrammet, alla på
   samma höjd och i samma tidsskala som diagrammet – symboler som följde kurvan fick den att se
-  ut som molnens undersida. Raden ligger utanför den tonade/skrafferade ritytan, och under den
+  ut som molnens undersida. Raden ligger utanför ritytans dagsljusbakgrund, och under den
   kommer rubriken "Temperature °C" med luft emellan (~16 px under en torr symbol, ~6 px under
   regnstrecken), så att symbolerna inte läses som värden över skalans topp. Ordning uppifrån:
   NOW-etiketten, symbolraden, luft, rubriken, skalans översta värde och ritytan (220 px).

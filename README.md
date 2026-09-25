@@ -20,9 +20,15 @@ situation **now**, and the **forecast** for the next 24 hours, all on the same a
   mist – the same rule as the chart's fog symbol, including fog in a TAF TEMPO/PROB group –
   the clouds cell shows the fog symbol and FG, BR or FZFG (fog below 0 °C) instead, with the
   TAF group (e.g. "PROB40") and the height below. Lower visibility in a TAF TEMPO/PROB group
-  is shown under the visibility, e.g. "PROB40 2.5 km". Precipitation appears only when
-  something falls (more than 0 mm) at the selected time. All cells stay on one row, also on
-  mobile, and keep the same height.
+  is shown under the visibility, e.g. "PROB40 2.5 km". Precipitation appears when something
+  falls in the hour of the selected time – the same bar as under the cursor – and in the
+  forecast also when it only might: "≤0.3 mm" as in the chart, with SMHI's probability
+  below. All cells stay on one row, also on mobile, and keep the same height.
+- A discreet **source line** under the cells says when and where the values were measured,
+  in local time, e.g. "Observed at 09:20 local time · Karlstad flygplats" (with the date when
+  it is not today). Values from another station or time are named separately, e.g.
+  "; precipitation 08–09 · Kilsbergen-Suttarboda A"; in the forecast it names the TAF and
+  SMHI. Nothing is made up when a time or station is missing.
 - Temperature chart (left axis): an adaptive scale chosen from all temperatures in the
   window – the smallest range on multiples of 5 °C with margin and at least a 20 °C span,
   preferring one that also shows 0 and −5 °C when that costs at most 5 °C extra. The scale
@@ -51,15 +57,28 @@ situation **now**, and the **forecast** for the next 24 hours, all on the same a
   show the amount.
 - Wind arrows run below the time axis, which labels every hour. Midnight is marked by a line
   through the time axis with the new day's name.
+- The chart **background shows daylight** for the place: night in a faint blue-grey, day in
+  the page's own light background, with soft transitions through civil dawn (sun 6° below
+  the horizon until sunrise) and civil dusk (sunset until 6° below). It covers the
+  temperature and precipitation area down to the time axis, over midnight too; midnight sun,
+  polar night and light summer nights are shown as they are, without invented events. Small
+  **sunrise and sunset** symbols with the local time sit at their exact time just below the
+  hour labels; hover, focus or tap shows e.g. "Sunrise 06:57 · Civil dawn from 06:16". The sun
+  is computed with NOAA's solar calculator (Meeus) for the place's coordinates. Observed and
+  forecast are told apart by the NOW line, the OBSERVED/FORECAST labels and solid vs dashed
+  lines.
 - Drag the chart (or use the arrow keys) to select a time within the fixed −12 h … +24 h
-  window; **Now** returns to the current time. The selected time – NOW at start – sits a
-  quarter into the chart, so about 25 % of the view is observed and 75 % forecast.
+  window; **Now** returns to the current time. The selected time – NOW at start and after
+  Now – sits a fifth into the plot, so 20 % of the view is observed and 80 % forecast, with
+  the same pixels per hour on both sides (about 4 h back and 17 h ahead on a desktop).
 - Tapping the **logo** reloads the place and returns to now. The same happens every time the
   page is opened – a fresh load, or coming back after at least a minute in the background
   (phone locked, another app) – and the data is never taken from the browser cache.
 - The forecast uses **TAF first** for wind, visibility, cloud and weather at the airport
   while the TAF is valid. **SMHI** covers temperature, precipitation, missing values and
-  the rest of the window.
+  the rest of the window. A BECMG group that raises the visibility ends fog (at 1 km or
+  more) and mist or haze (above 5 km) even without NSW, e.g. "0200 FG BECMG 2506/2508 9999",
+  and a vertical visibility (VV) is only taken from the group's own text.
 - Raw METAR and TAF are printed at the bottom of the page under the name of the airport they
   are from, followed by discreet warnings:
   SMHI weather warnings (meteorological only – not water shortage, high flows, flooding,

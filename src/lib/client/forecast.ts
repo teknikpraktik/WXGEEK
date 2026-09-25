@@ -52,7 +52,15 @@ export type CloudValue = {
   /** CAVOK: inga moln under 1 500 m – säger inget om högre moln */
   cavok?: boolean;
 };
-export type PrecipValue = { mm: number; from: number; to: number; probability?: number };
+export type PrecipValue = {
+  /** Trolig mängd (mm) enligt `precipRange` – 0 = troligen uppehåll */
+  mm: number;
+  /** Möjlig mängd (mm): övre delen av SMHI:s spridning, minst `mm` */
+  possibleMm: number;
+  from: number;
+  to: number;
+  probability?: number;
+};
 
 export type TafTransition = { from: number; until: number; to: TafPeriod };
 
@@ -79,6 +87,13 @@ export type MergedForecast = {
 
 const isMain = (p: TafPeriod) => p.change === "BASE" || p.change === "FM" || p.change === "BECMG";
 
+/** Dimma och dis som sikten tillåter: FG under 1 km (MIFG/BCFG/PRFG även över), BR/HZ/FU högst 5 km. */
+function obscurationFits(p: Phenomenon, visM: number): boolean {
+  if (p.kind === "dimma") return visM < 1000 || /^(MI|BC|PR)FG$/.test(p.code ?? "");
+  if (p.kind === "dis") return visM <= 5000;
+  return true;
+}
+
 /** Läget efter en BECMG: föregående läge med de element gruppen anger ersatta. */
 function applyBecmg(prev: TafPeriod, becmg: TafPeriod): TafPeriod {
   const only: TafElement[] | undefined = becmg.changes;
@@ -94,6 +109,10 @@ function applyBecmg(prev: TafPeriod, becmg: TafPeriod): TafPeriod {
     next.visibilityM = becmg.visibilityM;
     next.visibilityAtLeast = becmg.visibilityAtLeast;
     next.cavok = becmg.cavok;
+    // Utan eget väder står föregående väder kvar – men inte dimma eller dis som den nya sikten
+    // utesluter: "0200 FG" följt av "BECMG 9999" betyder att dimman lättar, även utan NSW.
+    const vis = becmg.visibilityM;
+    if (!only.includes("weather") && vis !== undefined) next.phenomena = prev.phenomena?.filter((p) => obscurationFits(p, vis));
   }
   if (only.includes("weather")) {
     next.phenomena = becmg.phenomena;
@@ -169,6 +188,38 @@ export function smhiPointAt(bundle: WeatherBundle, t: number): ForecastPoint | u
   return bestD <= 40 * 60 * 1000 ? best : undefined;
 }
 
+/** Den timvisa prognospunkt vars timme innehåller t (t0 < t ≤ t1) – för nederbörd, som är en
+ *  mängd per timme: samma timme som stapeln under markören. */
+export function smhiHourAt(bundle: WeatherBundle, t: number): ForecastPoint | undefined {
+  return bundle.forecast?.points.find((p) => {
+    const t1 = ms(p.timestamp);
+    const t0 = p.intervalStart ? ms(p.intervalStart) : t1 - HOUR;
+    return t1 - t0 <= HOUR && t0 < t && t <= t1;
+  });
+}
+
+/**
+ * Nederbörd för ett timsteg i SMHI:s prognos (mm), samma regel för timstaplarna och avläsningen:
+ * trolig = ensemblens median (annars medel), under 0,1 mm räknas som uppehåll; möjlig = övre
+ * delen av spridningen (största av trolig, medel och max). SMHI:s min används inte – den kan
+ * vara 0,1 mm även när sannolikheten är några procent.
+ */
+export function precipRange(p: ForecastPoint): { likely: number; possible: number } | undefined {
+  const raw = p.precipitationMedianMm ?? p.precipitationMm;
+  if (raw === undefined) return undefined;
+  const likely = raw >= 0.1 ? raw : 0;
+  const possible = Math.max(likely, p.precipitationMm ?? 0, p.precipitationMaxMm ?? 0);
+  return { likely, possible: possible >= 0.1 ? possible : 0 };
+}
+
+const smhiSource = (f: NonNullable<WeatherBundle["forecast"]>, p: ForecastPoint): SmhiSource => ({
+  kind: "SMHI-PROGNOS",
+  latitude: f.latitude,
+  longitude: f.longitude,
+  time: ms(p.timestamp),
+  intervalFrom: p.intervalStart ? ms(p.intervalStart) : undefined,
+});
+
 const PRECIP_KINDS = new Set(["regn", "duggregn", "skurar", "underkylt", "snö", "snöblandat", "hagel", "åska"]);
 const hasPrecip = (ph: Phenomenon[]) => ph.some((p) => PRECIP_KINDS.has(p.kind));
 
@@ -187,16 +238,7 @@ export function mergedForecastAt(
 ): MergedForecast {
   const p = smhiPointAt(bundle, t);
   const f = bundle.forecast;
-  const smhi: SmhiSource | undefined =
-    p && f
-      ? {
-          kind: "SMHI-PROGNOS",
-          latitude: f.latitude,
-          longitude: f.longitude,
-          time: ms(p.timestamp),
-          intervalFrom: p.intervalStart ? ms(p.intervalStart) : undefined,
-        }
-      : undefined;
+  const smhi = p && f ? smhiSource(f, p) : undefined;
   const taf = bundle.taf;
   const main = taf ? tafMainAt(taf, t) : null;
   const tafSrc: TafSource | undefined =
@@ -260,18 +302,21 @@ export function mergedForecastAt(
     out.weather = { value: p.phenomenon ? [p.phenomenon] : [], source: smhi };
   }
 
-  // Nederbörd: mängd bara från SMHI, med prognosens faktiska intervall.
-  // Mängd = SMHI-ensemblens median (samma som timstaplarna), annars medel.
-  if (p && smhi && (p.precipitationMedianMm ?? p.precipitationMm) !== undefined) {
-    const to = ms(p.timestamp);
+  // Nederbörd: mängd bara från SMHI, för timmen som t ligger i (samma som stapeln under
+  // markören), med trolig och möjlig mängd som timstaplarna.
+  const ph = smhiHourAt(bundle, t);
+  const range = ph && precipRange(ph);
+  if (ph && f && range) {
+    const to = ms(ph.timestamp);
     out.precipitation = {
       value: {
-        mm: (p.precipitationMedianMm ?? p.precipitationMm)!,
-        from: p.intervalStart ? ms(p.intervalStart) : to - HOUR,
+        mm: range.likely,
+        possibleMm: range.possible,
+        from: ph.intervalStart ? ms(ph.intervalStart) : to - HOUR,
         to,
-        probability: p.precipitationProbability,
+        probability: ph.precipitationProbability,
       },
-      source: smhi,
+      source: smhiSource(f, ph),
     };
   }
 

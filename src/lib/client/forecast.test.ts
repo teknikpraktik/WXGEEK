@@ -194,3 +194,73 @@ test("dimma i TAF:ens TEMPO (BCFG) ger dimsymbol under gruppens tid", () => {
   assert.deepEqual(hours, [18, 19, 20], "bara inom TEMPO 2318/2321");
   assert.ok(fog.every((v) => v.severe && v.label === "Fog patches (TEMPO)"));
 });
+
+// Riktig TAF från AWC 2026-09-25: dimman ska lätta till 08Z (BECMG 9999 utan NSW).
+const ESOK: AwcTaf = {
+  icaoId: "ESOK",
+  issueTime: "2026-09-25T05:49:00.000Z",
+  validTimeFrom: T(25, 6),
+  validTimeTo: T(25, 15),
+  rawTAF: "TAF AMD ESOK 250549Z 2506/2515 VRB03KT 0200 FG VV002 BECMG 2506/2508 9999 SCT020",
+  lat: 59.44,
+  lon: 13.34,
+  fcsts: [
+    { timeFrom: T(25, 6), timeTo: T(25, 6), timeBec: null, fcstChange: null, probability: null, wdir: "VRB", wspd: 3, wgst: null, visib: 0.12, vertVis: 200, wxString: "FG", clouds: [{ cover: "OVX", base: null, type: null }] },
+    { timeFrom: T(25, 6), timeTo: T(25, 15), timeBec: T(25, 8), fcstChange: "BECMG", probability: null, wdir: "VRB", wspd: 3, wgst: null, visib: "6+", vertVis: 200, wxString: null, clouds: [{ cover: "SCT", base: 2000, type: null }] },
+  ],
+};
+
+test("BECMG till sikt som utesluter dimman avslutar FG även utan NSW", () => {
+  const taf = normalizeTaf(ESOK, 11);
+  assert.deepEqual(tafMainAt(taf, T(25, 7) * 1000)!.state.phenomena?.map((p) => p.code), ["FG"], "dimma under övergången");
+  const after = tafMainAt(taf, T(25, 9) * 1000)!.state;
+  assert.equal(after.visibilityM, 10000);
+  assert.deepEqual(after.phenomena, [], "9999 efter 0200 FG: dimman har lättat");
+  // AWC för vidare VV002 till BECMG-gruppen – gruppens egen text (SCT020) gäller.
+  assert.deepEqual(after.cloudLayers, [{ cover: "SCT", baseM: 610, type: undefined }]);
+  assert.equal(tafMainAt(taf, T(25, 7) * 1000)!.state.cloudLayers?.[0].cover, "VV", "VV före övergången");
+
+  const b = { ...bundleWith(ESOK, smhiHours(T(25, 6), 12)), forecastUntil: iso(T(25, 18)) };
+  assert.deepEqual(mergedForecastAt(b, T(25, 12) * 1000).weather?.value, []);
+  const fog = buildChart(b, T(25, 7) * 1000).lowVis.filter((v) => v.phenomenon);
+  assert.deepEqual(
+    fog.map((v) => new Date((v.t0 + v.t1) / 2).getUTCHours()),
+    [7],
+    "dimsymbol bara till BECMG-gruppens slut (08Z), inte till TAF:ens slut",
+  );
+});
+
+test("BECMG utan väder: dis står kvar om sikten tillåter det, nederbörd tills NSW", () => {
+  const withBase = (base: string, wx: string, visib: number, becmg: string, becVis: number | string): AwcTaf => ({
+    ...ESOK,
+    rawTAF: `TAF ESOK 250549Z 2506/2515 VRB03KT ${base} OVC005 BECMG 2506/2508 ${becmg}`,
+    fcsts: [
+      { ...ESOK.fcsts[0], visib: visib, wxString: wx, clouds: [{ cover: "OVC", base: 500, type: null }] },
+      { ...ESOK.fcsts[1], visib: becVis, clouds: [] },
+    ],
+  });
+  const codes = (taf: AwcTaf) => tafMainAt(normalizeTaf(taf, 11), T(25, 9) * 1000)!.state.phenomena?.map((p) => p.code);
+  assert.deepEqual(codes(withBase("3000 BR", "BR", 1.86, "4000", 2.49)), ["BR"], "dis vid 4 km är möjlig");
+  assert.deepEqual(codes(withBase("3000 -RA BR", "-RA BR", 1.86, "9999", "6+")), ["-RA"], "regnet står kvar, disen lättar");
+  assert.deepEqual(codes(withBase("0200 FG", "FG", 0.12, "3000", 1.86)), [], "3 km: ingen dimma (disen härleds ur sikten)");
+});
+
+test("nederbörd i prognosen: timmen som vald tid ligger i, trolig och möjlig mängd som staplarna", () => {
+  // Timmen 16–17: troligen uppehåll (median 0), men upp till 0,3 mm möjligt.
+  const pts = smhiHours(T(23, 15), 6).map((p, i) => ({
+    ...p,
+    precipitationMedianMm: 0,
+    precipitationMm: i === 1 ? 0.1 : 0,
+    precipitationMaxMm: i === 0 ? 0.4 : i === 1 ? 0.3 : 0,
+    precipitationProbability: i === 1 ? 20 : 30,
+  }));
+  const b = bundleWith(null, pts);
+  const half = mergedForecastAt(b, (T(23, 16) + 1800) * 1000).precipitation!.value;
+  assert.deepEqual([half.from, half.to], [T(23, 16) * 1000, T(23, 17) * 1000], "16:30 → timmen 16–17, som stapeln under markören");
+  assert.deepEqual([half.mm, half.possibleMm, half.probability], [0, 0.3, 20]);
+  const full = mergedForecastAt(b, T(23, 16) * 1000).precipitation!.value;
+  assert.equal(full.to, T(23, 16) * 1000, "hel timme → timmen som slutar då");
+
+  const bar = buildChart(b, T(23, 15) * 1000).precipHours.find((h) => h.t0 === T(23, 16) * 1000)!;
+  assert.deepEqual([bar.likely, bar.possible], [0, 0.3]);
+});

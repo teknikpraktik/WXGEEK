@@ -9,10 +9,11 @@ import type {
   WeatherObservation,
 } from "../types";
 import { PHENOMENON_GROUP } from "../weather/phenomena";
-import { isDaylight } from "../sun";
+import { isDaylight, nightProfile, sunEvents, type SunEvent } from "../sun";
 import { dewPointFromRh, oktasCover } from "../format";
 import {
   mergedForecastAt,
+  precipRange,
   smhiPointAt,
   tafEndWithin,
   tafMainAt,
@@ -179,9 +180,9 @@ export type Precip = Span & {
  * intervall – ingen omräkning från intensitet behövs. Timmar utan uppgift saknas i listan
  * (visas inte som 0 mm); 0 mm är en giltig uppgift.
  * Uppmätt: likely = possible = mätt mängd.
- * Prognos (SMHI:s ensemble): likely = median (minst hälften av medlemmarna ger så mycket),
- * possible = övre delen av spridningen (max av medel och max). SMHI:s min används inte –
- * den kan vara 0,1 mm även när sannolikheten är några procent.
+ * Prognos (SMHI:s ensemble, `precipRange`): likely = median (minst hälften av medlemmarna ger
+ * så mycket), possible = övre delen av spridningen (max av medel och max) – samma regel som
+ * avläsningen.
  */
 export type PrecipHour = Span & { likely: number; possible: number; kind: PrecipKind; forecast: boolean };
 
@@ -207,6 +208,12 @@ export type ChartData = {
   missing: { temp?: string; wind?: string; clouds?: string; forecast?: string };
   /** Tidpunkt då TAF slutar inom fönstret – därefter fortsätter SMHI */
   tafEnd?: { t: number; stationId: string };
+  /**
+   * Dagsljus för platsen: nattgrad (0 dag – 1 natt) att tona diagrammets bakgrund efter, över
+   * hela fönstret, och solhändelser (gryning, soluppgång, solnedgång, skymning) med 12 h
+   * marginal, så att varje soluppgång har sin gryning och varje solnedgång sin skymning.
+   */
+  daylight: { night: Array<{ t: number; n: number }>; events: SunEvent[] };
 };
 
 /** Molnbasaxeln (höger): linjär 0–3 000 m. */
@@ -524,12 +531,10 @@ export function buildChart(bundle: WeatherBundle, now: number, prevTempDomain?: 
     const t = ts(p);
     const t0 = p.intervalStart ? Date.parse(p.intervalStart) : t - HOUR;
     if (t <= now || t0 < measuredUntil || t - t0 > HOUR) continue;
-    const likelyRaw = p.precipitationMedianMm ?? p.precipitationMm;
-    if (likelyRaw === undefined) continue;
-    const likely = likelyRaw >= 0.1 ? likelyRaw : 0;
-    const possible = Math.max(likely, p.precipitationMm ?? 0, p.precipitationMaxMm ?? 0);
+    const range = precipRange(p);
+    if (!range) continue;
     const span = { t0, t1: t };
-    precipHours.push({ ...span, likely, possible: possible >= 0.1 ? possible : 0, kind: kindOver(span, precipForecast), forecast: true });
+    precipHours.push({ ...span, ...range, kind: kindOver(span, precipForecast), forecast: true });
   }
 
   // Vind: en pil per timme
@@ -610,7 +615,16 @@ export function buildChart(bundle: WeatherBundle, now: number, prevTempDomain?: 
       const t = tafEndWithin(bundle, now, Date.parse(bundle.forecastUntil));
       return t && bundle.taf ? { t, stationId: bundle.taf.stationId } : undefined;
     })(),
+    daylight: daylightOver(bundle, now),
   };
+}
+
+/** Dagsljus över diagrammets fönster (samma som tidslinjens: hela timmar, 12 h bakåt). */
+function daylightOver(bundle: WeatherBundle, now: number): ChartData["daylight"] {
+  const { latitude: lat, longitude: lon } = bundle.location;
+  const from = Math.floor(now / HOUR) * HOUR - (PAST_HOURS + 1) * HOUR;
+  const to = Math.ceil(Math.max(Date.parse(bundle.forecastUntil), now) / HOUR) * HOUR + 2 * HOUR;
+  return { night: nightProfile(lat, lon, from, to), events: sunEvents(lat, lon, from - 12 * HOUR, to + 12 * HOUR) };
 }
 
 // ---------------------------------------------------------------------------
@@ -653,8 +667,9 @@ export type Snapshot = {
   sky: Sky;
   /** Dag (solen över horisonten) vid vald tid och plats */
   day: boolean;
-  /** Nederbördsmängd under intervallet from–to. Sannolikhet hålls separat. */
-  precipitation: Reading<{ mm: number; from: number; to: number }>;
+  /** Nederbördsmängd under intervallet from–to. Prognos: trolig mängd (0 = troligen uppehåll)
+   *  och möjlig (`possibleMm`, övre delen av SMHI:s spridning). Sannolikhet hålls separat. */
+  precipitation: Reading<{ mm: number; from: number; to: number; possibleMm?: number }>;
   precipProbability?: { value: number; origin: Origin };
   phenomena: Reading<Phenomenon[]>;
   metar?: { raw: string; stationId: string; timestamp: number };
@@ -676,6 +691,9 @@ function pickObs<T>(
   t: number,
   mode: Snapshot["mode"],
   get: (o: WeatherObservation) => T | undefined,
+  /** Timsumma för timmen före tidsstämpeln (SMHI:s nederbörd): bakåt i tiden den timme som t
+   *  ligger i – samma som stapeln under markören – i stället för närmaste tidsstämpel. */
+  hourSum = false,
 ): Reading<T> {
   const s = stationFor(bundle, param);
   if (!s) return null;
@@ -690,6 +708,8 @@ function pickObs<T>(
       }
     }
     if (best && t - ts(best) > NOW_MAX_AGE[src]) best = undefined;
+  } else if (hourSum) {
+    best = s.observations.find((o) => ts(o) - HOUR < t && t <= ts(o) && get(o) !== undefined);
   } else {
     let bestD = Infinity;
     for (const o of s.observations) {
@@ -769,7 +789,7 @@ export function snapshotAt(bundle: WeatherBundle, t: number, now: number): Snaps
       cloud: read(m.clouds, (v) => v),
       sky: skyOf(m.clouds?.value, m.clouds?.value.cavok ? p?.cloudCoverOktas : undefined),
       day: isDaylight(bundle.location.latitude, bundle.location.longitude, t),
-      precipitation: read(pr, (v) => ({ mm: v.mm, from: v.from, to: v.to })),
+      precipitation: read(pr, (v) => ({ mm: v.mm, possibleMm: v.possibleMm, from: v.from, to: v.to })),
       precipProbability:
         pr?.value.probability !== undefined ? { value: pr.value.probability, origin: originOf(pr.source) } : undefined,
       phenomena: read(m.weather, (v) => v),
@@ -793,9 +813,15 @@ export function snapshotAt(bundle: WeatherBundle, t: number, now: number): Snaps
   const cloud = pickObs(bundle, "cloudBase", t, mode, obsCloud);
   const temperature = pickObs(bundle, "temperature", t, mode, (o) => o.temperatureC);
 
-  // Nederbörd: SMHI:s timsumma avser timmen före tidsstämpeln.
-  const precip = pickObs(bundle, "precipitation", t, mode, (o) =>
-    o.precipitationMm === undefined ? undefined : { mm: o.precipitationMm, from: ts(o) - HOUR, to: ts(o) },
+  // Nederbörd: SMHI:s timsumma avser timmen före tidsstämpeln. Vid NU senaste mätningen,
+  // bakåt timmen som vald tid ligger i.
+  const precip = pickObs(
+    bundle,
+    "precipitation",
+    t,
+    mode,
+    (o) => (o.precipitationMm === undefined ? undefined : { mm: o.precipitationMm, from: ts(o) - HOUR, to: ts(o) }),
+    true,
   );
 
   return {
