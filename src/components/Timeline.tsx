@@ -9,7 +9,8 @@ import {
   type PrecipHour,
   type Pt,
 } from "@/lib/client/timeline";
-import { fmtDateTime, localHour, fmtTime } from "@/lib/format";
+import { fmtDateTime, localHour, fmtTemp, fmtTime } from "@/lib/format";
+import { placeTempLabel } from "@/lib/client/tempLabel";
 import { FogIcon, SkyIcon, skyTitle } from "./SkyIcon";
 
 const PX_PER_HOUR = 34;
@@ -18,8 +19,13 @@ const MIN_OFFSET_H = -PAST_HOURS;
 const snap5 = (t: number) => Math.round(t / 300_000) * 300_000;
 
 // Layout (px)
-const TOP = 26; // NU / OBSERVERAT / PROGNOS
-const CHART_H = 250; // temperatur (vänster axel) med molnsymboler och regn på kurvan
+const TOP = 26; // NU-etiketten och vald tids etikett
+/** Symbolrad ovanför temperaturdiagrammet: alla vädersymboler på samma höjd, skilda från kurvan
+ *  – symboler som följde kurvan fick den att se ut som molnens undersida. */
+const SKY_ROW_H = 30;
+/** Symbolens mitt i raden (px från radens överkant): solstrålar når ~13 px upp, regn ~16 px ner. */
+const SKY_CY = 13;
+const CHART_H = 220; // temperatur (vänster axel); symbolraden tar resten av den tidigare höjden
 const PRECIP_H = 30; // mm per timme
 const WIND_H = 50;
 const AXIS_H = 30;
@@ -33,10 +39,10 @@ const AT_NOW_PX = (10 / 60) * PX_PER_HOUR;
  *  till sidan bort från vald tids etikett, och döljs när även det skulle krocka. */
 const NOW_LABEL_CLEAR_PX = 62;
 const NOW_LABEL_SIDE_PX = 24;
-/** Molnsymbolen ritas så här högt över temperaturkurvan (symbolens mitt, px). */
-const SKY_LIFT = 17;
 /** Molnsymbolens underkant relativt dess mitt – regnet börjar här. */
 const SKY_BOTTOM = 7;
+/** Ungefärlig teckenbredd för temperaturetiketten ("11 °C", 11 px siffror). */
+const TLAST_CHAR_W = 6.8;
 
 type Props = {
   now: number;
@@ -68,8 +74,9 @@ export const Timeline = memo(function Timeline({ now, until, data, onCursor, rec
   const tAt = useCallback((scrollLeft: number) => start + (scrollLeft / PX_PER_HOUR) * HOUR, [start]);
   const maxOffsetH = Math.max(1, Math.round((until - now) / HOUR));
 
-  // Layout
-  const chartTop = TOP;
+  // Layout: NU-rad, symbolrad, temperatur, nederbörd, tidsaxel, vind
+  const skyTop = TOP;
+  const chartTop = skyTop + SKY_ROW_H;
   const chartBottom = chartTop + CHART_H;
   const precipTop = chartBottom;
   const axisTop = precipTop + PRECIP_H;
@@ -80,7 +87,8 @@ export const Timeline = memo(function Timeline({ now, until, data, onCursor, rec
   // nederkanten – där fältgränsen mot nederbörden också är skalans nedersta linje.
   const [t0, t1] = data.temp.domain;
   // Symbolrad: varannan timme, var tredje på smala skärmar.
-  const skyEvery = viewW > 0 && viewW < 520 ? 3 : 2;
+  const narrow = viewW > 0 && viewW < 520;
+  const skyEvery = narrow ? 3 : 2;
   // Nederbördens skala: 0 till ett jämnt värde (minst 2 mm) över fönstrets största mängd.
   const precipMax = Math.max(2, Math.ceil(Math.max(0, ...data.precipHours.map((p) => p.possible))));
   const yTemp = useCallback((v: number) => chartBottom - ((v - t0) / (t1 - t0)) * CHART_H, [t0, t1, chartBottom]);
@@ -143,9 +151,15 @@ export const Timeline = memo(function Timeline({ now, until, data, onCursor, rec
 
   const cursorLabel = useRef<HTMLSpanElement>(null);
   const nowLabel = useRef<SVGTextElement>(null);
+  const axisTitle = useRef<HTMLSpanElement>(null);
+  /** Temperaturrubrikens högerkant och NOW-etikettens bredd (px) – mäts efter varje rendering,
+   *  inte vid varje scroll. */
+  const titleRight = useRef(0);
+  const nowLabelW = useRef(0);
   const nowX = x(now);
   /**
-   * Vald tid vid NU: bara NU-linjen och dess etikett. Annars får etiketterna aldrig överlappa.
+   * Vald tid vid NU: bara NU-linjen och dess etikett. Annars får etiketterna aldrig överlappa –
+   * inte heller temperaturrubriken till vänster på samma rad.
    * Markörens etikett sätts bara här (React renderar den tom) – annars skriver en omrendering,
    * t.ex. när klockan går, över vald tid med aktuell tid.
    */
@@ -158,14 +172,26 @@ export const Timeline = memo(function Timeline({ now, until, data, onCursor, rec
       cursorEl.current?.classList.toggle("at-now", atNow);
       const lbl = nowLabel.current;
       if (!lbl) return;
-      const side = atNow || ax >= NOW_LABEL_CLEAR_PX ? 0 : dx < 0 ? -1 : 1;
+      let side = atNow || ax >= NOW_LABEL_CLEAR_PX ? 0 : dx < 0 ? -1 : 1;
+      // Temperaturrubriken till vänster på samma rad: vid NU flyttas etiketten till höger om
+      // linjen (ingen marköretikett i vägen där); annars döljs den när den hamnar under rubriken.
+      const nowViewX = cursorX + dx;
+      const w = nowLabelW.current;
+      const clearOfTitle = (s: number) =>
+        (s === 0 ? nowViewX - w / 2 : s < 0 ? nowViewX - 6 - w : nowViewX + 6) >= titleRight.current + 4;
+      if (atNow && !clearOfTitle(side)) side = 1;
       lbl.setAttribute("x", String(nowX + side * 6));
       lbl.setAttribute("text-anchor", side < 0 ? "end" : side > 0 ? "start" : "middle");
-      lbl.style.visibility = !atNow && ax < NOW_LABEL_SIDE_PX ? "hidden" : "";
+      lbl.style.visibility = (!atNow && ax < NOW_LABEL_SIDE_PX) || !clearOfTitle(side) ? "hidden" : "";
     },
-    [nowX, tAt],
+    [nowX, tAt, cursorX],
   );
-  useLayoutEffect(() => placeMarkers(scroller.current?.scrollLeft ?? 0));
+  useLayoutEffect(() => {
+    const title = axisTitle.current;
+    titleRight.current = title ? title.offsetLeft + title.offsetWidth : 0;
+    nowLabelW.current = nowLabel.current?.getComputedTextLength() ?? 0;
+    placeMarkers(scroller.current?.scrollLeft ?? 0);
+  });
   const onScroll = () => {
     if (scroller.current) placeMarkers(scroller.current.scrollLeft);
     cancelAnimationFrame(raf.current);
@@ -225,20 +251,37 @@ export const Timeline = memo(function Timeline({ now, until, data, onCursor, rec
     return out;
   }, [start, end]);
 
-  // Temperatur vid tiden t (linjärt mellan punkter) – molnen ligger på kurvan.
+  // Temperatur vid tiden t (linjärt mellan punkter) – för temperaturetikettens placering.
   const tempPts = useMemo(
     () => [...data.temp.observed.flat(), ...data.temp.forecast.flat()].sort((a, b) => a.t - b.t),
     [data.temp],
   );
-  const skyY = useCallback(
-    (t: number) => {
-      const v = tempAt(tempPts, t);
-      const y = v === undefined ? chartTop + CHART_H / 2 : yTemp(v) - SKY_LIFT;
-      // Ovanför kurvan, men inte uppe i OBSERVED/FORECAST-raden.
-      return Math.max(chartTop + 24, y);
-    },
-    [tempPts, yTemp, chartTop],
-  );
+  // Alla vädersymboler på samma höjd i symbolraden, oberoende av temperatur och molnbas.
+  const skyY = skyTop + SKY_CY;
+
+  // Senaste temperaturobservationen: punkt vid mätningens egen tid (aldrig flyttad till NU) och
+  // mätvärdet bredvid, placerat så att det inte krockar med kurvan, NU-linjen eller rubrikerna.
+  const lastTemp = useMemo(() => {
+    const p = data.temp.observed.at(-1)?.at(-1);
+    if (!p) return null;
+    const text = `${fmtTemp(p.v)} °C`;
+    const cx = x(p.t);
+    const cy = yTemp(p.v);
+    const label = placeTempLabel({
+      cx,
+      cy,
+      nowX: x(now),
+      width: text.length * TLAST_CHAR_W,
+      plotTop: chartTop,
+      plotBottom: chartBottom,
+      labelsBottom: chartTop + 15, // raden med OBSERVED/FORECAST
+      curveY: (px) => {
+        const v = tempAt(tempPts, start + (px / PX_PER_HOUR) * HOUR);
+        return v === undefined ? cy : yTemp(v);
+      },
+    });
+    return { t: p.t, cx, cy, text, label };
+  }, [data.temp.observed, x, yTemp, now, chartTop, chartBottom, tempPts, start]);
   // Nederbörd kring timmen t (observerad eller prognos) – ger regn under molnsymbolen.
   const precipAt = useMemo(() => {
     const all = [...data.precipObserved, ...data.precipForecast];
@@ -253,8 +296,11 @@ export const Timeline = memo(function Timeline({ now, until, data, onCursor, rec
         .filter((v) => v.t1 > t - HOUR / 2 && v.t0 < t + HOUR / 2 && (v.phenomenon || v.severe || !wet(t)))
         .sort((a, b) => Number(b.severe) - Number(a.severe))[0];
   }, [data.lowVis, wet]);
-  // Symboler: jämna klockslag, timmar med nederbörd, och minst en per dimperiod.
+  // Symboler: jämna klockslag, timmar med nederbörd, och minst en per dimperiod. På smala
+  // skärmar bara de jämna klockslagen, så att raden inte blir trång – vädret finns kvar i
+  // staplarna och i avläsningen.
   const skyShown = useMemo(() => {
+    if (narrow) return data.sky.filter((k) => localHour(k.t) % skyEvery === 0);
     const regular = (t: number) => localHour(t) % skyEvery === 0 || wet(t);
     const out = new Set<number>();
     let run: number[] = [];
@@ -269,7 +315,7 @@ export const Timeline = memo(function Timeline({ now, until, data, onCursor, rec
     }
     flush();
     return data.sky.filter((k) => out.has(k.t));
-  }, [data.sky, skyEvery, wet, fogAt]);
+  }, [data.sky, narrow, skyEvery, wet, fogAt]);
 
   const pathOf = (pts: Pt[]) => pts.map((p, i) => `${i ? "L" : "M"}${x(p.t).toFixed(1)},${yTemp(p.v).toFixed(1)}`).join("");
 
@@ -279,7 +325,10 @@ export const Timeline = memo(function Timeline({ now, until, data, onCursor, rec
       <div className="tl-yaxis" aria-hidden>
         {/* Bredare bakgrund bakom körfälten, där etiketterna är bredast ("Precip") */}
         <i className="tl-lanebg" style={{ top: precipTop }} />
-        <span className="tl-axtitle temp" style={{ top: 4 }}>
+        {/* Rubriken säger vad axeln är – ett ensamt "°C" gjorde kurvan tvetydig */}
+        <span ref={axisTitle} className="tl-lane tl-lane-2" style={{ top: 2 }}>
+          Temperature
+          <br />
           °C
         </span>
         <i className="tl-taxis" style={{ top: yTemp(t1), height: yTemp(t0) - yTemp(t1) }} />
@@ -324,7 +373,7 @@ export const Timeline = memo(function Timeline({ now, until, data, onCursor, rec
             height={H}
             style={{ position: "absolute", left: padL, top: 0 }}
             role="img"
-            aria-label="Chart: cloud base in metres (left axis), temperature in °C (right axis), precipitation from the cloud base, wind below. Solid is observed, dashed is forecast."
+            aria-label="Chart: weather symbols in a row at the top, temperature in °C (left axis) with a dot at the latest observation, precipitation per hour and wind below. Solid is observed, dashed is forecast."
           >
             <defs>
               <pattern id="hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
@@ -335,9 +384,9 @@ export const Timeline = memo(function Timeline({ now, until, data, onCursor, rec
               </pattern>
             </defs>
 
-            {/* Bakgrund: observerat vs prognos */}
-            <rect x={0} y={chartTop} width={nowX} height={H - chartTop} className="tl-bg-obs" />
-            <rect x={nowX} y={chartTop} width={Math.max(0, W - nowX)} height={H - chartTop} fill="url(#hatch)" />
+            {/* Bakgrund: observerat vs prognos – även bakom symbolraden, som hör till samma tidsaxel */}
+            <rect x={0} y={skyTop} width={nowX} height={H - skyTop} className="tl-bg-obs" />
+            <rect x={nowX} y={skyTop} width={Math.max(0, W - nowX)} height={H - skyTop} fill="url(#hatch)" />
 
             {/* Diskreta stödlinjer per 5 °C; 0 °C något tydligare. Den lägsta sammanfaller med
                 fältgränsen nedan och ritas inte separat – en linje i nederkanten. */}
@@ -372,7 +421,8 @@ export const Timeline = memo(function Timeline({ now, until, data, onCursor, rec
               <PrecipHourBar key={`ph${p.t0}`} p={p} x={x} base={precipTop + PRECIP_H - 3} max={precipMax} />
             ))}
 
-            {/* Molnighet på temperaturkurvan; dimma/dis ersätter molnsymbolen */}
+            {/* Vädersymboler i en egen rad ovanför diagrammet, alla på samma höjd och på sin timme
+                i samma tidsskala; dimma/dis ersätter molnsymbolen */}
             {skyShown.map((k) => {
               const fog = fogAt(k.t);
               const rain = precipAt(k.t);
@@ -381,7 +431,7 @@ export const Timeline = memo(function Timeline({ now, until, data, onCursor, rec
                 ? ` · ${rain.label}${rain.mm !== undefined ? ` ${rain.mm.toFixed(1)} mm` : ""}${rain.probability !== undefined ? `, ${Math.round(rain.probability)} %` : ""}`
                 : "";
               return (
-                <g key={`sky${k.t}`} transform={`translate(${x(k.t)},${skyY(k.t)})`} className={`tl-skyicon${k.forecast ? " fc" : ""}`}>
+                <g key={`sky${k.t}`} transform={`translate(${x(k.t)},${skyY})`} className={`tl-skyicon${k.forecast ? " fc" : ""}`}>
                   {fog ? <FogIcon severe={fog.severe} /> : <SkyIcon sky={k} day={k.day} />}
                   {rain && <RainMarks kind={rain.kind} />}
                   <title>{`${fmtTime(k.t)}: ${what}${rainText}${k.forecast ? " (forecast)" : ""}`}</title>
@@ -434,12 +484,30 @@ export const Timeline = memo(function Timeline({ now, until, data, onCursor, rec
             <text ref={nowLabel} x={nowX} y={TOP - 11} className="tl-nowlabel" textAnchor="middle">
               NOW {fmtTime(now)}
             </text>
-            <text x={nowX - 8} y={chartTop + 12} className="tl-side obs" textAnchor="end">
+            {/* Döljs bara när temperaturetiketten behöver raden (mätningen högst i fönstret) */}
+            <text
+              x={nowX - 8}
+              y={chartTop + 12}
+              className="tl-side obs"
+              textAnchor="end"
+              visibility={lastTemp?.label.hideObserved ? "hidden" : undefined}
+            >
               ← OBSERVED
             </text>
             <text x={nowX + 8} y={chartTop + 12} className="tl-side fc" textAnchor="start">
               FORECAST →
             </text>
+
+            {/* Senaste temperaturobservationen – ovanpå NU-linjen, vid mätningens egen tid */}
+            {lastTemp && (
+              <g>
+                <circle cx={lastTemp.cx} cy={lastTemp.cy} r={3.5} className="tl-tlast" />
+                <text x={lastTemp.label.x} y={lastTemp.label.baseline} textAnchor="end" className="tl-tlast-label">
+                  {lastTemp.text}
+                </text>
+                <title>{`Latest temperature observation, ${fmtTime(lastTemp.t)}: ${lastTemp.text}`}</title>
+              </g>
+            )}
 
             {/* Nya dygnets namn till höger om strecket – ovanpå NU-linjen, med kontur */}
             {hours
@@ -481,13 +549,14 @@ function tempAt(pts: Pt[], t: number): number | undefined {
 /** "Thu 24 Sep" */
 const dayDate = (t: number) => fmtDateTime(t).split(", ")[0];
 
-/** Regn under molnsymbolen: tre korta streck (snö: prickar), x och y relativt symbolens underkant. */
+/** Regn under molnsymbolen: tre korta streck (snö: prickar), x och y relativt symbolens underkant
+ *  – korta nog att rymmas i symbolraden (slutar ~16 px under symbolens mitt). */
 const RAIN_MARKS: Array<[number, number]> = [
-  [-6, 3],
-  [0, 7],
-  [6, 3],
+  [-6, 2],
+  [0, 4],
+  [6, 2],
 ];
-const RAIN_LEN = 7;
+const RAIN_LEN = 5;
 
 /**
  * Nederbörd som symbol: några korta streck eller prickar direkt under molnet, samma längd oavsett

@@ -195,8 +195,14 @@ WxgeekApp              – plats, datahämtning, auto-uppdatering (5 min när fl
     angränsande block på samma höjd slås ihop. Molnikonen fylls nerifrån med andelen åttondelar som täcks
     (FEW 2/8, SCT 4/8, BKN 6/8, OVC 8/8; SMHI-oktas direkt) via SVG-gradienter `cov0`…`cov8`.
   - **Vänster axel – temperatur (°C)**: adaptiv skala (`TEMP_AXIS` i
-    `src/lib/client/timeline.ts`); siffror, enhet och axellinje i neutral skiffergrå. Molnbasaxeln (höger) sitter dikt
-    an mot diagrammets högerkant och stannar vid vyns kant när man scrollar bakåt.
+    `src/lib/client/timeline.ts`); siffror, enhet och axellinje i neutral skiffergrå. Rubriken
+    "Temperature °C" (tvåradig, som "Precip mm/h") – ett ensamt "°C" gjorde kurvan tvetydig;
+    NOW-etiketten flyttas till höger om linjen eller döljs hellre än att krocka med rubriken.
+  - **Senaste temperaturobservationen**: en punkt på kurvan vid mätningens egen tid (aldrig
+    flyttad till NU) och mätvärdet bredvid, t.ex. "11 °C". Etiketten (`placeTempLabel` i
+    `src/lib/client/tempLabel.ts`) står ovanför eller under kurvan, vänster om NU-linjen; nära
+    ritytans topp lånas raden med OBSERVED (som då döljs) eller flyttas texten åt vänster tills
+    kurvan går fri.
   - **Observerat och prognos sitter ihop**: prognoskurvan (streckad) börjar i senaste
     observerade punkten. Skillnaden mellan observation och prognos där läggs på prognosen
     och klingar av linjärt under 3 h, så att kurvan blir sammanhängande. Samma justering
@@ -206,8 +212,8 @@ WxgeekApp              – plats, datahämtning, auto-uppdatering (5 min när fl
     höjd för platsen (`src/lib/sun.ts`, förenklad NOAA-algoritm).
   - Nederbörd vid minusgrader (enligt kurvan vid samma tid) visas som snö.
   - Temperaturkurvan: tegelröd, heldragen (observerat) / streckad (prognos).
-  - **Regn under molnen**: tre korta streck (snö: prickar) direkt under varje molnsymbol
-    med nederbörd, samma längd oavsett kurvans höjd. De signalerar bara nederbörd –
+  - **Regn under molnen**: tre korta streck (snö: prickar) direkt under varje symbol med
+    nederbörd i symbolraden, korta nog att rymmas i raden. De signalerar bara nederbörd –
     mängden visas av timstaplarna.
   - **Snö som snödjup**: nederbörd som faller som snö räknas som uppskattat nysnödjup
     (1 mm vatten ≈ 1 cm nysnö, utan smältning/sättning) och ritas som ett vitt lager
@@ -220,7 +226,7 @@ WxgeekApp              – plats, datahämtning, auto-uppdatering (5 min när fl
   - **Nederbörd per timme** i ett eget fält direkt under marklinjen: stapel + mm. Uppmätt
     (SMHI-mätare) heldraget; prognos som trolig mängd (mörk, SMHI-ensemblens median) och
     möjlig mängd (ljus, max av medel och max). SMHI:s min används inte.
-  - Dimma/dis: dimsymbol (tre streck) resp. dis (två streck) ersätter molnsymbolen på kurvan. Åska markeras med ϟ.
+  - Dimma/dis: dimsymbol (tre streck) resp. dis (två streck) ersätter molnsymbolen i symbolraden. Åska markeras med ϟ.
 - Ingen förklaring (legend) och inga instruktionstexter under diagrammet.
 - **Tidsaxel direkt under diagrammet** (tim-streck, "09:00" var 3:e timme, veckodag vid midnatt).
   Vänsteraxeln har solid bakgrund så att moln tonar bort innan de når etiketterna.
@@ -276,7 +282,11 @@ WxgeekApp              – plats, datahämtning, auto-uppdatering (5 min när fl
   SMHI – aldrig TEMPO/PROB). Regel: största kategorin bland samtidiga lager. CAVOK → SMHI:s
   totala molnmängd om den finns (märkt "SMHI model"), annars neutral CAVOK-markering. NSC →
   NSC-markering, saknas → "–". Dag/natt med solhöjd för platsen och tiden (`src/lib/sun.ts`).
-  Var 2:a timme, var 3:e under 520 px vybredd.
+  Symbolerna ligger i en egen rad (30 px) ovanför temperaturdiagrammet, alla på samma höjd och
+  i samma tidsskala som diagrammet – symboler som följde kurvan fick den att se ut som
+  molnens undersida. Ritytan krympte lika mycket (220 px), så diagrammet blev inte högre.
+  Var 2:a timme plus timmar med nederbörd och minst en per dimperiod; under 520 px vybredd
+  bara var 3:e timme, så att raden inte blir trång.
 - Molnbasens höjdaxel och höjdplacerade moln är borttagna. Molnbas och alla lager visas i
   detaljraden under sammanfattningen, med källa och giltighet.
 - SMHI-prognosens lager för text: lägsta molnbas + mängd *låga* moln (`modelLayer`); den

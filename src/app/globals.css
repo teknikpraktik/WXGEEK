@@ -26,6 +26,7 @@
   --cursor: var(--accent);
   --cursor-line: rgba(54, 95, 131, 0.75);
   --temp: #c64b40; /* temperaturkurva */
+  --temp-text: #a13a30; /* temperaturetiketten – mörkare för kontrast */
   --warn: #b35c00;
   --ev-regn: #397caf; /* nederbörd */
   --precip-text: #2c6594; /* små nederbördssiffror – mörkare för kontrast */
@@ -66,6 +67,7 @@
     --on-accent: #ffffff;
     --cursor-line: rgba(127, 167, 204, 0.7);
     --temp: #e0776c;
+    --temp-text: #e98a80;
     --warn: #f0a24a;
     --ev-regn: #5b9bd0;
     --precip-text: #86b8e2;
@@ -625,6 +627,22 @@ main {
 }
 .tl-dot.temp {
   fill: var(--temp);
+}
+/* Senaste temperaturobservationen: punkt på kurvan (ring i bakgrundsfärg) och mätvärdet bredvid */
+.tl-tlast {
+  fill: var(--temp);
+  stroke: var(--bg);
+  stroke-width: 1.5;
+}
+.tl-tlast-label {
+  font-family: var(--font-num);
+  font-size: 11px;
+  font-weight: 600;
+  fill: var(--temp-text);
+  paint-order: stroke;
+  stroke: var(--bg);
+  stroke-width: 3px;
+  stroke-linejoin: round;
 }
 .tl-dot {
   fill: var(--obs);
@@ -1396,11 +1414,6 @@ main {
 .tl-yaxis .tl-ttick { font-weight: 600; color: var(--muted); }
 /* Lägsta värdet står på fältgränsen – etiketten ovanför linjen, så att den inte krockar med "Precip" */
 .tl-yaxis .tl-ttick.bottom { transform: translateY(-100%); }
-.tl-yaxis .tl-axtitle.temp {
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--muted);
-}
 .tl-taxis {
   position: absolute;
   left: 50px;

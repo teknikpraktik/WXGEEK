@@ -25,9 +25,13 @@ situation **now**, and the **forecast** for the next 24 hours, all on the same a
   window – the smallest range on multiples of 5 °C with margin and at least a 20 °C span,
   preferring one that also shows 0 and −5 °C when that costs at most 5 °C extra. The scale
   stays put while you select times and across small data updates, never shrinks while in
-  use, and is recomputed for a new place. The settings are collected in `TEMP_AXIS`.
-- **Cloud cover symbols** sit on the temperature curve: one every 2 hours (every 3 on narrow
-  screens) and every hour with precipitation – sun, sun with a small cloud (FEW), sun partly
+  use, and is recomputed for a new place. The settings are collected in `TEMP_AXIS`. The axis
+  is titled "Temperature °C", and a dot marks the latest temperature observation at its
+  actual time (never moved to now) with the measured value beside it, e.g. "11 °C".
+- **Weather symbols** sit in their own row above the temperature chart – all at the same
+  height and at their hour on the same time axis, so the curve is never read as a cloud base:
+  one every 2 hours plus every hour with precipitation and at least one per fog period; on
+  narrow screens only every 3 hours. Sun, sun with a small cloud (FEW), sun partly
   behind cloud (SCT), mostly cloud (BKN), full cloud (OVC); moon instead of sun at night. The
   symbol is a simplification: the largest category among simultaneous layers (oktas are never
   summed). CAVOK, NSC and missing data are never shown as clear sky. **Fog** (three lines,
@@ -37,9 +41,9 @@ situation **now**, and the **forecast** for the next 24 hours, all on the same a
 - **Precipitation, mm per hour**: one series of bars from a zero line (dark = measured or
   expected, light = possible; "≤0.3" = most likely dry, but up to 0.3 mm possible). The zero
   line is drawn only under a measured or expected amount, not under "≤"; dry hours show
-  nothing, just like hours without data. Every hour with precipitation gets a
-  cloud symbol with a few short rain strokes (snow: dots) just below it – they only signal
-  precipitation, the bars show the amount.
+  nothing, just like hours without data. A symbol at an hour with precipitation gets a few
+  short rain strokes (snow: dots) just below it – they only signal precipitation, the bars
+  show the amount.
 - Wind arrows run below the time axis, which labels every hour. Midnight is marked by a line
   through the time axis with the new day's name.
 - Drag the chart (or use the arrow keys) to select a time within the fixed −12 h … +24 h
