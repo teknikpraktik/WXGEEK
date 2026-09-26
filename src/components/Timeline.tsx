@@ -12,7 +12,7 @@ import {
 import { fmtDateTime, localHour, fmtTemp, fmtTime } from "@/lib/format";
 import { placeTempLabel } from "@/lib/client/tempLabel";
 import { FogIcon, SkyIcon, skyTitle } from "./SkyIcon";
-import { SUN_MAX, SUN_MIN, SUN_ZONES, sunBandLabels } from "@/lib/client/sunBand";
+import { SUN_ZONES, sunBandLabels, sunY, withHorizonCrossings } from "@/lib/client/sunBand";
 
 const PX_PER_HOUR = 34;
 const MIN_OFFSET_H = -PAST_HOURS;
@@ -20,7 +20,8 @@ const MIN_OFFSET_H = -PAST_HOURS;
 const snap5 = (t: number) => Math.round(t / 300_000) * 300_000;
 
 // Layout (px)
-const TOP = 26; // NU-etiketten och vald tids etikett
+/** Luft ovanför symbolraden (solstrålarna når ~13 px upp från symbolens mitt). */
+const SKY_TOP = 2;
 /** Symbolrad ovanför temperaturdiagrammet: alla vädersymboler på samma höjd, skilda från kurvan
  *  – symboler som följde kurvan fick den att se ut som molnens undersida. Raden slutar ~5 px
  *  under regnstrecken, så att även en symbol med regn går fri från rubriken under. */
@@ -32,9 +33,10 @@ const SKY_CY = 13;
 const TITLE_H = 18;
 const CHART_H = 220; // temperatur (vänster axel)
 const PRECIP_H = 30; // mm per timme
-/** Solbandet (solhöjd −20°…60°) mellan nederbörden och tidsaxeln. */
-const SUN_H = 48;
+/** Solbandet (solhöjd −18°…60°, tvådelad skala) mellan nederbörden och vinden. */
+const SUN_H = 64;
 const WIND_H = 50;
+/** Tidsaxeln överst, under symbolraden: timtal (med NOW-etiketten och vald tid) och dygnsnamn. */
 const AXIS_H = 30;
 /** Vänsteraxelns bredd (.tl-yaxis) – den ligger över diagrammets vänsterkant. */
 const AXIS_W = 60;
@@ -90,15 +92,16 @@ export const Timeline = memo(function Timeline({ now, until, data, onCursor, rec
   const histW = cursorX - AXIS_W;
   const obsShort = viewW > 0 && histW < OBS_LABEL_W + 8;
 
-  // Layout: NU-rad, symbolrad, rubrik "Temperature °C", temperatur, nederbörd, sol, tidsaxel, vind
-  const skyTop = TOP;
-  const titleTop = skyTop + SKY_ROW_H;
+  // Layout: symbolrad, tidsaxel (med NOW och vald tid), rubrik "Temperature °C", temperatur,
+  // nederbörd, sol, vind
+  const skyTop = SKY_TOP;
+  const axisTop = skyTop + SKY_ROW_H;
+  const titleTop = axisTop + AXIS_H;
   const chartTop = titleTop + TITLE_H;
   const chartBottom = chartTop + CHART_H;
   const precipTop = chartBottom;
   const sunTop = precipTop + PRECIP_H;
-  const axisTop = sunTop + SUN_H;
-  const windTop = axisTop + AXIS_H + 2;
+  const windTop = sunTop + SUN_H + 2;
   const H = windTop + WIND_H;
 
   // Temperaturskala (°C, linjär) över hela ritytan: högsta värdet i överkanten, lägsta i
@@ -169,6 +172,7 @@ export const Timeline = memo(function Timeline({ now, until, data, onCursor, rec
 
   const cursorLabel = useRef<HTMLSpanElement>(null);
   const nowLabel = useRef<SVGTextElement>(null);
+  const svgEl = useRef<SVGSVGElement>(null);
   const nowX = x(now);
   /**
    * Vald tid vid NU: bara NU-linjen och dess etikett. Annars får etiketterna aldrig överlappa.
@@ -188,6 +192,18 @@ export const Timeline = memo(function Timeline({ now, until, data, onCursor, rec
       lbl.setAttribute("x", String(nowX + side * 6));
       lbl.setAttribute("text-anchor", side < 0 ? "end" : side > 0 ? "start" : "middle");
       lbl.style.visibility = !atNow && ax < NOW_LABEL_SIDE_PX ? "hidden" : "";
+      // Etiketterna står på tidsaxeln: timtal som de täcker döljs.
+      const covered: Array<[number, number]> = [];
+      if (!lbl.style.visibility) {
+        const b = lbl.getBBox();
+        covered.push([b.x - 4, b.x + b.width + 4]);
+      }
+      const cw = atNow ? 0 : (cursorLabel.current?.offsetWidth ?? 0);
+      if (cw) covered.push([scrollLeft - cw / 2 - 4, scrollLeft + cw / 2 + 4]);
+      svgEl.current?.querySelectorAll<SVGTextElement>(".tl-hour").forEach((h) => {
+        const hx = Number(h.getAttribute("x"));
+        h.style.visibility = covered.some(([a, b]) => hx + 7 > a && hx - 7 < b) ? "hidden" : "";
+      });
     },
     [nowX, tAt],
   );
@@ -285,16 +301,23 @@ export const Timeline = memo(function Timeline({ now, until, data, onCursor, rec
     return { t: p.t, cx, cy, text, label };
   }, [data.temp.observed, x, yTemp, now, chartTop, chartBottom, tempPts, start, viewW, histW]);
 
-  // Solbandet: solhöjden i fast skala (−20°…60°), kurvan var 10:e minut på samma tidsaxel.
-  const ySun = useCallback((alt: number) => sunTop + ((SUN_MAX - alt) / (SUN_MAX - SUN_MIN)) * SUN_H, [sunTop]);
-  const sunCurve = useMemo(
-    () =>
-      data.sun.path
-        .filter((p) => p.t >= start - HOUR && p.t <= end + HOUR)
-        .map((p, i) => `${i ? "L" : "M"}${x(p.t).toFixed(1)},${ySun(p.alt).toFixed(1)}`)
-        .join(""),
-    [data.sun.path, start, end, x, ySun],
+  // Solbandet: solhöjden i tvådelad fast skala (−18°…0° på 35 %, 0°…60° på 65 %), kurvan var
+  // 10:e minut på samma tidsaxel, klippt mot bandets kanter; gul yta bara där solen är uppe.
+  const ySun = useCallback((alt: number) => sunY(alt, sunTop, SUN_H), [sunTop]);
+  const sunPts = useMemo(
+    () => withHorizonCrossings(data.sun.path.filter((p) => p.t >= start - HOUR && p.t <= end + HOUR)),
+    [data.sun.path, start, end],
   );
+  const sunCurve = useMemo(
+    () => sunPts.map((p, i) => `${i ? "L" : "M"}${x(p.t).toFixed(1)},${ySun(p.alt).toFixed(1)}`).join(""),
+    [sunPts, x, ySun],
+  );
+  const sunFill = useMemo(() => {
+    if (!sunPts.length) return "";
+    const y0 = ySun(0).toFixed(1);
+    const edge = sunPts.map((p) => `L${x(p.t).toFixed(1)},${ySun(Math.max(0, p.alt)).toFixed(1)}`).join("");
+    return `M${x(sunPts[0].t).toFixed(1)},${y0}${edge}L${x(sunPts[sunPts.length - 1].t).toFixed(1)},${y0}Z`;
+  }, [sunPts, x, ySun]);
   const sunLabels = useMemo(
     () => sunBandLabels({ path: data.sun.path, events: data.sun.events, start, end, x, y: ySun, top: sunTop, bottom: sunTop + SUN_H, width: W }),
     [data.sun.path, data.sun.events, start, end, x, ySun, sunTop, W],
@@ -390,6 +413,7 @@ export const Timeline = memo(function Timeline({ now, until, data, onCursor, rec
       >
         <div style={{ width: W + padL + padR, height: H, position: "relative" }}>
           <svg
+            ref={svgEl}
             width={W}
             height={H}
             style={{ position: "absolute", left: padL, top: 0 }}
@@ -400,10 +424,30 @@ export const Timeline = memo(function Timeline({ now, until, data, onCursor, rec
               <pattern id="vv" width="4" height="4" patternUnits="userSpaceOnUse" patternTransform="rotate(-45)">
                 <line x1="0" y1="0" x2="0" y2="4" className="tl-vv" />
               </pattern>
-              <clipPath id="tl-sunclip">
-                <rect x={0} y={sunTop} width={W} height={SUN_H} />
-              </clipPath>
             </defs>
+
+            {/* Solbandets bakgrund: skymningszonerna som horisontella band under horisonten, och gul
+                yta bara mellan kurvan och horisonten där solen är uppe – ovanför är bakgrunden neutral. */}
+            <g className="tl-sunband">
+              {SUN_ZONES.map((z) => (
+                <rect key={z.zone} x={0} y={ySun(z.top)} width={W} height={ySun(z.bottom) - ySun(z.top)} className={`zone ${z.zone}`} />
+              ))}
+              <path d={sunFill} className="fill" />
+            </g>
+
+            {/* Svaga gridlinjer för varje hel timme genom temperatur, nederbörd, sol och vind – något
+                tydligare vid 00, 06, 12 och 18 */}
+            {hours.map((h) => (
+              <line
+                key={`vg${h.t}`}
+                x1={x(h.t)}
+                x2={x(h.t)}
+                y1={chartTop}
+                y2={H}
+                className={h.h % 6 === 0 ? "tl-vgrid major" : "tl-vgrid"}
+                shapeRendering="crispEdges"
+              />
+            ))}
 
             {/* Diskreta stödlinjer per 5 °C; 0 °C något tydligare. Den lägsta sammanfaller med
                 fältgränsen nedan och ritas inte separat – en linje i nederkanten. */}
@@ -413,6 +457,7 @@ export const Timeline = memo(function Timeline({ now, until, data, onCursor, rec
                 <line key={`tg${v}`} x1={0} x2={W} y1={yTemp(v)} y2={yTemp(v)} className={v === 0 ? "tl-grid zero" : "tl-grid"} />
               ))}
             <line x1={0} x2={W} y1={precipTop} y2={precipTop} className="tl-lanesep" />
+            <line x1={0} x2={W} y1={sunTop} y2={sunTop} className="tl-lanesep" />
             <line x1={0} x2={W} y1={windTop - 1} y2={windTop - 1} className="tl-lanesep" />
 
             {data.thunder.map((m, i) => (
@@ -438,14 +483,11 @@ export const Timeline = memo(function Timeline({ now, until, data, onCursor, rec
               <PrecipHourBar key={`ph${p.t0}`} p={p} x={x} base={precipTop + PRECIP_H - 3} max={precipMax} />
             ))}
 
-            {/* Solbanan: solhöjden i fast skala −20°…60° över skymningszonerna (horisontella band),
-                horisonten vid 0°, kurvan ovanpå – samma tidsaxel som övriga diagrammet. */}
+            {/* Solbanan ovanpå gridlinjerna: horisonten vid 0°, kurvan och etiketterna – samma
+                tidsaxel som övriga diagrammet. */}
             <g className="tl-sunband">
-              {SUN_ZONES.map((z) => (
-                <rect key={z.zone} x={0} y={ySun(z.top)} width={W} height={ySun(z.bottom) - ySun(z.top)} className={`zone ${z.zone}`} />
-              ))}
               <line x1={0} x2={W} y1={ySun(0)} y2={ySun(0)} className="horizon" />
-              <path d={sunCurve} clipPath="url(#tl-sunclip)" className="curve" />
+              <path d={sunCurve} className="curve" />
               {sunLabels.map((l) => (
                 <text key={`${l.kind}${l.t}`} x={l.x} y={l.y} textAnchor={l.anchor} className={`label ${l.kind}`}>
                   {l.text}
@@ -493,7 +535,7 @@ export const Timeline = memo(function Timeline({ now, until, data, onCursor, rec
               </g>
             ))}
 
-            {/* Tidsaxel direkt under solbandet */}
+            {/* Tidsaxel överst, direkt under symbolraden och ovanför temperaturgrafen */}
             <rect x={0} y={axisTop} width={W} height={AXIS_H} className="tl-axisband" />
             <line x1={0} x2={W} y1={axisTop} y2={axisTop} className="tl-axisline" />
             {hours.map((h) => (
@@ -508,12 +550,13 @@ export const Timeline = memo(function Timeline({ now, until, data, onCursor, rec
             {hours
               .filter((h) => h.h === 0)
               .map((h) => (
-                <line key={`mid${h.t}`} x1={x(h.t)} x2={x(h.t)} y1={axisTop} y2={windTop - 1} className="tl-dayline" />
+                <line key={`mid${h.t}`} x1={x(h.t)} x2={x(h.t)} y1={axisTop} y2={axisTop + AXIS_H} className="tl-dayline" />
               ))}
 
             {/* NU */}
-            <line x1={nowX} x2={nowX} y1={TOP - 6} y2={H} className="tl-now" shapeRendering="crispEdges" />
-            <text ref={nowLabel} x={nowX} y={TOP - 11} className="tl-nowlabel" textAnchor="middle">
+            <line x1={nowX} x2={nowX} y1={0} y2={H} className="tl-now" shapeRendering="crispEdges" />
+            {/* NOW-etiketten på tidsaxeln, på timtalens rad */}
+            <text ref={nowLabel} x={nowX} y={axisTop + 13} className="tl-nowlabel" textAnchor="middle">
               NOW {fmtTime(now)}
             </text>
             {/* Döljs bara när temperaturetiketten behöver raden (mätningen högst i fönstret).
@@ -565,8 +608,8 @@ export const Timeline = memo(function Timeline({ now, until, data, onCursor, rec
       </p>
 
       {/* Fast markör en femtedel in i ritytan */}
-      <div ref={cursorEl} className="tl-cursor at-now" style={{ left: cursorX, top: TOP - 4, height: H - TOP + 4 }} aria-hidden>
-        <span ref={cursorLabel} className="tl-cursor-label" />
+      <div ref={cursorEl} className="tl-cursor at-now" style={{ left: cursorX, top: 0, height: H }} aria-hidden>
+        <span ref={cursorLabel} className="tl-cursor-label" style={{ top: axisTop + 2 }} />
       </div>
     </div>
   );

@@ -56,14 +56,19 @@ situation **now**, and the **forecast** for the next 24 hours, all on the same a
   nothing, just like hours without data. A symbol at an hour with precipitation gets a few
   short rain strokes (snow: dots) just below it – they only signal precipitation, the bars
   show the amount.
-- Wind arrows run below the time axis, which labels every hour. Midnight is marked by a line
-  through the time axis with the new day's name.
-- A **sun band** between precipitation and the time axis shows the sun's altitude on a fixed
-  scale all year (−20° to 60°, no autoscaling – the seasons are the point), with the horizon at
-  0° and civil, nautical and astronomical twilight and night as ever darker horizontal bands
-  below it. Labels: the highest altitude at solar noon (e.g. "29°"), and sunrise and sunset
-  (−0.833°, with refraction) as local times at the crossing (e.g. "06:59", "18:54"). Midnight
-  sun and polar night draw the curve without rise/set labels. The sun is computed with NOAA's
+- The **time axis** sits at the top, just below the weather symbols: every hour, with the new
+  day's name at midnight, and NOW and the selected time labelled on it (hour labels they cover
+  are hidden). Faint vertical gridlines for every hour – a little stronger at 00, 06, 12 and
+  18 – run through temperature, precipitation, sun and wind. Wind arrows are at the bottom.
+- A **sun band** between precipitation and wind shows the sun's altitude on a fixed scale all
+  year (no autoscaling – the seasons are the point), split in two: 0° to 60° takes 65 % of the
+  height and −18° to 0° 35 %, so civil, nautical and astronomical twilight show as three clear
+  tones below the horizon; lower values are clipped at the bottom edge. The background above
+  the horizon is neutral – yellow fills only the area between the curve and the horizon while
+  the sun is up. Labels: the highest altitude at solar noon (e.g. "29°"), and sunrise and
+  sunset (−0.833°, with refraction) as local times on the day side of the crossing, above the
+  curve (e.g. "06:59", "18:54"); no text sits on the dark twilight tones. Midnight sun and polar
+  night draw the curve without rise/set labels. The sun is computed with NOAA's
   solar calculator (Meeus) for the place, every 10 minutes on the same time axis as the rest of
   the chart. The temperature chart has a neutral background; observed and forecast are told
   apart by the NOW line, the OBSERVED/FORECAST labels and solid vs dashed lines.

@@ -16,11 +16,13 @@
   /* Natt i bandet bakom klockslagen: mörkare blågrå, timtalen läsbara (AA) */
   /* Solbandet: dag svagt varm, skymningszonerna allt mörkare blågrå, natt mörkast; kurvan i
      mörk bärnsten – varken temperaturens tegelröd eller streckad */
-  --sun-day: #f4e8c8;
-  --sun-civil: #dde2e9;
-  --sun-nautical: #c5cdd9;
-  --sun-astro: #a9b4c5;
-  --sun-night: #8b98ae;
+  --sun-fill: #f3e3b6; /* gult bara mellan kurvan och horisonten, där solen är uppe */
+  --sun-civil: #e0e5ec;
+  --sun-nautical: #c9d1dc;
+  --sun-astro: #b1bccb;
+  /* Timgridlinjer genom alla band – låg kontrast, något tydligare vid 00, 06, 12 och 18 */
+  --vgrid: rgba(32, 37, 43, 0.05);
+  --vgrid-major: rgba(32, 37, 43, 0.11);
   --sun-horizon: rgba(63, 71, 80, 0.65);
   --sun-curve: #a26f0b;
   --sun-text: #7a5207; /* maxhöjden – mörkare för kontrast mot den varma tonen */
@@ -67,11 +69,12 @@
     --grid: rgba(255, 255, 255, 0.08);
     --obs: #eef0f2;
     --obs-bg: rgba(255, 255, 255, 0.035);
-    --sun-day: #2a2516;
-    --sun-civil: #1f2631;
-    --sun-nautical: #19202a;
-    --sun-astro: #141921;
-    --sun-night: #0e1117;
+    --sun-fill: #3a3219;
+    --sun-civil: #36445c;
+    --sun-nautical: #263146;
+    --sun-astro: #181f2d;
+    --vgrid: rgba(255, 255, 255, 0.045);
+    --vgrid-major: rgba(255, 255, 255, 0.1);
     --sun-horizon: rgba(233, 234, 236, 0.5);
     --sun-curve: #e0b04c;
     --sun-text: #f0c96a;
@@ -556,11 +559,17 @@ main {
 }
 
 /* Solbandet: zonerna som horisontella band, horisonten vid 0°, solkurvan ovanpå */
-.tl-sunband .zone.day { fill: var(--sun-day); }
+.tl-sunband .fill { fill: var(--sun-fill); }
 .tl-sunband .zone.civil { fill: var(--sun-civil); }
 .tl-sunband .zone.nautical { fill: var(--sun-nautical); }
 .tl-sunband .zone.astro { fill: var(--sun-astro); }
-.tl-sunband .zone.night { fill: var(--sun-night); }
+.tl-vgrid {
+  stroke: var(--vgrid);
+  stroke-width: 1;
+}
+.tl-vgrid.major {
+  stroke: var(--vgrid-major);
+}
 .tl-sunband .horizon {
   stroke: var(--sun-horizon);
   stroke-width: 1;
@@ -1189,12 +1198,13 @@ main {
   min-height: 28px;
 }
 
-/* Vald tid: streckad linje, liten cirkel och fylld etikett i dämpad blå (--cursor) ovanför
-   grafen (samma rad som NOW-etiketten, som flyttas undan vid behov). Egen färg: NU – linjen,
-   etiketten "NOW hh:mm" och Now-knappen – är mörk blågrå, och med samma färg såg Now ut att
-   höra till vald tid. Linjen (2 px) centreras på markörens x; barnen utgår från
-   padding-boxen, dvs. efter bordern. */
-/* Läget (left) sätts i Timeline.tsx: en fjärdedel in i diagramytan (CURSOR_AT) */
+/* Vald tid: streckad linje genom hela diagrammet och en fylld etikett i dämpad blå (--cursor)
+   på tidsaxeln (samma rad som timtalen och NOW-etiketten, som flyttas undan vid behov; timtal
+   som etiketterna täcker döljs). Egen färg: NU – linjen, etiketten "NOW hh:mm" och
+   Now-knappen – är mörk blågrå, och med samma färg såg Now ut att höra till vald tid. Linjen
+   (2 px) centreras på markörens x; barnen utgår från padding-boxen, dvs. efter bordern. */
+/* Läget (left) och etikettens höjd (top) sätts i Timeline.tsx: en femtedel in i ritytan
+   (CURSOR_AT), på tidsaxelns rad */
 .tl-cursor {
   position: absolute;
   width: 0;
@@ -1203,19 +1213,8 @@ main {
   pointer-events: none;
   z-index: 3;
 }
-.tl-cursor::before {
-  content: "";
-  position: absolute;
-  top: -3.5px;
-  left: -4.5px;
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--cursor);
-}
 .tl-cursor-label {
   position: absolute;
-  top: -21px;
   left: -1px;
   transform: translateX(-50%);
   white-space: nowrap;

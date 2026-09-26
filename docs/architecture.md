@@ -190,8 +190,9 @@ WxgeekApp              – plats, datahämtning, auto-uppdatering (5 min när fl
   markören, där den skulle se ut att höra till vald tid. Tangentbord: pilar (±1 h,
   Shift ±6 h) och `N`.
 - **Vald tid** och **NU** har olika markörer som fungerar utan färgseende: NU är en tunn
-  heldragen linje i mörk blågrå med etiketten "NOW 17:12" ovanför grafen; vald tid är en
-  streckad linje i dämpad blå med en liten cirkel och en fylld etikett "18:00" (vit text).
+  heldragen linje i mörk blågrå med etiketten "NOW 17:12" på tidsaxeln överst; vald tid är en
+  streckad linje i dämpad blå med en fylld etikett "18:00" (vit text) på samma rad. Timtal som
+  etiketterna täcker döljs.
   Egen färg för vald tid – med samma blågrå som NU och Now-knappen såg Now ut att höra till
   vald tid.
   Står vald tid på NU visas bara NU-linjen och dess etikett. Etiketterna krockar aldrig:
@@ -206,18 +207,21 @@ WxgeekApp              – plats, datahämtning, auto-uppdatering (5 min när fl
   NU-linjen, rubrikerna OBSERVED/FORECAST och linjestilen (heldraget vs streckat) – inte med
   bakgrunden. Gula solar, grå moln och mörka vindpilar. Text och kontroller klarar WCAG AA
   mot sina bakgrunder, även i mörkt läge. Linjer dras aldrig över luckor i data.
-- **Solbandet** (`SUN_H` 48 px mellan nederbörden och tidsaxeln, etikett "Sun °"): solhöjden
-  för platsens koordinater var 10:e minut (`sunPath`) i fast skala året runt, −20°…60° – ingen
-  autoskalning, säsongsskillnaden är poängen (Karlstad: ~7° vid vintersolståndet, ~29° i slutet
-  av september, ~54° vid sommarsolståndet). Zonerna ritas som horisontella band: dag (svagt
-  varm), borgerlig (0…−6°), nautisk (−6…−12°) och astronomisk (−12…−18°) skymning i allt
-  mörkare blågrått, natt (under −18°) mörkast; horisontlinje vid 0°. Kurvan är heldragen, tunn
-  och bärnstensfärgad – varken temperaturens tegelröd eller streckad – och klipps i bandets
-  kanter. Etiketter (`sunBandLabels` i `src/lib/client/sunBand.ts`): maxhöjden vid varje
-  middag ("29°", ovanför toppen, under den när toppen når överkanten), soluppgång och
-  solnedgång (−0,833°) som lokal tid vid passagen – till vänster om uppgången och till höger om
-  nedgången, strax ovanför horisonten där kurvan inte går. Etiketter som skulle krocka eller gå
-  utanför diagrammet visas inte; polarfall ger kurvan utan tider. Samma tidsaxel (`x(t)`) som
+- **Solbandet** (`SUN_H` 64 px mellan nederbörden och vinden, etikett "Sun °"): solhöjden för
+  platsens koordinater var 10:e minut (`sunPath`) i fast skala året runt – ingen autoskalning,
+  säsongsskillnaden är poängen (Karlstad: ~7° vid vintersolståndet, ~29° i slutet av september,
+  ~54° vid sommarsolståndet). Skalan är tvådelad (`sunY` i `src/lib/client/sunBand.ts`):
+  0°…60° tar 65 % av höjden och −18°…0° 35 %, så att borgerlig (0…−6°), nautisk (−6…−12°) och
+  astronomisk (−12…−18°) skymning syns som tre tydliga, allt mörkare blågrå band under
+  horisonten; värden under −18° klipps mot nederkanten. Ovanför horisonten är bakgrunden
+  neutral – gult bara mellan kurvan och horisonten där solen är uppe, med exakta
+  horisontpassager inlagda (`withHorizonCrossings`). Kurvan är heldragen, tunn och
+  bärnstensfärgad – varken temperaturens tegelröd eller streckad. Etiketter (`sunBandLabels`),
+  alla ovanför horisonten och helt inom bandet, aldrig på skymningstonerna: maxhöjden vid varje
+  middag ("29°", ovanför toppen, under den när toppen når överkanten), soluppgång och solnedgång
+  (−0,833°) som lokal tid på dagsidan av passagen – till höger om uppgången och till vänster om
+  nedgången – ovanför kurvan, så att tiden inte hamnar under vänsteraxeln. Etiketter som skulle
+  krocka eller gå utanför diagrammet visas inte; polarfall ger kurvan utan tider. Samma tidsaxel (`x(t)`) som
   övriga lager: kurvans 0°-passage ligger exakt under motsvarande tid i temperaturgrafen.
   Färger som variabler (`--sun-*`) för ljust och mörkt tema. Temperaturgrafen har neutral
   bakgrund – den tidigare natt-skuggningen och solmarkeringarna vid tidsaxeln är borttagna.
@@ -263,7 +267,10 @@ WxgeekApp              – plats, datahämtning, auto-uppdatering (5 min när fl
     möjlig mängd (ljus, max av medel och max). SMHI:s min används inte.
   - Dimma/dis: dimsymbol (tre streck) resp. dis (två streck) ersätter molnsymbolen i symbolraden. Åska markeras med ϟ.
 - Ingen förklaring (legend) och inga instruktionstexter under diagrammet.
-- **Tidsaxel direkt under diagrammet** (tim-streck, "09:00" var 3:e timme, veckodag vid midnatt).
+- **Tidsaxel överst**, direkt under symbolraden och ovanför temperaturgrafen: timtal för varje
+  timme, dygnsnamn vid midnatt och NOW/vald tid på samma rad. **Gridlinjer** för varje hel timme
+  genom temperatur, nederbörd, sol och vind (`--vgrid`, något tydligare `--vgrid-major` vid
+  00, 06, 12 och 18) – låg kontrast, så att de inte konkurrerar med data.
   Vänsteraxeln har solid bakgrund så att moln tonar bort innan de når etiketterna.
 - **Now-knappen**: samma utseende som Change (ljus yta, ljus kant, mörk text) – ändras inte
   när tiden scrollas, och aldrig NU-linjens mörka blågrå, så att den inte förväxlas med
@@ -357,4 +364,4 @@ WxgeekApp              – plats, datahämtning, auto-uppdatering (5 min när fl
   linjär skala 0–max (minst 2 mm).
   Mängd per timme (SMHI param 7 = summa 1 h; prognosens timsteg = mängd). Prognos: median
   (mörk) och övre spridning (ljus). Den ackumulerade vattenytan/snödjupet är borttaget.
-- **Tidsaxel**: varje timme; midnatt med kraftigare linje och datum på båda sidor.
+- **Tidsaxel** (överst): varje timme; midnatt med streck genom axeln och dygnsnamn.
