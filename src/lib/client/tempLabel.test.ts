@@ -64,3 +64,32 @@ test("punkten utanför den synliga historiken: etiketten dras inte in i vyn utan
   const l = placeTempLabel({ ...base, cx: 20, nowX: 105.6, width: 34, minX: 62, cy: 160, curveY: flat(160) });
   assert.equal(l.x, 24, "högerjusterad mot punkten som förut");
 });
+
+test("etiketten hamnar inte heller på daggpunktskurvan", () => {
+  // Temperaturen sjunker in mot punkten (y 80 → 100), så ovanför är upptaget: utan daggpunkt
+  // står etiketten under punkten. Ligger daggpunkten där (y 110) flyttas etiketten i stället.
+  const base = { cx: 200, cy: 100, nowX: 210, width: 40, plotTop: 20, plotBottom: 200, labelsBottom: 22, curveY: (x: number) => (x < 180 ? 80 : 100) };
+  const plain = placeTempLabel(base);
+  assert.equal(plain.above, false, "under punkten när bara temperaturkurvan finns");
+  const withDew = placeTempLabel({ ...base, otherCurves: [() => 110] });
+  const top = withDew.baseline - 8;
+  assert.ok(withDew.baseline <= 110 - 2 || top >= 110 + 2, `baslinje ${withDew.baseline} ligger på daggpunkten`);
+});
+
+test("vänster sida full – kurvan ovanför och daggpunkten under: etiketten till höger om NU", () => {
+  // Temperaturen ligger i höjd med platsen ovanför punkten hela vägen bakåt (y 88), och
+  // daggpunkten strax under punkten (y 110); efter NU stiger temperaturen och daggpunkten sjunker.
+  const l = placeTempLabel({
+    cx: 200,
+    cy: 100,
+    nowX: 204,
+    width: 36,
+    plotTop: 20,
+    plotBottom: 200,
+    labelsBottom: 22,
+    curveY: (x) => (x <= 190 ? 88 : x <= 200 ? 88 + (x - 190) * 1.2 : 100 - (x - 200) * 0.3),
+    otherCurves: [(x) => (x <= 204 ? 110 : 130)],
+  });
+  assert.ok(l.x - 36 >= 204 + 4, `börjar ${l.x - 36} – till höger om NU`);
+  assert.equal(l.above, false);
+});

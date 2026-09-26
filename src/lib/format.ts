@@ -72,11 +72,22 @@ export function fmtWindDeg(deg: number): string {
   return `${String(d).padStart(3, "0")}°`;
 }
 
-/** "From 140° · 4 m/s, gusts 7 m/s", "Calm", "Variable · 2 m/s" */
+const COMPASS8 = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"] as const;
+
+/**
+ * Varifrån vinden kommer, som väderstreck och hela tiotal grader: "From SW 240°". Pilarna i
+ * appen visar åt vilket håll vinden blåser; texten säger alltid varifrån den kommer.
+ */
+export function fmtWindFrom(deg: number): string {
+  const r = (Math.round(deg / 10) * 10) % 360;
+  return `From ${COMPASS8[Math.round(r / 45) % 8]} ${fmtWindDeg(deg)}`;
+}
+
+/** "From SE 140° · 4 m/s, gusts 7 m/s", "Calm", "Variable · 2 m/s" */
 export function fmtWindText(w: { deg?: number; variable?: boolean; speed?: number } | undefined, gust?: number): string {
   if (!w || w.speed === undefined) return "Missing";
   if (w.speed < 0.5) return "Calm";
-  const dir = w.variable ? "Variable" : w.deg !== undefined ? `From ${fmtWindDeg(w.deg)}` : "";
+  const dir = w.variable ? "Variable" : w.deg !== undefined ? fmtWindFrom(w.deg) : "";
   const g = gust !== undefined && gust >= w.speed + 1 ? `, gusts ${fmtWindSpeed(gust)} m/s` : "";
   return `${dir}${dir ? " · " : ""}${fmtWindSpeed(w.speed)} m/s${g}`;
 }

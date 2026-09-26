@@ -8,17 +8,25 @@ const metar = (t: number, stationName: string | undefined = "Karlstad flygplats"
 const smhi = (t: number, stationName = "Kilsbergen-Suttarboda A"): Origin => ({ kind: "SMHI", stationId: "94180", stationName, timestamp: t });
 const items = (o: Origin, ...what: string[]): SourceItem[] => what.map((w) => ({ what: w, origin: o }));
 
-test("en källa: mättid i lokal tid (sommartid) och stationens namn", () => {
+test("en källa: platsen, källan och mättiden i lokal tid (sommartid)", () => {
   const o = metar(Z(25, 7, 20));
   assert.equal(
     sourceLine("now", Z(25, 7, 41), Z(25, 7, 41), items(o, "temperature", "dew point", "wind", "visibility", "clouds")),
-    "Observed at 09:20 local time · Karlstad flygplats",
+    "Karlstad flygplats · METAR 09:20",
   );
 });
 
 test("vintertid: UTC+1", () => {
   const t = Date.UTC(2026, 0, 15, 8, 20);
-  assert.equal(sourceLine("now", t, t, items(metar(t), "temperature", "wind")), "Observed at 09:20 local time · Karlstad flygplats");
+  assert.equal(sourceLine("now", t, t, items(metar(t), "temperature", "wind")), "Karlstad flygplats · METAR 09:20");
+});
+
+test("samma plats med två källor: stationen nämns en gång, övriga värden med vad de gäller", () => {
+  const line = sourceLine("now", Z(25, 9, 5), Z(25, 9, 5), [
+    ...items(metar(Z(25, 8, 50)), "visibility", "clouds", "weather"),
+    ...items(smhi(Z(25, 9), "Karlstad flygplats"), "temperature", "dew point", "wind"),
+  ]);
+  assert.equal(line, "Karlstad flygplats · METAR 10:50 · SMHI obs 11:00 (temp, wind)");
 });
 
 test("värden från andra stationer eller tider tillskrivs inte huvudkällan", () => {
@@ -26,13 +34,13 @@ test("värden från andra stationer eller tider tillskrivs inte huvudkällan", (
     ...items(metar(Z(25, 7, 20), "Örebro flygplats"), "temperature", "wind", "visibility", "clouds"),
     ...items(smhi(Z(25, 7)), "precipitation"),
   ]);
-  assert.equal(line, "Observed at 09:20 local time · Örebro flygplats; precipitation 08–09 · Kilsbergen-Suttarboda A");
+  assert.equal(line, "Örebro flygplats · METAR 09:20 · SMHI obs Kilsbergen-Suttarboda A 08–09 (precip)");
 
   const mixed = sourceLine("now", Z(25, 7, 41), Z(25, 7, 41), [
     ...items(smhi(Z(25, 7)), "temperature", "dew point"),
     ...items(metar(Z(25, 7, 20)), "wind", "gusts", "visibility", "clouds"),
   ]);
-  assert.equal(mixed, "Observed at 09:20 local time · Karlstad flygplats; temperature at 09:00 · Kilsbergen-Suttarboda A");
+  assert.equal(mixed, "Karlstad flygplats · METAR 09:20 · SMHI obs Kilsbergen-Suttarboda A 09:00 (temp)");
 });
 
 test("byar och daggpunkt nämns bara när de har en egen källa", () => {
@@ -40,21 +48,21 @@ test("byar och daggpunkt nämns bara när de har en egen källa", () => {
     ...items(metar(Z(25, 7, 20)), "temperature", "dew point", "wind", "visibility", "clouds"),
     ...items(smhi(Z(25, 7)), "gusts"),
   ]);
-  assert.equal(line, "Observed at 09:20 local time · Karlstad flygplats; gusts at 09:00 · Kilsbergen-Suttarboda A");
+  assert.equal(line, "Karlstad flygplats · METAR 09:20 · SMHI obs Kilsbergen-Suttarboda A 09:00 (gusts)");
 });
 
 test("datum när observationen är från en annan lokal dag än nu", () => {
   // 23:50 lokal tid den 24:e, nu 00:10 den 25:e (samma UTC-dag, olika lokal dag)
   assert.equal(
     sourceLine("now", Z(24, 22, 10), Z(24, 22, 10), items(metar(Z(24, 21, 50)), "temperature")),
-    "Observed on Thu 24 Sep at 23:50 local time · Karlstad flygplats",
+    "Karlstad flygplats · METAR Thu 24 Sep 23:50",
   );
 });
 
 test("saknad metadata: ingen påhittad station eller tid", () => {
   const t = Z(25, 7, 20);
-  assert.equal(sourceLine("now", t, t, items({ kind: "METAR", stationId: "ESOK", timestamp: t }, "wind")), "Observed at 09:20 local time · ESOK");
-  assert.equal(sourceLine("now", t, t, items({ kind: "SMHI", timestamp: t }, "wind")), "Observed at 09:20 local time");
+  assert.equal(sourceLine("now", t, t, items({ kind: "METAR", stationId: "ESOK", timestamp: t }, "wind")), "ESOK · METAR 09:20");
+  assert.equal(sourceLine("now", t, t, items({ kind: "SMHI", timestamp: t }, "wind")), "SMHI obs 09:20");
   assert.equal(sourceLine("now", t, t, []), "");
 });
 
@@ -66,9 +74,6 @@ test("prognos: källorna med vad de gäller, inga observationer", () => {
     ...items(taf, "wind", "visibility", "clouds"),
     ...items({ ...s, timestamp: Z(25, 13) }, "precipitation"),
   ]);
-  assert.equal(line, "Forecast for 14:00 · TAF Karlstad flygplats; temperature, precipitation · SMHI");
-  assert.equal(
-    sourceLine("forecast", Z(26, 2, 30), Z(25, 7, 41), items(s, "temperature")),
-    "Forecast for Sat 26 Sep at 04:30 · SMHI",
-  );
+  assert.equal(line, "Forecast 14:00 · TAF Karlstad flygplats · SMHI (temp, precip)");
+  assert.equal(sourceLine("forecast", Z(26, 2, 30), Z(25, 7, 41), items(s, "temperature")), "Forecast Sat 26 Sep 04:30 · SMHI");
 });

@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { normalizeTaf, splitTafGroups, type AwcTaf } from "../adapters/taf";
 import { mergedForecastAt, tafMainAt, tafSupplementsAt, tafEndWithin } from "./forecast";
-import { buildChart, snapshotAt } from "./timeline";
+import { buildChart, matchedSpread, snapshotAt } from "./timeline";
 import type { ForecastPoint, WeatherBundle } from "../types";
 
 const T = (d: number, h: number) => Date.UTC(2026, 8, d, h) / 1000;
@@ -291,9 +291,9 @@ test("BECMG räknas från intervallets sista klockslag, också när AWC saknar d
 });
 
 // Karlstad med METAR-station och SMHI-prognos med skikt och fuktighet – för panelerna.
-function panelBundle(): WeatherBundle {
+function panelBundle(dew = 11): WeatherBundle {
   const station = { source: "METAR" as const, stationId: "ESOK", stationName: "Karlstad flygplats", latitude: 59.44, longitude: 13.34, distanceKm: 11 };
-  const ob = (h: number, extra: object) => ({ timestamp: iso(T(25, h) + 20 * 60), source: "METAR" as const, stationId: "ESOK", latitude: 59.44, longitude: 13.34, temperatureC: 12, dewPointC: 11, ...extra });
+  const ob = (h: number, extra: object) => ({ timestamp: iso(T(25, h) + 20 * 60), source: "METAR" as const, stationId: "ESOK", latitude: 59.44, longitude: 13.34, temperatureC: 12, dewPointC: dew, ...extra });
   const pts = smhiHours(T(25, 6), 12).map((p) => ({ ...p, relativeHumidity: 90, lowCloudCoverOktas: 8, midCloudCoverOktas: 2, highCloudCoverOktas: 0 }));
   const base = bundleWith(null, pts);
   return {
@@ -325,16 +325,6 @@ test("molntäcke per skikt: METAR-lagrens kategorier observerat, SMHI:s skikt i 
   assert.deepEqual([at(10).low, at(10).mid, at(10).high, at(10).forecast], [8, 2, 0, true]);
 });
 
-test("tak ur TAF: per huvudperiod från NU, BECMG från sista klockslaget, inget efter TAF:en", () => {
-  const b = { ...bundleWith(ESOK, smhiHours(T(25, 6), 12)), forecastUntil: iso(T(25, 18)) };
-  const ceil = buildChart(b, T(25, 7) * 1000).ceilings;
-  // VV002 till 08Z (övergången klar), därefter SCT020 – inget tak – och efter 15Z ingen TAF
-  assert.deepEqual(
-    ceil.map((c) => [c.t0, c.t1, c.baseM, c.cover]),
-    [[T(25, 7) * 1000, T(25, 8) * 1000, 61, "VV"]],
-  );
-});
-
 test("daggpunkt: observerad ur METAR, prognos ur SMHI:s fuktighet – sammanfogade vid senaste observationen", () => {
   const b = panelBundle();
   const now = T(25, 9) * 1000;
@@ -349,4 +339,50 @@ test("daggpunkt: observerad ur METAR, prognos ur SMHI:s fuktighet – sammanfoga
   assert.equal(snap.dewPoint?.value, dewAt(10));
   // Skalan tar med daggpunkterna
   assert.ok(chart.temp.domain[0] <= 10.4 - 1);
+});
+
+test("dimrisk i diagrammet: spridning under 1 °C – observerat där METAR:ens värden är lika, och i prognosen", () => {
+  const now = T(25, 9) * 1000;
+  const fog = buildChart(panelBundle(12), now).fogRisk;
+  assert.equal(fog.length, 2, "observerat och prognos var för sig");
+  // Observerat 09:20–10:20 lokal tid: 12/12 i samma rapporter – kurvorna sammanfaller
+  assert.deepEqual(fog[0], [
+    { t: (T(25, 7) + 20 * 60) * 1000, hi: 12, lo: 12 },
+    { t: (T(25, 8) + 20 * 60) * 1000, hi: 12, lo: 12 },
+  ]);
+  // Prognosen börjar i senaste observationen och slutar där spridningen når 1 °C (SMHI 1,6 °C
+  // klingar in över 3 h)
+  const fc = fog[1];
+  assert.equal(fc[0].t, (T(25, 8) + 20 * 60) * 1000);
+  const last = fc.at(-1)!;
+  assert.ok(last.t > T(25, 10) * 1000 && last.t < T(25, 11) * 1000, "slutar mellan 12 och 13 lokal tid");
+  assert.ok(Math.abs(last.hi - last.lo - 1) < 1e-9);
+  // 12/11 i rapporterna (spridning 1 °C): ingen dimrisk i observationerna
+  assert.ok(buildChart(panelBundle(11), now).fogRisk.every((b) => b[0].t >= (T(25, 8) + 20 * 60) * 1000));
+});
+
+test("dimrisk bara med tidsmatchade värden: temperatur från SMHI-station och daggpunkt från METAR ger ingen", () => {
+  const now = T(25, 9) * 1000;
+  const smhiRef = { source: "SMHI" as const, stationId: "93220", stationName: "Karlstad flygplats", latitude: 59.44, longitude: 13.34, distanceKm: 11 };
+  const b = panelBundle(12);
+  const smhiObs = [7, 8].map((h) => ({ timestamp: iso(T(25, h)), source: "SMHI" as const, stationId: "93220", latitude: 59.44, longitude: 13.34, temperatureC: 12 }));
+  const mixed: WeatherBundle = {
+    ...b,
+    stations: [...b.stations, { key: "SMHI:93220", station: smhiRef, observations: smhiObs }],
+    selections: { temperature: { param: "temperature", stationKey: "SMHI:93220", station: smhiRef, reason: "" } } as unknown as WeatherBundle["selections"],
+  };
+  // Inga par i observationerna: temperaturen hel timme, daggpunkten :20
+  const fog = buildChart(mixed, now).fogRisk;
+  assert.ok(fog.every((band) => band[0].t >= T(25, 9) * 1000), "ingen yta före prognosens första gemensamma timme");
+  // Avläsningen vid NU: ingen spridning – och alltså ingen "Fog risk"
+  assert.equal(matchedSpread(snapshotAt(mixed, now, now)), undefined);
+});
+
+test("avläsningen: samma villkor som diagrammet – spridning under 1 °C med tidsmatchade värden", () => {
+  const now = T(25, 9) * 1000;
+  assert.equal(matchedSpread(snapshotAt(panelBundle(12), now, now)), 0);
+  assert.equal(matchedSpread(snapshotAt(panelBundle(11), now, now)), 1, "1 °C är inte under 1 °C");
+  // Prognos: temperatur och daggpunkt från samma SMHI-steg
+  const sp = matchedSpread(snapshotAt(panelBundle(11), T(25, 14) * 1000, now));
+  assert.ok(sp !== undefined && sp > 1, `${sp}`);
 });

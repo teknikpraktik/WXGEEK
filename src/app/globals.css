@@ -21,9 +21,12 @@
   --sun-nautical: #c9d1dc;
   --sun-astro: #b1bccb;
   --dew: #5f8f96; /* daggpunkt – lugnare än temperaturens tegelröd */
-  --fog-risk: rgba(95, 143, 150, 0.16); /* spridning ≤ 2 °C mellan kurvorna */
+  --fog-risk: rgba(95, 143, 150, 0.3); /* dimrisk: spridning under 1 °C mellan kurvorna */
   --cloud-cell: #858c96; /* molntäcke – tonen efter åttondelarna */
-  --ceiling: #4f5863; /* tak ur TAF */
+  --cloud-track: rgba(133, 140, 150, 0.16); /* känd timme utan moln – skiljer klart från saknat */
+  --precip-bar: #1f6ec4; /* nederbördsstaplar, mättad blå */
+  --obs-tint: rgba(32, 37, 43, 0.035); /* mycket svag ton över observationsdelen */
+  --dayline: rgba(32, 37, 43, 0.42); /* dygnsbyte: tydligare än timlinjerna, svagare än NU */
   /* Timgridlinjer genom alla band – låg kontrast, något tydligare vid 00, 06, 12 och 18 */
   --vgrid: rgba(32, 37, 43, 0.05);
   --vgrid-major: rgba(32, 37, 43, 0.11);
@@ -78,9 +81,12 @@
     --sun-nautical: #263146;
     --sun-astro: #181f2d;
     --dew: #86b9bf;
-    --fog-risk: rgba(134, 185, 191, 0.14);
+    --fog-risk: rgba(134, 185, 191, 0.26);
     --cloud-cell: #aab0b9;
-    --ceiling: #b3b8c0;
+    --cloud-track: rgba(170, 176, 185, 0.13);
+    --precip-bar: #5aa7f0;
+    --obs-tint: rgba(255, 255, 255, 0.03);
+    --dayline: rgba(236, 239, 243, 0.38);
     --vgrid: rgba(255, 255, 255, 0.045);
     --vgrid-major: rgba(255, 255, 255, 0.1);
     --sun-horizon: rgba(233, 234, 236, 0.5);
@@ -551,7 +557,7 @@ main {
   left: 16px;
   transform: translateY(-50%);
   font-family: var(--font-num);
-  font-size: 11px;
+  font-size: 12px;
   color: var(--muted);
   white-space: nowrap;
 }
@@ -578,15 +584,36 @@ main {
   stroke-width: 1.5;
   stroke-linejoin: round;
 }
-.tl-sunband .label {
-  font-family: var(--font-num);
-  font-size: 9.5px;
+.tl-sunband .label,
+.tl-sunband .edge {
+  font-family: var(--font-ui);
+  font-size: 12px;
   font-weight: 500;
+  font-variant-numeric: tabular-nums;
   fill: var(--ink-2);
 }
 .tl-sunband .label.max {
   font-weight: 600;
   fill: var(--sun-text);
+}
+/* Borgerlig gryning och skymning diskretare än upp- och nedgång */
+.tl-sunband .label.dawn,
+.tl-sunband .label.dusk,
+.tl-sunband .edge {
+  font-weight: 400;
+  fill: var(--muted);
+}
+/* Markörer på kurvan: fyllda vid upp- och nedgång (−0,833°), ihåliga vid gryning och skymning (−6°) */
+.tl-sunband .mark {
+  fill: var(--sun-curve);
+  stroke: var(--bg);
+  stroke-width: 1;
+}
+.tl-sunband .mark.dawn,
+.tl-sunband .mark.dusk {
+  fill: var(--bg);
+  stroke: var(--sun-curve);
+  stroke-width: 1.5;
 }
 .tl-grid {
   stroke: var(--grid);
@@ -596,10 +623,14 @@ main {
   stroke: var(--ink-2);
   stroke-width: 1;
 }
-/* Day change: a line through the time axis (same background for every day) */
+/* Dygnsbyte: en linje genom alla grupper – tydligt kraftigare än timlinjerna, svagare än NU */
 .tl-dayline {
-  stroke: var(--ink-2);
+  stroke: var(--dayline);
   stroke-width: 1.25;
+}
+/* Mycket svag ton över observationsdelen i alla grupper */
+.tl-obs-tint {
+  fill: var(--obs-tint);
 }
 .tl-tick {
   stroke: var(--muted);
@@ -610,17 +641,14 @@ main {
 }
 .tl-hour {
   font-family: var(--font-num);
-  font-size: 11.5px;
+  font-size: 12px;
   font-weight: 500;
   fill: var(--ink-2);
-}
-.tl-hour {
-  font-size: 10.5px;
 }
 /* Nytt dygn: dagens namn vid dygnsstrecket; konturen håller texten läsbar över NU-linjen */
 .tl-daylabel {
   font-family: var(--font-ui);
-  font-size: 10px;
+  font-size: 11.5px;
   font-weight: 600;
   fill: var(--ink-2);
   paint-order: stroke;
@@ -634,12 +662,12 @@ main {
   stroke: var(--now-line);
   stroke-width: 2;
 }
-/* NOW som liten pill ovanför tidsaxeln, i NU-linjens mörka blågrå */
+/* NOW som liten pill i tidsaxelns egen pillrad, som en flagga vid NU-linjen */
 .tl-nowpill {
   position: absolute;
   white-space: nowrap;
   font-family: var(--font-num);
-  font-size: 10.5px;
+  font-size: 11px;
   font-weight: 600;
   line-height: 14px;
   letter-spacing: 0.04em;
@@ -649,17 +677,14 @@ main {
   border-radius: 3px;
   pointer-events: none;
 }
+/* "← OBSERVED | FORECAST →" i pillraden, på var sida om NOW-pillen */
 .tl-side {
   font-family: var(--font-num);
-  font-size: 9.5px;
-  letter-spacing: 0.12em;
+  font-size: 11px;
+  letter-spacing: 0.06em;
 }
 .tl-side.obs {
   fill: var(--ink-2);
-}
-/* "← OBS." i den smala historiken på mobil */
-.tl-side.short {
-  letter-spacing: 0.04em;
 }
 
 .tl-side.fc {
@@ -705,7 +730,7 @@ main {
 }
 .tl-tlast-label {
   font-family: var(--font-num);
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
   fill: var(--temp-text);
   paint-order: stroke;
@@ -728,9 +753,10 @@ main {
   transform: none;
   padding-top: 3px;
   font-family: var(--font-ui);
-  font-size: 10px;
+  font-size: 12px;
+  font-weight: 500;
   line-height: 1;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.03em;
   text-transform: uppercase;
   color: var(--muted);
 }
@@ -740,9 +766,12 @@ main {
 }
 .tl-yaxis .tl-rowlabel {
   font-family: var(--font-ui);
-  font-size: 8.5px;
+  font-size: 12px;
   line-height: 1;
   color: var(--muted);
+}
+.tl-yaxis .tl-rowlabel.two {
+  line-height: 1.15;
 }
 .tl-legend {
   position: absolute;
@@ -752,9 +781,25 @@ main {
   padding-top: 3px;
   white-space: nowrap;
   font-family: var(--font-ui);
-  font-size: 9.5px;
+  font-size: 11px;
   line-height: 1;
   color: var(--muted);
+}
+/* Små rutor: molnmängdens toner och skymningszonernas färger */
+.tl-legend .sw {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  margin: 0 3px;
+  vertical-align: -1px;
+}
+.tl-legend .sw.cc { background: var(--cloud-cell); margin: 0 1px; }
+.tl-legend .sw.cc:first-of-type { margin-left: 4px; }
+.tl-legend .sw.civil { background: var(--sun-civil); margin-left: 6px; }
+.tl-legend .sw.nautical { background: var(--sun-nautical); margin-left: 6px; }
+.tl-legend .sw.astro { background: var(--sun-astro); margin-left: 6px; }
+.tl-legend .sep {
+  margin: 0 5px;
 }
 .tl-legend .lg {
   display: inline-block;
@@ -772,7 +817,20 @@ main {
   height: 8px;
   vertical-align: 0;
   background: var(--fog-risk);
-  outline: 1px solid var(--fog-risk);
+}
+/* Förklaringen till dimrisken under diagrammet */
+.tl-note {
+  margin: 6px 0 0;
+  font-size: 12px;
+  line-height: 1.35;
+  color: var(--muted);
+}
+.tl-note .lg {
+  display: inline-block;
+  width: 12px;
+  height: 8px;
+  margin-right: 6px;
+  background: var(--fog-risk);
 }
 /* Tunna avgränsare mellan grupperna */
 .tl-panelsep {
@@ -783,20 +841,8 @@ main {
 .tl-cloudcover .cc {
   fill: var(--cloud-cell);
 }
-/* Tak ur TAF: markering med värdet i meter och en diskret källetikett */
-.tl-ceiling .line {
-  stroke: var(--ceiling);
-  stroke-width: 1.5;
-}
-.tl-ceiling .value {
-  font-family: var(--font-num);
-  font-size: 9.5px;
-  fill: var(--ink-2);
-}
-.tl-ceiling .via {
-  font-size: 8px;
-  letter-spacing: 0.06em;
-  fill: var(--muted);
+.tl-cloudcover .cc-track {
+  fill: var(--cloud-track);
 }
 /* Daggpunkt: lugnare färg, heldragen observation och streckad prognos som temperaturen */
 .tl-line.dew {
@@ -814,6 +860,12 @@ main {
 /* Dimrisk: ytan mellan kurvorna där spridningen är högst 2 °C – låg kontrast */
 .tl-fogrisk {
   fill: var(--fog-risk);
+}
+.tl-foglabel {
+  font-family: var(--font-ui);
+  font-size: 11px;
+  font-weight: 500;
+  fill: var(--dew);
 }
 .tl-lanesep {
   stroke: var(--rule);
@@ -836,18 +888,18 @@ main {
   fill: var(--fc);
 }
 .tl-wind-speed {
-  font-family: var(--font-num);
-  font-size: 11.5px;
+  font-family: var(--font-ui);
+  font-size: 12px;
   font-weight: 500;
+  font-variant-numeric: tabular-nums;
   fill: var(--obs);
+}
+.tl-wind-speed .gust {
+  font-weight: 400;
+  fill: var(--muted);
 }
 .tl-wind.fc .tl-wind-speed {
   fill: var(--fc);
-}
-.tl-wind-gust {
-  font-family: var(--font-num);
-  font-size: 9.5px;
-  fill: var(--muted);
 }
 .tl-thunder {
   font-size: 13px;
@@ -1044,6 +1096,12 @@ main {
   color: var(--ink-2);
   margin-right: 2px;
   vertical-align: 0.35em;
+}
+/* "max" framför ensemblens största mängd – ett ord på baslinjen, inget tecken */
+.cell .val .val-prefix.word {
+  font-size: 0.6em;
+  margin-right: 3px;
+  vertical-align: 0;
 }
 
 /* ========================================================================= */
@@ -1242,47 +1300,31 @@ main {
   margin-right: 6px;
 }
 
-/* Kontroller nära grafen */
-.tl-controls {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 6px 12px;
-  margin: 4px 0 6px;
-}
-.tl-hint {
-  font-size: 13px;
-  color: var(--ink-2);
-}
-.tl-buttons {
-  display: inline-flex;
-  gap: 6px;
-}
-.btn-now {
-  min-height: 40px;
-  min-width: 44px;
-  padding: 6px 12px;
-  font-size: 14px;
-}
-/* Now: samma utseende som Change (.btn: ljus yta, ljus kant, mörk text) och ändras inte när
-   tiden scrollas – aldrig NU-linjens mörka blågrå, som fick knappen att se ut som en del av
-   tidslinjerna. Vid NU är den inaktiv men ser likadan ut; bara hovring ger en mörkare kant. */
-.btn-now,
-.btn-now:disabled {
-  background: var(--surface);
-  border-color: var(--rule);
-  color: var(--ink);
-  font-weight: 500;
-  opacity: 1;
-}
-.btn-now:hover:not(:disabled) {
-  border-color: var(--ink-2);
-}
-.btn-small {
-  padding: 3px 8px;
+/* Now: liten knapp i tidsaxelns vänsterkant, före första timtalet – ingen egen rad. Samma
+   utseende som Change (ljus yta, ljus kant, mörk text), aldrig NU-linjens mörka blågrå. Vid NU
+   är den inaktiv men ser likadan ut; bara hovring ger en mörkare kant. */
+.tl-now-btn {
+  position: absolute;
+  left: 10px;
+  top: 9px;
+  z-index: 4;
+  height: 22px;
+  padding: 0 8px;
+  font-family: var(--font-ui);
   font-size: 12px;
-  min-height: 28px;
+  font-weight: 500;
+  line-height: 20px;
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-radius: 5px;
+  cursor: pointer;
+}
+.tl-now-btn:disabled {
+  cursor: default;
+}
+.tl-now-btn:hover:not(:disabled) {
+  border-color: var(--ink-2);
 }
 
 /* Vald tid: streckad linje genom hela diagrammet och en fylld etikett i dämpad blå (--cursor)
@@ -1485,16 +1527,6 @@ main {
   stroke-width: 1.3;
   stroke-linecap: round;
 }
-/* "Now" fast ovanför diagrammet till vänster, i linje med axeletiketterna – inte över
-   markören, där den såg ut att höra till vald tid. */
-.tl-controls {
-  display: block;
-  margin: 0 0 2px;
-}
-.tl-buttons {
-  display: flex;
-  justify-content: flex-start;
-}
 
 /* Warnings at the bottom of the page, under METAR/TAF – discreet */
 .warnings {
@@ -1592,25 +1624,25 @@ main {
 }
 
 /* Precipitation per hour under the ground line: likely (solid) and possible (light) */
-.tl-prh rect.likely { fill: var(--ev-regn); }
-.tl-prh rect.possible { fill: var(--ev-regn); opacity: 0.28; }
+.tl-prh rect.likely { fill: var(--precip-bar); }
+.tl-prh rect.possible { fill: var(--precip-bar); opacity: 0.38; }
 .tl-prh.snow rect.likely,
 .tl-prh.snow rect.possible { fill: var(--ev-sno); }
 .tl-prh text {
   font-family: var(--font-num);
-  font-size: 10px;
+  font-size: 12px;
   font-variant-numeric: tabular-nums;
 }
-/* Siffrorna i en mörkare nederbördsblå för kontrast; "≤" (möjlig mängd) i normal vikt */
+/* Siffrorna i en mörkare nederbördsblå för kontrast; ensemblens maximum i normal vikt med ett
+   mindre "max" framför */
 .tl-prh text.likely { fill: var(--precip-text); font-weight: 600; }
 .tl-prh text.possible { fill: var(--precip-text); font-weight: 400; }
-/* "≤" mindre än siffrorna (tecknet ritas annars större än sifferhöjden) */
-.tl-prh text .le { font-size: 7.5px; }
+.tl-prh text .mx { font-family: var(--font-ui); font-size: 10px; }
 .tl-prh.snow text { fill: var(--snow-text); }
 
 
 /* Temperaturaxeln: neutral skiffergrå för siffror, enhet och axellinje */
-.tl-yaxis .tl-ttick { font-weight: 600; line-height: 1; color: var(--muted); }
+.tl-yaxis .tl-ttick { font-size: 12px; font-weight: 600; line-height: 1; color: var(--muted); }
 /* Lägsta värdet står på gruppens nederkant – etiketten ovanför linjen, så att den inte krockar
    med avgränsaren och vindrubriken under */
 .tl-yaxis .tl-ttick.lo { transform: translateY(-100%); }
@@ -1788,4 +1820,9 @@ main {
   .readout-grid.has-precip .cloud-line .w-short {
     display: inline;
   }
+}
+/* Mätelement för rubrikernas bredd – osynligt, samma typografi som rubrikerna */
+.tl-yaxis .tl-rubric.measure {
+  visibility: hidden;
+  top: 0;
 }

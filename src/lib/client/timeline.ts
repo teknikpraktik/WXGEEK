@@ -11,6 +11,7 @@ import type {
 import { PHENOMENON_GROUP } from "../weather/phenomena";
 import { isDaylight, sunEvents, sunPath, type SunEvent } from "../sun";
 import { dewPointFromRh, oktasCover } from "../format";
+import { fogBands, matchedRuns, type FogPt } from "./fogBand";
 import {
   mergedForecastAt,
   precipRange,
@@ -162,7 +163,7 @@ function dewAdjuster(bundle: WeatherBundle, now: number): { anchor?: Pt; spread:
   };
 }
 
-// --- Molntäcke per skikt och tak ur TAF -----------------------------------------
+// --- Molntäcke per skikt --------------------------------------------------------
 /** Åttondelar för METAR-kategorierna: kategorins mitt (FEW 1–2, SCT 3–4, BKN 5–7, OVC 8). */
 const CATEGORY_OKTAS: Record<string, number> = { FEW: 1.5, SCT: 3.5, BKN: 6, OVC: 8, VV: 8 };
 const LAYERS = ["low", "mid", "high"] as const;
@@ -183,40 +184,6 @@ function metarCover(o: WeatherObservation): Pick<CloudCoverHour, "low" | "mid" |
   for (let i = 0; i < top; i++) out[LAYERS[i]] ??= 0;
   // CAVOK/NSC: inga moln under 1 500 m – de lågas skikt räknas som klart, högre okända.
   if (top < 0) return cavok || o.noSignificantCloud ? { low: 0 } : undefined;
-  return out;
-}
-
-/** Taket i ett TAF-läge: lägsta BKN, OVC eller VV. CAVOK och NSC har inget tak. */
-function ceilingOf(state: TafPeriod | undefined): CloudLayer | undefined {
-  if (!state || state.cavok) return undefined;
-  return state.cloudLayers?.filter((l) => l.cover === "BKN" || l.cover === "OVC" || l.cover === "VV").sort((p, q) => p.baseM - q.baseM)[0];
-}
-
-/**
- * TAF:ens tak per huvudperiod från NU till giltighetstidens slut – med BECMG från intervallets
- * sista klockslag (`tafMainAt`). Perioder utan tak ger inget; efter TAF:en ingenting.
- */
-function tafCeilings(bundle: WeatherBundle, now: number): ChartData["ceilings"] {
-  const taf = bundle.taf;
-  if (!taf) return [];
-  const from = Math.max(now, Date.parse(taf.validFrom));
-  const to = Date.parse(taf.validTo);
-  if (to <= from) return [];
-  const cuts = new Set([from, to]);
-  for (const p of taf.periods) {
-    if (p.change !== "BASE" && p.change !== "FM" && p.change !== "BECMG") continue;
-    cuts.add(Date.parse(p.from));
-    if (p.becomingBy) cuts.add(Date.parse(p.becomingBy));
-  }
-  const times = [...cuts].filter((t) => t >= from && t <= to).sort((p, q) => p - q);
-  const out: ChartData["ceilings"] = [];
-  for (let i = 0; i < times.length - 1; i++) {
-    const c = ceilingOf(tafMainAt(taf, times[i] + 1)?.state);
-    if (!c) continue;
-    const last = out.at(-1);
-    if (last && last.t1 === times[i] && last.baseM === c.baseM && last.cover === c.cover) last.t1 = times[i + 1];
-    else out.push({ t0: times[i], t1: times[i + 1], baseM: c.baseM, cover: c.cover, stationId: taf.stationId });
-  }
   return out;
 }
 
@@ -314,8 +281,11 @@ export type ChartData = {
   dew: { observed: Pt[][]; forecast: Pt[][] };
   /** Molntäcke per timme i tre skikt, åttondelar 0–8 (undefined = okänt) */
   cloudCover: CloudCoverHour[];
-  /** Tak (lägsta BKN/OVC/VV) per huvudperiod i TAF:en, från NU till giltighetstidens slut */
-  ceilings: Array<{ t0: number; t1: number; baseM: number; cover: string; stationId: string }>;
+  /**
+   * Dimrisk: ytan mellan temperatur och daggpunkt där spridningen är under 1 °C (`FOG_SPREAD`),
+   * bara mellan tidsmatchade par i samma följd – observerat och prognos var för sig.
+   */
+  fogRisk: FogPt[][];
 };
 
 /**
@@ -721,8 +691,10 @@ export function buildChart(bundle: WeatherBundle, now: number, prevTempDomain?: 
     if (ts_) thunder.push({ ...span, forecast: true, label: ts_.label });
   }
 
+  const temp = { observed: segments(tObs, OBS_GAP), forecast: segments(tFc, FCST_GAP) };
+  const dew = { observed: segments(dObs, OBS_GAP), forecast: segments(dFc, FCST_GAP) };
   return {
-    temp: { observed: segments(tObs, OBS_GAP), forecast: segments(tFc, FCST_GAP), domain: tDomain, ticks: tempTicks(tDomain) },
+    temp: { ...temp, domain: tDomain, ticks: tempTicks(tDomain) },
     cloudsObserved,
     cloudsForecast,
     sky,
@@ -738,9 +710,9 @@ export function buildChart(bundle: WeatherBundle, now: number, prevTempDomain?: 
       return t && bundle.taf ? { t, stationId: bundle.taf.stationId } : undefined;
     })(),
     sun: sunOver(bundle, now),
-    dew: { observed: segments(dObs, OBS_GAP), forecast: segments(dFc, FCST_GAP) },
+    dew,
     cloudCover: cloudCoverHours(bundle, fc, now),
-    ceilings: tafCeilings(bundle, now),
+    fogRisk: [...fogBands(matchedRuns(temp.observed, dew.observed)), ...fogBands(matchedRuns(temp.forecast, dew.forecast))],
   };
 }
 
@@ -1009,6 +981,21 @@ export function snapshotAt(bundle: WeatherBundle, t: number, now: number): Snaps
 // ---------------------------------------------------------------------------
 // Daggpunkt
 // ---------------------------------------------------------------------------
+
+/**
+ * Spridningen temperatur − daggpunkt vid vald tid, bara när båda värdena är tidsmatchade: samma
+ * mätning (station och tid) eller samma prognossteg. Daggpunkt från en annan station eller tid ger
+ * ingen spridning – då kan ingen dimrisk visas.
+ */
+export function matchedSpread(snap: Pick<Snapshot, "temperature" | "dewPoint">): number | undefined {
+  const t = snap.temperature;
+  const d = snap.dewPoint;
+  if (!t || !d) return undefined;
+  const a = t.origin;
+  const b = d.origin;
+  if (a.kind !== b.kind || a.timestamp !== b.timestamp || (a.stationId ?? "") !== (b.stationId ?? "")) return undefined;
+  return t.value - d.value;
+}
 
 /**
  * Observerad daggpunkt. Helst från samma station och tid som temperaturen; annars närmaste

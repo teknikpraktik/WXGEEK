@@ -1,13 +1,14 @@
 /**
- * Etiketten vid senaste temperaturobservationen ("11 °C"): högerjusterad mot punkten och alltid
- * vänster om NU-linjen (punkten ligger vid mätningens tid, som är NU eller tidigare), ovanför
- * kurvan – eller under när kurvan eller ritytans kant är i vägen. Punkten flyttas aldrig; bara
+ * Etiketten vid senaste temperaturobservationen ("11 °C"): högerjusterad mot punkten, vänster om
+ * NU-linjen (punkten ligger vid mätningens tid, som är NU eller tidigare), ovanför kurvan – eller
+ * under när kurvan eller ritytans kant är i vägen. Texten hamnar aldrig på temperaturkurvan och
+ * inte heller på andra kurvor (`otherCurves`, daggpunkten). Punkten flyttas aldrig; bara
  * etiketten väljer läge.
  *
  * Skalan ligger kvar så länge värdena är minst 1 °C innanför kanten, så en mätning som är
- * fönstrets högsta (eller lägsta) kan ligga bara ~9 px från ritytans kant. Då lånas raden med
- * OBSERVED överst – och den etiketten döljs – eller hålls texten vid kanten och flyttas åt
- * vänster tills kurvan går fri, så att inget överlappar.
+ * fönstrets högsta (eller lägsta) kan ligga bara ~9 px från ritytans kant. Då hålls texten vid
+ * kanten och flyttas åt vänster tills kurvorna går fri; är vänster sida full (brant kurva
+ * ovanför, daggpunkten under) står den till höger om NU-linjen.
  */
 export type TempLabel = { x: number; baseline: number; above: boolean; hideObserved: boolean };
 
@@ -38,15 +39,21 @@ export function placeTempLabel(o: {
   minX?: number;
   /** Kurvans y vid ett x */
   curveY: (x: number) => number;
+  /** Andra kurvor som texten inte heller får ligga på, t.ex. daggpunkten (y eller undefined där
+   *  kurvan saknas) */
+  otherCurves?: Array<(x: number) => number | undefined>;
 }): TempLabel {
   // Gränsen gäller bara när punkten själv syns – annars följer etiketten punkten ut ur vyn.
   const lo = o.minX !== undefined && o.cx >= o.minX ? o.minX : -Infinity;
   const end0 = Math.min(Math.max(o.cx + 4, lo + o.width), o.nowX - 4);
   /** Går kurvan helt under eller helt över texten (y top–bottom) när den slutar vid `end`? */
-  const clear = (end: number, top: number, bottom: number) => {
-    const ys = Array.from({ length: 9 }, (_, i) => o.curveY(end - (o.width * i) / 8));
+  const clearOf = (curve: (x: number) => number | undefined, end: number, top: number, bottom: number) => {
+    const ys = Array.from({ length: 9 }, (_, i) => curve(end - (o.width * i) / 8)).filter((y): y is number => y !== undefined);
     return ys.every((y) => y >= bottom + CLEAR) || ys.every((y) => y <= top - CLEAR);
   };
+  /** Både temperaturkurvan och de andra kurvorna går fria från texten */
+  const clear = (end: number, top: number, bottom: number) =>
+    clearOf(o.curveY, end, top, bottom) && (o.otherCurves ?? []).every((c) => clearOf(c, end, top, bottom));
   const label = (end: number, bottom: number, above: boolean): TempLabel => ({
     x: end,
     baseline: bottom,
@@ -74,6 +81,12 @@ export function placeTempLabel(o: {
       if (clear(end, e.top, bottom)) return label(end, bottom, e.above);
     }
   }
+
+  // 5–6: till höger om NU-linjen, ovanför eller under punktens höjd, när vänster sida är full
+  // (brant kurva ovanför och daggpunkten under).
+  const right = o.nowX + 4 + o.width;
+  if (aTop >= o.labelsBottom && clear(right, aTop, o.cy - GAP)) return label(right, o.cy - GAP, true);
+  if (bBottom <= o.plotBottom && clear(right, o.cy + GAP, bBottom)) return label(right, bBottom, false);
 
   // Kurvan går inte att undvika helt (mycket brant): rakt ovanför eller under, inom ritytan.
   return aTop >= o.plotTop ? label(end0, o.cy - GAP, true) : label(end0, Math.min(bBottom, o.plotBottom), false);

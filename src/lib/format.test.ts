@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { dewPointFromRh, fmtDateTime, fmtInterval, fmtOffset, fmtTemp, fmtTime, fmtWindText, localHour } from "./format";
+import { dewPointFromRh, fmtDateTime, fmtInterval, fmtOffset, fmtTemp, fmtTime, fmtWindFrom, fmtWindText, localHour } from "./format";
 
 const H = 3_600_000;
 
@@ -35,13 +35,15 @@ test("relative time in hours and minutes", () => {
 });
 
 test("wind text with degrees in tens, unit, gusts and calm", () => {
-  assert.equal(fmtWindText({ deg: 136, speed: 4 }, 7), "From 140° · 4 m/s, gusts 7 m/s");
+  assert.equal(fmtWindText({ deg: 136, speed: 4 }, 7), "From SE 140° · 4 m/s, gusts 7 m/s");
   assert.equal(fmtWindText({ deg: 135, speed: 0.2 }), "Calm");
   assert.equal(fmtWindText({ variable: true, speed: 2 }), "Variable · 2 m/s");
-  assert.equal(fmtWindText({ deg: 44, speed: 5 }), "From 040° · 5 m/s");
-  assert.equal(fmtWindText({ deg: 357, speed: 5 }), "From 360° · 5 m/s");
+  assert.equal(fmtWindText({ deg: 44, speed: 5 }), "From NE 040° · 5 m/s");
+  assert.equal(fmtWindText({ deg: 357, speed: 5 }), "From N 360° · 5 m/s");
+  // Väderstrecket följer de avrundade graderna, så att text och siffra aldrig säger olika saker
+  assert.deepEqual([231, 244, 247, 250, 316, 338].map(fmtWindFrom), ["From SW 230°", "From SW 240°", "From W 250°", "From W 250°", "From NW 320°", "From N 340°"]);
   // Gusts barely above the mean wind are not shown.
-  assert.equal(fmtWindText({ deg: 270, speed: 5 }, 5.4), "From 270° · 5 m/s");
+  assert.equal(fmtWindText({ deg: 270, speed: 5 }, 5.4), "From W 270° · 5 m/s");
 });
 
 test("temperature and dew point in whole degrees, with a typographic minus", () => {

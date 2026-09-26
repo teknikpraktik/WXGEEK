@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Place, WeatherBundle } from "@/lib/types";
 import { buildChart, HOUR, snapshotAt } from "@/lib/client/timeline";
 import { aviationAlerts } from "@/lib/client/alerts";
+import { FOG_NOTE } from "@/lib/client/fogBand";
 import { Timeline } from "./Timeline";
 import { Readout } from "./Readout";
 import { PlacePicker } from "./PlacePicker";
@@ -223,6 +224,7 @@ export function WxgeekApp() {
   const t = cursor ?? now;
   const snap = useMemo(() => (bundle ? snapshotAt(bundle, t, now) : null), [bundle, t, now]);
   const onCursor = useCallback((tt: number) => setCursor(tt), []);
+  const onNow = useCallback(() => setRecenter((n) => n + 1), []);
   const awayFromNow = cursor !== null && Math.abs(cursor - now) > 10 * 60 * 1000;
 
   // ---------------------------------------------------------------------------
@@ -301,27 +303,23 @@ export function WxgeekApp() {
             <>
               <Readout snap={snap} now={now}>
                 <section className="timeline-wrap" aria-label="Timeline">
-                  <div className="tl-controls">
-                    <div className="tl-buttons">
-                      {/* "Now" always keeps its place, even when now is selected */}
-                      <button
-                        type="button"
-                        className="btn btn-now"
-                        onClick={() => setRecenter((n) => n + 1)}
-                        disabled={!awayFromNow}
-                        aria-label="Select current time"
-                      >
-                        Now
-                      </button>
-                    </div>
-                  </div>
+                  {/* "Now" sitter i tidsaxelns vänsterkant – ingen egen rad */}
                   <Timeline
                     now={now}
                     until={Date.parse(bundle.forecastUntil)}
                     data={chart}
                     onCursor={onCursor}
                     recenterSignal={recenter}
+                    awayFromNow={awayFromNow}
+                    onNow={onNow}
                   />
+                  {/* Förklaringen följer dimrisken när den finns i fönstret */}
+                  {chart.fogRisk.length > 0 && (
+                    <p className="tl-note">
+                      <i className="lg fogrisk" aria-hidden />
+                      {FOG_NOTE}
+                    </p>
+                  )}
                 </section>
               </Readout>
 

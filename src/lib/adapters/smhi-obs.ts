@@ -36,10 +36,19 @@ export type SmhiStationListRaw = {
   }>;
 };
 
+/**
+ * SMHI:s stationsnamn med samma stavning som flygplatsnamnen i appen – "Karlstad Flygplats" blir
+ * "Karlstad flygplats" – så att samma plats skrivs likadant i källraden, under diagrammet och i
+ * sidfoten.
+ */
+export function smhiStationName(name: string): string {
+  return name.replace(/\s+/g, " ").trim().replace(/\bFlygplats\b/g, "flygplats");
+}
+
 export function compactStationList(raw: SmhiStationListRaw): SmhiStation[] {
   return raw.station
     .filter((s) => s.active)
-    .map((s) => ({ id: s.key, name: s.name, lat: s.latitude, lon: s.longitude, updated: s.updated }));
+    .map((s) => ({ id: s.key, name: smhiStationName(s.name), lat: s.latitude, lon: s.longitude, updated: s.updated }));
 }
 
 export type SmhiDataRaw = {

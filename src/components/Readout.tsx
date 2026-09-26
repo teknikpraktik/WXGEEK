@@ -1,7 +1,8 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { fogOf, tafLowVisibility, type Reading, type Snapshot } from "@/lib/client/timeline";
+import { fogOf, matchedSpread, tafLowVisibility, type Reading, type Snapshot } from "@/lib/client/timeline";
+import { FOG_NOTE, FOG_SPREAD } from "@/lib/client/fogBand";
 import { sourceLine } from "@/lib/client/sourceLine";
 import type { CloudLayer } from "@/lib/types";
 import {
@@ -11,7 +12,7 @@ import {
   fmtPrecip,
   fmtTemp,
   fmtVisibility,
-  fmtWindDeg,
+  fmtWindFrom,
   fmtWindSpeed,
 } from "@/lib/format";
 import { WindArrow } from "./WindArrow";
@@ -31,9 +32,10 @@ export function Readout({ snap, now, children }: Props) {
   const w = snap.wind?.value;
   const gust = snap.gust?.value;
   // Nederbördsrutan när det faller något vid vald tid – i prognosen även när det bara kan falla:
-  // "≤0.3 mm" som staplarna (troligen uppehåll, men upp till 0,3 mm möjligt), med sannolikheten.
+  // "max 0.3 mm" som staplarna (troligen uppehåll; SMHI-ensemblens största mängd 0,3 mm – ingen
+  // övre gräns, så aldrig "≤"), med sannolikheten.
   const pr = snap.precipitation?.value;
-  const prText = !pr ? undefined : pr.mm > 0 ? fmtPrecip(pr.mm) : pr.possibleMm ? `≤${fmtPrecip(pr.possibleMm)}` : undefined;
+  const prText = !pr ? undefined : pr.mm > 0 ? fmtPrecip(pr.mm) : pr.possibleMm ? `max ${fmtPrecip(pr.possibleMm)}` : undefined;
   const stale = (r: Reading<unknown>) =>
     snap.mode === "now" && !!r && (r.origin.kind === "METAR" || r.origin.kind === "SMHI") && now - r.origin.timestamp > STALE_MS;
   // Dimma/dis ersätter molnen, som symbolen i diagrammet; höjden står kvar på rad 3.
@@ -65,7 +67,14 @@ export function Readout({ snap, now, children }: Props) {
   return (
     <section className={`readout readout-${snap.mode}`} aria-live="polite">
       <dl className={`readout-grid${prText ? " has-precip" : ""}`}>
-        <Cell label="Temp / Dew pt" short="Temp/Dew" r={snap.temperature} old={stale(snap.temperature)} sub={dewSub(snap)}>
+        <Cell
+          label="Temp / Dew pt"
+          short="Temp/Dew"
+          r={snap.temperature}
+          old={stale(snap.temperature)}
+          sub={dewSub(snap)}
+          subTitle={dewSub(snap) ? FOG_NOTE : undefined}
+        >
           {snap.temperature && (
             <Val
               v={fmtTemp(snap.temperature.value)}
@@ -128,7 +137,7 @@ export function Readout({ snap, now, children }: Props) {
 
 function windSub(w: { deg?: number; variable?: boolean; speed?: number }, gust: number | undefined): string {
   if (w.speed !== undefined && w.speed < 0.5) return "Calm";
-  const dir = w.variable ? "Variable" : w.deg !== undefined ? fmtWindDeg(w.deg) : "";
+  const dir = w.variable ? "Variable" : w.deg !== undefined ? fmtWindFrom(w.deg) : "";
   const g = gust !== undefined && gust >= (w.speed ?? 0) + 1 ? `gusts ${fmtWindSpeed(gust)} m/s` : "";
   return [dir, g].filter(Boolean).join(" · ");
 }
@@ -201,12 +210,13 @@ function visSub(snap: Snapshot): string {
   return low ? `${low.group} ${fmtVisibility(low.m, low.atLeast)}` : "";
 }
 
-/** Dimrisk när daggpunkten ligger inom 1° från temperaturen, i hela grader som de visas. */
+/**
+ * Dimrisk när spridningen mellan temperatur och daggpunkt är under 1 °C – samma villkor som i
+ * diagrammet, och bara med tidsmatchade värden (samma mätning eller samma prognossteg).
+ */
 function dewSub(snap: Snapshot): string {
-  const t = snap.temperature?.value;
-  const d = snap.dewPoint?.value;
-  if (t === undefined || d === undefined) return "";
-  return Math.round(t) - Math.round(d) <= 1 ? "Fog risk" : "";
+  const sp = matchedSpread(snap);
+  return sp !== undefined && sp < FOG_SPREAD ? "Fog risk" : "";
 }
 
 function precipSub(snap: Snapshot): string {
@@ -229,7 +239,12 @@ function Val({ v, unit, icon, extra, muted }: { v: string; unit: string; icon?: 
     <span className="val">
       {icon}
       <b>
-        {v.startsWith("≥") || v.startsWith("≤") ? (
+        {v.startsWith("max ") ? (
+          <>
+            <span className="val-prefix word">max</span>
+            {v.slice(4)}
+          </>
+        ) : v.startsWith("≥") || v.startsWith("≤") ? (
           <>
             <span className="val-prefix">{v[0]}</span>
             {v.slice(1)}
@@ -257,6 +272,7 @@ function Cell<T>({
   className,
   r,
   sub,
+  subTitle,
   old,
   children,
 }: {
@@ -268,6 +284,8 @@ function Cell<T>({
   r: Reading<T>;
   /** Undertext; null = ingen undertextrad (rutan lägger själv ut sina rader inom samma höjd) */
   sub?: string | null;
+  /** Förklaring till undertexten (verktygstips); annars undertexten själv */
+  subTitle?: string;
   old?: boolean;
   children: ReactNode;
 }) {
@@ -297,7 +315,7 @@ function Cell<T>({
         {r ? children : <span className="val missing-val">–</span>}
         {/* The sub line always reserves its height so the grid never jumps */}
         {sub !== null && (
-          <span className="sub" title={sub || undefined}>
+          <span className="sub" title={subTitle ?? (sub || undefined)}>
             {sub || " "}
           </span>
         )}
