@@ -20,36 +20,38 @@ test("CAVOK, NSC and missing data are never shown as clear sky", () => {
   assert.equal(skyOf({ oktas: 6 }).kind, "BKN");
 });
 
-test("temperature scale: examples of the desired framing", () => {
-  assert.deepEqual(tempScale([11, 16]), [-5, 20], "mild: zero and −5 for 5 °C extra");
-  assert.deepEqual(tempScale([4, 9]), [-5, 15]);
-  assert.deepEqual(tempScale([-6, 3]), [-10, 10]);
-  assert.deepEqual(tempScale([-23, -14]), [-30, -10], "clear cold: zero not forced");
-  assert.deepEqual(tempScale([27, 36]), [20, 40], "clear heat: zero not forced");
-  assert.deepEqual(tempScale([-12, 18]), [-15, 25], "large swing expands, never clips");
+test("temperature scale: autoscaled with at least 10°, 0° included when the lowest value is within 5°", () => {
+  assert.deepEqual(tempScale([11, 16]), [8, 20], "mild: no zero, 1° margin, even steps");
+  assert.deepEqual(tempScale([4, 9]), [0, 10], "within 5° of zero: 0° is the bottom");
+  assert.deepEqual(tempScale([-4, -1]), [-10, 0], "just below zero: 0° is the top");
+  assert.deepEqual(tempScale([-6, 3]), [-8, 4], "crossing zero");
+  assert.deepEqual(tempScale([-23, -14]), [-24, -12], "clear cold: zero not forced");
+  assert.deepEqual(tempScale([27, 36]), [26, 38], "clear heat: zero not forced");
+  assert.deepEqual(tempScale([-12, 18]), [-15, 20], "large swing: 5° steps, never clips");
 });
 
 test("temperature scale handles constant, missing and extreme values", () => {
-  assert.deepEqual(tempScale([12, 12, 12]), [-5, 15], "constant temperature: normal span");
-  assert.deepEqual(tempScale([]), [-5, 15], "no data: fallback, never an empty span");
+  assert.deepEqual(tempScale([12, 12, 12]), [6, 18], "constant temperature: minimum span");
+  assert.deepEqual(tempScale([]), [0, 10], "no data: fallback, never an empty span");
   assert.deepEqual(tempScale([NaN, Infinity, 5]), tempScale([5]), "non-numeric values ignored");
-  const [lo, hi] = tempScale([-45, 42]);
-  assert.ok(lo <= -47.5 && hi >= 44.5 && lo % 5 === 0 && hi % 5 === 0);
-  for (const [a, b] of [[-40, -38], [30, 31], [0, 0], [-3, 22]]) {
+  assert.deepEqual(tempScale([-45, 42]), [-50, 50]);
+  for (const [a, b] of [[-40, -38], [30, 31], [0, 0], [-3, 22], [0.5, 3]]) {
     const [l, u] = tempScale([a, b]);
-    assert.ok(u - l >= 20 && l <= a - 2 && u >= b + 2, `${a}…${b} → ${l}…${u}`);
+    assert.ok(u - l >= 10 && l <= a - 1 && u >= b + 1, `${a}…${b} → ${l}…${u}`);
+    if (Math.abs(a) <= 5) assert.ok(l <= 0 && u >= 0, `0° included for ${a}…${b}`);
   }
 });
 
 test("temperature scale is stable for small updates and never shrinks", () => {
-  const prev: [number, number] = [-5, 20];
-  assert.deepEqual(tempScale([-4, 19], prev), prev, "1 °C inside the limits: unchanged");
-  assert.deepEqual(tempScale([12, 14], prev), prev, "narrower data: no shrink");
-  const [l, u] = tempScale([12, 19.5], prev);
-  assert.ok(u >= 22 && u - l >= 25, "moves when a value comes within 1 °C, keeping the span");
+  const prev: [number, number] = [0, 10];
+  assert.deepEqual(tempScale([2, 8], prev), prev, "inside the limits: unchanged");
+  assert.deepEqual(tempScale([4, 5], prev), prev, "narrower data: no shrink");
+  const [l, u] = tempScale([2, 9.8], prev);
+  assert.ok(u >= 10.8 && u - l >= 10, "moves when a value comes within 0.5 °C, keeping the span");
 });
 
-test("temperature ticks every 5 °C, sparser for very large spans", () => {
-  assert.deepEqual(tempTicks([-10, 10]), [-10, -5, 0, 5, 10]);
-  assert.deepEqual(tempTicks([-50, 45]), [-50, -40, -30, -20, -10, 0, 10, 20, 30, 40]);
+test("temperature ticks every 2 °C, sparser for larger spans", () => {
+  assert.deepEqual(tempTicks([0, 10]), [0, 2, 4, 6, 8, 10]);
+  assert.deepEqual(tempTicks([-15, 20]), [-15, -10, -5, 0, 5, 10, 15, 20]);
+  assert.deepEqual(tempTicks([-50, 50]), [-50, -40, -30, -20, -10, 0, 10, 20, 30, 40, 50]);
 });

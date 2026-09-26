@@ -121,6 +121,105 @@ function tempAdjuster(bundle: WeatherBundle, now: number): { anchor?: Pt; adjust
   };
 }
 
+/** Stationen som ger observerad daggpunkt: temperaturens om den har daggpunkt, annars METAR. */
+function dewStation(bundle: WeatherBundle): StationSeries | undefined {
+  return [stationFor(bundle, "temperature"), bundle.stations.find((x) => x.station.source === "METAR")].find((x) =>
+    x?.observations.some((o) => o.dewPointC !== undefined),
+  );
+}
+
+/** SMHI:s spridning (temperatur − daggpunkt ur relativ fuktighet) vid tiden t, linjärt mellan timpunkterna. */
+function smhiSpreadAt(points: ForecastPoint[], t: number): number | undefined {
+  const pts = points.filter((p) => p.temperatureC !== undefined && p.relativeHumidity !== undefined);
+  const sp = (p: ForecastPoint) => p.temperatureC! - dewPointFromRh(p.temperatureC!, p.relativeHumidity!);
+  if (!pts.length || t < ts(pts[0]) - HOUR) return undefined;
+  if (t <= ts(pts[0])) return sp(pts[0]);
+  for (let i = 1; i < pts.length; i++) {
+    if (t <= ts(pts[i])) {
+      const f = (t - ts(pts[i - 1])) / (ts(pts[i]) - ts(pts[i - 1]));
+      return sp(pts[i - 1]) + (sp(pts[i]) - sp(pts[i - 1])) * f;
+    }
+  }
+  return undefined;
+}
+
+/**
+ * Prognosens daggpunkt = visad (justerad) temperatur − spridning. Spridningen börjar i senaste
+ * observerade (temperatur − daggpunkt i samma rapport) och klingar av mot SMHI:s under BLEND_MS,
+ * som temperaturen – kurvorna sitter ihop vid NU, och avläsningen visar samma värde som kurvan.
+ */
+function dewAdjuster(bundle: WeatherBundle, now: number): { anchor?: Pt; spread: (t: number, smhiSpread: number) => number } {
+  const last = dewStation(bundle)
+    ?.observations.filter((o) => o.dewPointC !== undefined && o.temperatureC !== undefined && ts(o) <= now)
+    .at(-1);
+  if (!last) return { spread: (_t, v) => Math.max(0, v) };
+  const t0 = ts(last);
+  const fcSpread = smhiSpreadAt(bundle.forecast?.points ?? [], t0);
+  const offset = fcSpread === undefined ? 0 : last.temperatureC! - last.dewPointC! - fcSpread;
+  return {
+    anchor: { t: t0, v: last.dewPointC! },
+    spread: (t, v) => Math.max(0, v + offset * Math.max(0, 1 - (t - t0) / BLEND_MS)),
+  };
+}
+
+// --- Molntäcke per skikt och tak ur TAF -----------------------------------------
+/** Åttondelar för METAR-kategorierna: kategorins mitt (FEW 1–2, SCT 3–4, BKN 5–7, OVC 8). */
+const CATEGORY_OKTAS: Record<string, number> = { FEW: 1.5, SCT: 3.5, BKN: 6, OVC: 8, VV: 8 };
+const LAYERS = ["low", "mid", "high"] as const;
+/** Skikt efter molnbasen: låga under 2 000 m, medelhöga 2 000–6 000 m, höga därovan. */
+const layerIndex = (baseM: number) => (baseM < 2000 ? 0 : baseM < 6000 ? 1 : 2);
+
+/** Molntäcket ur en METAR: skikt med rapporterat lager, lägre skikt klara, högre okända. */
+function metarCover(o: WeatherObservation): Pick<CloudCoverHour, "low" | "mid" | "high"> | undefined {
+  const cavok = !!o.raw && /\bCAVOK\b/.test(o.raw);
+  if (o.clearSky && !cavok) return { low: 0, mid: 0, high: 0 };
+  const out: Pick<CloudCoverHour, "low" | "mid" | "high"> = {};
+  let top = -1;
+  for (const l of o.cloudLayers ?? []) {
+    const i = layerIndex(l.baseM);
+    out[LAYERS[i]] = Math.max(out[LAYERS[i]] ?? 0, CATEGORY_OKTAS[l.cover] ?? 0);
+    top = Math.max(top, i);
+  }
+  for (let i = 0; i < top; i++) out[LAYERS[i]] ??= 0;
+  // CAVOK/NSC: inga moln under 1 500 m – de lågas skikt räknas som klart, högre okända.
+  if (top < 0) return cavok || o.noSignificantCloud ? { low: 0 } : undefined;
+  return out;
+}
+
+/** Taket i ett TAF-läge: lägsta BKN, OVC eller VV. CAVOK och NSC har inget tak. */
+function ceilingOf(state: TafPeriod | undefined): CloudLayer | undefined {
+  if (!state || state.cavok) return undefined;
+  return state.cloudLayers?.filter((l) => l.cover === "BKN" || l.cover === "OVC" || l.cover === "VV").sort((p, q) => p.baseM - q.baseM)[0];
+}
+
+/**
+ * TAF:ens tak per huvudperiod från NU till giltighetstidens slut – med BECMG från intervallets
+ * sista klockslag (`tafMainAt`). Perioder utan tak ger inget; efter TAF:en ingenting.
+ */
+function tafCeilings(bundle: WeatherBundle, now: number): ChartData["ceilings"] {
+  const taf = bundle.taf;
+  if (!taf) return [];
+  const from = Math.max(now, Date.parse(taf.validFrom));
+  const to = Date.parse(taf.validTo);
+  if (to <= from) return [];
+  const cuts = new Set([from, to]);
+  for (const p of taf.periods) {
+    if (p.change !== "BASE" && p.change !== "FM" && p.change !== "BECMG") continue;
+    cuts.add(Date.parse(p.from));
+    if (p.becomingBy) cuts.add(Date.parse(p.becomingBy));
+  }
+  const times = [...cuts].filter((t) => t >= from && t <= to).sort((p, q) => p - q);
+  const out: ChartData["ceilings"] = [];
+  for (let i = 0; i < times.length - 1; i++) {
+    const c = ceilingOf(tafMainAt(taf, times[i] + 1)?.state);
+    if (!c) continue;
+    const last = out.at(-1);
+    if (last && last.t1 === times[i] && last.baseM === c.baseM && last.cover === c.cover) last.t1 = times[i + 1];
+    else out.push({ t0: times[i], t1: times[i + 1], baseM: c.baseM, cover: c.cover, stationId: taf.stationId });
+  }
+  return out;
+}
+
 function forecastWindow(bundle: WeatherBundle, now: number): ForecastPoint[] {
   const until = Date.parse(bundle.forecastUntil);
   return (bundle.forecast?.points ?? []).filter((p) => {
@@ -208,9 +307,23 @@ export type ChartData = {
   missing: { temp?: string; wind?: string; clouds?: string; forecast?: string };
   /** Tidpunkt då TAF slutar inom fönstret – därefter fortsätter SMHI */
   tafEnd?: { t: number; stationId: string };
-  /** Solbanan för platsen över fönstret: solhöjden var 10:e minut, soluppgångar och solnedgångar */
+  /** Solbanan för platsen över fönstret: solhöjden var 10:e minut, gryning, soluppgång, solnedgång och skymning */
   sun: { path: Array<{ t: number; alt: number }>; events: SunEvent[] };
+  /** Daggpunkt: observerat (temperaturens station om den har daggpunkt, annars METAR) och prognos
+   *  (ur SMHI:s relativa fuktighet), sammanfogade vid senaste observationen som temperaturen */
+  dew: { observed: Pt[][]; forecast: Pt[][] };
+  /** Molntäcke per timme i tre skikt, åttondelar 0–8 (undefined = okänt) */
+  cloudCover: CloudCoverHour[];
+  /** Tak (lägsta BKN/OVC/VV) per huvudperiod i TAF:en, från NU till giltighetstidens slut */
+  ceilings: Array<{ t0: number; t1: number; baseM: number; cover: string; stationId: string }>;
 };
+
+/**
+ * Molntäcke en hel timme: prognos ur SMHI:s låga, medelhöga och höga moln (åttondelar); observerat
+ * ur METAR-lagrens kategorier efter höjd (kategorins mitt – METAR anger inga procent). Skikt
+ * ovanför det högsta rapporterade lagret är okända (undefined), aldrig påhittat klara.
+ */
+export type CloudCoverHour = { t: number; forecast: boolean; low?: number; mid?: number; high?: number; label: string };
 
 /** Molnbasaxeln (höger): linjär 0–3 000 m. */
 export const CLOUD_TOP_M = 3000;
@@ -218,55 +331,56 @@ export const CLOUD_TICKS = [0, 500, 1000, 1500, 2000, 2500, 3000];
 /**
  * Temperaturaxelns inställningar – justeras visuellt här.
  * - minSpan: minsta spann (°C)
- * - margin: luft över och under kurvan (°C); 2,5 ger "minst 2 °C" även när ett värde ligger
- *   precis 2 °C från en femtalsgräns
+ * - margin: luft över och under kurvorna (°C)
  * - keep: vid uppdatering behålls skalan så länge alla värden ligger minst så här långt innanför
- * - zeroLow/zeroHigh: intervall som gärna ska synas (några minusgrader och noll)
- * - zeroExtra: högsta extra spann (°C) som får läggas till för att visa zeroLow…zeroHigh
+ * - zeroNear: 0° tas med när lägsta värdet ligger högst så här långt från 0
  * - fallback: skala när temperaturdata saknas helt
  */
 export const TEMP_AXIS = {
-  minSpan: 20,
-  margin: 2.5,
-  keep: 1,
-  zeroLow: -5,
-  zeroHigh: 0,
-  zeroExtra: 5,
-  fallback: [-5, 15] as [number, number],
+  minSpan: 10,
+  margin: 1,
+  keep: 0.5,
+  zeroNear: 5,
+  fallback: [0, 10] as [number, number],
 };
-const STEP = 5;
-const floor5 = (v: number) => Math.floor(v / STEP) * STEP;
-const ceil5 = (v: number) => Math.ceil(v / STEP) * STEP;
+
+/** Stegen mellan skalmarkeringarna: 2° för små spann, 5° eller 10° för större. */
+const tickStep = (span: number) => (span <= 14 ? 2 : span <= 35 ? 5 : 10);
+const snapOut = (a: number, b: number, step: number): [number, number] => [Math.floor(a / step) * step, Math.ceil(b / step) * step];
 
 /**
- * Väljer ett intervall med femtalsgränser för temperaturerna `lo`…`hi`:
- * 1. minsta spann (minst `minSpan`) som rymmer värdena med marginal,
- * 2. bland lika stora: mest balanserat utrymme över och under,
- * 3. hellre ett intervall som visar zeroLow…zeroHigh om det kostar högst `zeroExtra` mer spann.
+ * Väljer skalans intervall för temperaturerna (och daggpunkterna) lo…hi: värdena med marginal,
+ * minst `minSpan` brett, 0° med när lägsta värdet ligger inom `zeroNear` från 0 (eller kurvorna
+ * korsar 0), och gränserna på jämna skalsteg.
  */
 function pickTempRange(lo: number, hi: number, minSpan: number): [number, number] {
   const c = TEMP_AXIS;
-  const lMax = floor5(lo - c.margin); // lägsta gränsen får vara högst detta
-  const uMin = ceil5(hi + c.margin); // högsta gränsen får vara lägst detta
-  const span = Math.max(minSpan, uMin - lMax);
-  const mid = (lo + hi) / 2;
-  // Alla intervall med ett givet spann som rymmer värdena, mest balanserat först.
-  const fits = (sp: number) => {
-    const out: Array<[number, number]> = [];
-    for (let l = uMin - sp; l <= lMax; l += STEP) out.push([l, l + sp]);
-    return out.sort((a, b) => Math.abs((a[0] + a[1]) / 2 - mid) - Math.abs((b[0] + b[1]) / 2 - mid) || a[0] - b[0]);
-  };
-  for (let sp = span; sp <= span + c.zeroExtra; sp += STEP) {
-    const z = fits(sp).find(([l, u]) => l <= c.zeroLow && u >= c.zeroHigh);
-    if (z) return z;
+  const zero = Math.abs(lo) <= c.zeroNear || (lo < 0 && hi > 0);
+  let a = lo - c.margin;
+  let b = hi + c.margin;
+  if (zero) {
+    a = Math.min(a, 0);
+    b = Math.max(b, 0);
   }
-  return fits(span)[0];
+  if (b - a < minSpan) {
+    // Minsta spannet: bort från 0 när 0 är kanten, annars jämnt runt värdena.
+    const extra = minSpan - (b - a);
+    if (zero && a === 0) b += extra;
+    else if (zero && b === 0) a -= extra;
+    else {
+      a -= extra / 2;
+      b += extra / 2;
+    }
+  }
+  let r = snapOut(a, b, 2);
+  for (const step of [5, 10]) if (tickStep(r[1] - r[0]) >= step) r = snapOut(a, b, step);
+  return r;
 }
 
 /**
- * Temperaturskalans intervall för alla giltiga värden i fönstret (observationer + prognos).
- * Med tidigare skala (samma plats): behålls så länge alla värden ligger minst `keep` innanför
- * gränserna; annars väljs en ny utan att spannet krymper. Värden klipps aldrig.
+ * Temperaturskalans intervall för alla giltiga värden i fönstret (observationer + prognos, både
+ * temperatur och daggpunkt). Med tidigare skala (samma plats): behålls så länge alla värden
+ * ligger minst `keep` innanför gränserna; annars väljs en ny utan att spannet krymper.
  */
 export function tempScale(values: number[], prev?: [number, number]): [number, number] {
   const v = values.filter((x) => typeof x === "number" && Number.isFinite(x));
@@ -278,10 +392,9 @@ export function tempScale(values: number[], prev?: [number, number]): [number, n
   return pickTempRange(lo, hi, Math.max(TEMP_AXIS.minSpan, prev[1] - prev[0]));
 }
 
-/** Skalmarkeringar var 5:e grad; glesare (10, 20 …) vid stora spann. */
-export function tempTicks([lo, hi]: [number, number], maxTicks = 10): number[] {
-  let step = STEP;
-  while (Math.floor(hi / step) - Math.ceil(lo / step) + 1 > maxTicks) step *= 2;
+/** Skalmarkeringar på jämna steg (2°, 5° eller 10° efter spannet); 0° med när den ryms. */
+export function tempTicks([lo, hi]: [number, number]): number[] {
+  const step = tickStep(hi - lo);
   const out: number[] = [];
   for (let t = Math.ceil(lo / step) * step; t <= hi; t += step) out.push(t);
   return out;
@@ -372,8 +485,21 @@ export function buildChart(bundle: WeatherBundle, now: number, prevTempDomain?: 
     ),
   ];
 
+  // Daggpunkt: observerat och prognos, sammanfogade vid senaste observationen (som temperaturen).
+  const dObs = (dewStation(bundle)?.observations ?? []).flatMap((o) => (o.dewPointC === undefined ? [] : [{ t: ts(o), v: o.dewPointC }]));
+  const dewAdj = dewAdjuster(bundle, now);
+  const dFc = [
+    ...(dewAdj.anchor && bundle.forecast ? [dewAdj.anchor] : []),
+    ...fc.flatMap((p) => {
+      if (p.temperatureC === undefined || p.relativeHumidity === undefined || (dewAdj.anchor && ts(p) <= dewAdj.anchor.t)) return [];
+      const spread = dewAdj.spread(ts(p), p.temperatureC - dewPointFromRh(p.temperatureC, p.relativeHumidity));
+      return [{ t: ts(p), v: Math.round((adjust(ts(p), p.temperatureC) - spread) * 10) / 10 }];
+    }),
+  ];
+
+  const inWindow = (p: Pt) => p.t >= now - PAST_HOURS * HOUR;
   const tDomain = tempScale(
-    [...tObs.filter((p) => p.t >= now - PAST_HOURS * HOUR), ...tFc].map((p) => p.v),
+    [...tObs.filter(inWindow), ...tFc, ...dObs.filter(inWindow), ...dFc].map((p) => p.v),
     prevTempDomain,
   );
 
@@ -612,7 +738,46 @@ export function buildChart(bundle: WeatherBundle, now: number, prevTempDomain?: 
       return t && bundle.taf ? { t, stationId: bundle.taf.stationId } : undefined;
     })(),
     sun: sunOver(bundle, now),
+    dew: { observed: segments(dObs, OBS_GAP), forecast: segments(dFc, FCST_GAP) },
+    cloudCover: cloudCoverHours(bundle, fc, now),
+    ceilings: tafCeilings(bundle, now),
   };
+}
+
+/**
+ * Molntäcke per hel timme i fönstret: observerat ur närmaste METAR inom 35 min fram till NU,
+ * därefter SMHI:s skikt (snow1g) vid samma timme.
+ */
+function cloudCoverHours(bundle: WeatherBundle, fc: ForecastPoint[], now: number): CloudCoverHour[] {
+  const metar = bundle.stations.find((x) => x.station.source === "METAR")?.observations ?? [];
+  const out: CloudCoverHour[] = [];
+  const end = Date.parse(bundle.forecastUntil);
+  const o8 = (v: number | undefined) => (v === undefined ? "?" : `${Math.round(v)}/8`);
+  for (let t = Math.ceil((now - PAST_HOURS * HOUR) / HOUR) * HOUR; t <= end; t += HOUR) {
+    if (t <= now) {
+      let best: WeatherObservation | undefined;
+      for (const o of metar) {
+        const d = Math.abs(ts(o) - t);
+        if (d <= 35 * 60 * 1000 && ts(o) <= now && (!best || d < Math.abs(ts(best) - t))) best = o;
+      }
+      const c = best && metarCover(best);
+      if (!best || !c) continue;
+      const layers = best.cloudLayers?.map((l) => `${l.cover} ${Math.round(l.baseM / 10) * 10} m`).join(", ");
+      out.push({ t, forecast: false, ...c, label: `METAR ${best.stationId}: ${layers || (c.high === 0 ? "clear sky" : "no cloud below 1500 m")}` });
+    } else {
+      const p = fc.find((x) => ts(x) === t);
+      if (!p || (p.lowCloudCoverOktas === undefined && p.midCloudCoverOktas === undefined && p.highCloudCoverOktas === undefined)) continue;
+      out.push({
+        t,
+        forecast: true,
+        low: p.lowCloudCoverOktas,
+        mid: p.midCloudCoverOktas,
+        high: p.highCloudCoverOktas,
+        label: `SMHI: low ${o8(p.lowCloudCoverOktas)} · mid ${o8(p.midCloudCoverOktas)} · high ${o8(p.highCloudCoverOktas)}`,
+      });
+    }
+  }
+  return out;
 }
 
 /** Solbanan över diagrammets fönster (som tidslinjens: hela timmar, 12 h bakåt), med marginal. */
@@ -778,7 +943,7 @@ export function snapshotAt(bundle: WeatherBundle, t: number, now: number): Snaps
       mode,
       time: t,
       temperature: read(m.temperature, (v) => v),
-      dewPoint: forecastDewPoint(m.temperature?.value, p),
+      dewPoint: forecastDewPoint(m.temperature?.value, p, (sp) => dewAdjuster(bundle, now).spread(t, sp)),
       wind: read(m.wind, (v) => ({ deg: v.deg, variable: v.variable, speed: v.speed })),
       gust: read(m.wind, (v) => v.gust),
       visibility: read(m.visibility, (v) => v),
@@ -886,12 +1051,16 @@ function obsDewPoint(bundle: WeatherBundle, t: number, mode: Snapshot["mode"], t
  * Prognosens daggpunkt ur SMHI:s fuktighet. Spreaden räknas på SMHI:s egen temperatur och
  * läggs på den visade (observationsjusterade) temperaturen, så att spreaden blir modellens.
  */
-function forecastDewPoint(shownT: number | undefined, p: ForecastPoint | undefined): Reading<number> {
+function forecastDewPoint(
+  shownT: number | undefined,
+  p: ForecastPoint | undefined,
+  spreadOf: (smhiSpread: number) => number = (v) => Math.max(0, v),
+): Reading<number> {
   if (!p || p.temperatureC === undefined || p.relativeHumidity === undefined) return null;
-  const spread = p.temperatureC - dewPointFromRh(p.temperatureC, p.relativeHumidity);
+  const spread = spreadOf(p.temperatureC - dewPointFromRh(p.temperatureC, p.relativeHumidity));
   const base = shownT ?? p.temperatureC;
   return {
-    value: Math.round((base - Math.max(0, spread)) * 10) / 10,
+    value: Math.round((base - spread) * 10) / 10,
     origin: { kind: "SMHI-PROGNOS", timestamp: ts(p), validFrom: p.intervalStart ? Date.parse(p.intervalStart) : undefined },
   };
 }

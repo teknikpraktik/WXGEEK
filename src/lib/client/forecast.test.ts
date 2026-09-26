@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { normalizeTaf, splitTafGroups, type AwcTaf } from "../adapters/taf";
 import { mergedForecastAt, tafMainAt, tafSupplementsAt, tafEndWithin } from "./forecast";
-import { buildChart } from "./timeline";
+import { buildChart, snapshotAt } from "./timeline";
 import type { ForecastPoint, WeatherBundle } from "../types";
 
 const T = (d: number, h: number) => Date.UTC(2026, 8, d, h) / 1000;
@@ -288,4 +288,65 @@ test("BECMG räknas från intervallets sista klockslag, också när AWC saknar d
   assert.ok(during.transition);
   assert.equal(tafMainAt(t, T(26, 9) * 1000)!.state.windDirectionDeg, 280, "ny vind först 09Z");
   assert.equal(tafMainAt(t, T(26, 12) * 1000)!.state.cloudLayers?.[0].cover, "BKN", "molnen står kvar – BECMG anger bara vind");
+});
+
+// Karlstad med METAR-station och SMHI-prognos med skikt och fuktighet – för panelerna.
+function panelBundle(): WeatherBundle {
+  const station = { source: "METAR" as const, stationId: "ESOK", stationName: "Karlstad flygplats", latitude: 59.44, longitude: 13.34, distanceKm: 11 };
+  const ob = (h: number, extra: object) => ({ timestamp: iso(T(25, h) + 20 * 60), source: "METAR" as const, stationId: "ESOK", latitude: 59.44, longitude: 13.34, temperatureC: 12, dewPointC: 11, ...extra });
+  const pts = smhiHours(T(25, 6), 12).map((p) => ({ ...p, relativeHumidity: 90, lowCloudCoverOktas: 8, midCloudCoverOktas: 2, highCloudCoverOktas: 0 }));
+  const base = bundleWith(null, pts);
+  return {
+    ...base,
+    forecastUntil: iso(T(25, 18)),
+    stations: [
+      {
+        key: "METAR:ESOK",
+        station,
+        observations: [
+          ob(7, { cloudLayers: [{ cover: "FEW", baseM: 30 }, { cover: "BKN", baseM: 2500 }] }),
+          ob(8, { cloudLayers: [{ cover: "OVC", baseM: 150 }] }),
+        ],
+      },
+    ],
+    selections: { temperature: { param: "temperature", stationKey: "METAR:ESOK", station, reason: "" } } as unknown as WeatherBundle["selections"],
+  };
+}
+
+test("molntäcke per skikt: METAR-lagrens kategorier observerat, SMHI:s skikt i prognosen", () => {
+  const c = buildChart(panelBundle(), T(25, 9) * 1000).cloudCover;
+  const at = (h: number) => c.find((x) => x.t === T(25, h) * 1000)!;
+  // 07 (METAR 07:20): FEW 30 m = låga 1,5/8, BKN 2 500 m = medelhöga 6/8, höga okända
+  assert.deepEqual([at(7).low, at(7).mid, at(7).high, at(7).forecast], [1.5, 6, undefined, false]);
+  // 08: OVC 150 m – låga 8/8, högre skikt okända (skymda eller inte rapporterade)
+  assert.deepEqual([at(8).low, at(8).mid, at(8).high], [8, undefined, undefined]);
+  assert.equal(c.find((x) => x.t === T(25, 9) * 1000), undefined, "ingen METAR inom 35 min – inget påhittat");
+  // Prognos: SMHI:s låga, medelhöga och höga moln
+  assert.deepEqual([at(10).low, at(10).mid, at(10).high, at(10).forecast], [8, 2, 0, true]);
+});
+
+test("tak ur TAF: per huvudperiod från NU, BECMG från sista klockslaget, inget efter TAF:en", () => {
+  const b = { ...bundleWith(ESOK, smhiHours(T(25, 6), 12)), forecastUntil: iso(T(25, 18)) };
+  const ceil = buildChart(b, T(25, 7) * 1000).ceilings;
+  // VV002 till 08Z (övergången klar), därefter SCT020 – inget tak – och efter 15Z ingen TAF
+  assert.deepEqual(
+    ceil.map((c) => [c.t0, c.t1, c.baseM, c.cover]),
+    [[T(25, 7) * 1000, T(25, 8) * 1000, 61, "VV"]],
+  );
+});
+
+test("daggpunkt: observerad ur METAR, prognos ur SMHI:s fuktighet – sammanfogade vid senaste observationen", () => {
+  const b = panelBundle();
+  const now = T(25, 9) * 1000;
+  const chart = buildChart(b, now);
+  assert.deepEqual(chart.dew.observed.flat().map((p) => p.v), [11, 11]);
+  assert.deepEqual(chart.dew.forecast[0][0], { t: (T(25, 8) + 20 * 60) * 1000, v: 11 }, "prognosen börjar i senaste observationen");
+  // Efter 3 h är spridningen SMHI:s (12 °C, 90 % → daggpunkt 10,4 °C)
+  const dewAt = (h: number) => chart.dew.forecast.flat().find((p) => p.t === T(25, h) * 1000)!.v;
+  assert.equal(dewAt(13), 10.4);
+  // Avläsningen visar samma daggpunkt som kurvan vid en prognostid
+  const snap = snapshotAt(b, T(25, 10) * 1000, now);
+  assert.equal(snap.dewPoint?.value, dewAt(10));
+  // Skalan tar med daggpunkterna
+  assert.ok(chart.temp.domain[0] <= 10.4 - 1);
 });

@@ -43,9 +43,10 @@ datakälla påverkar bara en adapter och `sources.ts`.
 | `src/lib/client/alerts.ts` | Varningar ur senaste METAR och TAF, bara väder med samhällspåverkan (åska, CB, medelvind ≥ 14 m/s eller byar ≥ 20 m/s, kraftig eller underkyld nederbörd, hagel, iskorn, yrsnö) – inte dimma, sikt eller låga moln |
 | `src/lib/client/timeline.ts` | Klientlogik: diagramdata, avläsning vid en tidpunkt |
 | `src/lib/client/sourceLine.ts` | Källraden under rutorna: mättid och station, eller prognoskälla, per värde |
-| `src/lib/client/sunBand.ts` | Solbandets fasta skala, zoner och etiketter (middagshöjd, soluppgång, solnedgång) |
+| `src/lib/client/sunBand.ts` | Ljuspanelens fasta skala, horisont (−0,833°), skymningszoner, kurva och etiketter (maxhöjd, upp- och nedgång, gryning och skymning) |
+| `src/lib/client/fogBand.ts` | Dimrisk: ytan mellan temperatur och daggpunkt där spridningen är högst 2 °C |
 | `src/lib/client/tempLabel.ts` | Placering av temperaturetiketten vid senaste observationen |
-| `src/lib/sun.ts` | Solens höjd (NOAA:s solkalkylator), solbanan var 10:e minut, soluppgång och solnedgång |
+| `src/lib/sun.ts` | Solens höjd (NOAA:s solkalkylator), solbanan var 10:e minut, soluppgång, solnedgång, borgerlig gryning och skymning |
 | `*.test.ts` | Tester för tids-, TAF- och datalogik (`npm test`) |
 | `src/lib/format.ts` | Engelsk formatering (en-GB, Europe/Stockholm), avrundning mot falsk precision |
 | `src/app/api/*/route.ts` | API-routes |
@@ -190,9 +191,9 @@ WxgeekApp              – plats, datahämtning, auto-uppdatering (5 min när fl
   markören, där den skulle se ut att höra till vald tid. Tangentbord: pilar (±1 h,
   Shift ±6 h) och `N`.
 - **Vald tid** och **NU** har olika markörer som fungerar utan färgseende: NU är en tunn
-  heldragen linje i mörk blågrå med etiketten "NOW 17:12" på tidsaxeln överst; vald tid är en
-  streckad linje i dämpad blå med en fylld etikett "18:00" (vit text) på samma rad. Timtal som
-  etiketterna täcker döljs.
+  heldragen linje i mörk blågrå genom alla fem paneler med en liten pill "NOW 17:12" ovanför
+  tidsaxeln; vald tid är en streckad linje i dämpad blå med en fylld etikett "18:00" (vit text)
+  på samma rad. Timtal och datum som pillerna täcker döljs.
   Egen färg för vald tid – med samma blågrå som NU och Now-knappen såg Now ut att höra till
   vald tid.
   Står vald tid på NU visas bara NU-linjen och dess etikett. Etiketterna krockar aldrig:
@@ -207,24 +208,27 @@ WxgeekApp              – plats, datahämtning, auto-uppdatering (5 min när fl
   NU-linjen, rubrikerna OBSERVED/FORECAST och linjestilen (heldraget vs streckat) – inte med
   bakgrunden. Gula solar, grå moln och mörka vindpilar. Text och kontroller klarar WCAG AA
   mot sina bakgrunder, även i mörkt läge. Linjer dras aldrig över luckor i data.
-- **Solbandet** (`SUN_H` 64 px mellan nederbörden och vinden, etikett "Sun °"): solhöjden för
-  platsens koordinater var 10:e minut (`sunPath`) i fast skala året runt – ingen autoskalning,
+- **Ljuspanelen** (femte gruppen, rubrik "Light", `SUN_H` 64 px): solhöjden för platsens
+  koordinater var 10:e minut (`sunPath`) i fast skala året runt – ingen autoskalning,
   säsongsskillnaden är poängen (Karlstad: ~7° vid vintersolståndet, ~29° i slutet av september,
   ~54° vid sommarsolståndet). Skalan är tvådelad (`sunY` i `src/lib/client/sunBand.ts`):
-  0°…60° tar 65 % av höjden och −18°…0° 35 %, så att borgerlig (0…−6°), nautisk (−6…−12°) och
-  astronomisk (−12…−18°) skymning syns som tre tydliga, allt mörkare blågrå band under
-  horisonten; värden under −18° klipps mot nederkanten. Ovanför horisonten är bakgrunden
-  neutral – gult bara mellan kurvan och horisonten där solen är uppe, med exakta
-  horisontpassager inlagda (`withHorizonCrossings`). Kurvan är heldragen, tunn och
-  bärnstensfärgad – varken temperaturens tegelröd eller streckad. Etiketter (`sunBandLabels`),
-  alla ovanför horisonten och helt inom bandet, aldrig på skymningstonerna: maxhöjden vid varje
-  middag ("29°", ovanför toppen, under den när toppen når överkanten), soluppgång och solnedgång
-  (−0,833°) som lokal tid på dagsidan av passagen – till höger om uppgången och till vänster om
-  nedgången – ovanför kurvan, så att tiden inte hamnar under vänsteraxeln. Etiketter som skulle
-  krocka eller gå utanför diagrammet visas inte; polarfall ger kurvan utan tider. Samma tidsaxel (`x(t)`) som
-  övriga lager: kurvans 0°-passage ligger exakt under motsvarande tid i temperaturgrafen.
-  Färger som variabler (`--sun-*`) för ljust och mörkt tema. Temperaturgrafen har neutral
-  bakgrund – den tidigare natt-skuggningen och solmarkeringarna vid tidsaxeln är borttagna.
+  horisonten…60° tar 65 % av höjden och −18°…horisonten 35 %, så att borgerlig (horisonten…−6°),
+  nautisk (−6…−12°) och astronomisk (−12…−18°) skymning syns som tre tydliga, allt mörkare
+  blågrå band. **Horisontlinjen ligger vid −0,833°** (`HORIZON`), standarddefinitionen av
+  soluppgång och solnedgång (ljusbrytningen och solens radie): kurvan korsar den just vid ↑- och
+  ↓-tiderna – mot geometriska 0° skiljer det ~1 px i höjd men 5–10 minuter i tid, och korsningen
+  hamnade på fel sida om timlinjen. Horisontpassagerna läggs in som punkter både i den gula ytan
+  och i kurvan (`withHorizonCrossings`), eftersom skalan knäcker vid horisonten och en rak linje
+  mellan tiominuterspunkterna annars korsar upp till ett par minuter fel. Gult bara mellan kurvan
+  och horisonten där solen är uppe; kurvan döljs under −18° (`sunCurveSegments`) i stället för
+  att ritas platt mot nederkanten. Kurvan är heldragen, tunn och bärnstensfärgad. Etiketter
+  (`sunBandLabels`), alla ovanför horisonten och helt inom bandet, aldrig på skymningstonerna:
+  soluppgång och solnedgång som "↑ 06:59" och "↓ 18:54" på dagsidan av passagen ovanför kurvan,
+  maxhöjden "Max 29°" ovanför toppen (under den när toppen når överkanten), och borgerlig
+  gryning och skymning (−6°) som diskreta tider vid passagen strax ovanför horisonten. Upp- och
+  nedgång går först, sedan maxhöjden, sist gryning och skymning; en etikett som skulle krocka
+  visas inte, och etiketter som vyns kanter skulle klippa döljs medan man drar. Polarfall ger
+  kurvan utan tider. Färger som variabler (`--sun-*`) för ljust och mörkt tema.
 - **Solen** beräknas med NOAA:s solkalkylator (Jean Meeus), som redan fanns i projektet i stället
   för ett nytt beroende (SunCalc) – soluppgång och solnedgång inom någon minut upp till 72° latitud. Den förenklade varianten (Spencers serier) felade 3–5 min
   kring dagjämningarna.
@@ -233,10 +237,9 @@ WxgeekApp              – plats, datahämtning, auto-uppdatering (5 min när fl
     angränsande block på samma höjd slås ihop. Molnikonen fylls nerifrån med andelen åttondelar som täcks
     (FEW 2/8, SCT 4/8, BKN 6/8, OVC 8/8; SMHI-oktas direkt) via SVG-gradienter `cov0`…`cov8`.
   - **Vänster axel – temperatur (°C)**: adaptiv skala (`TEMP_AXIS` i
-    `src/lib/client/timeline.ts`); siffror, enhet och axellinje i neutral skiffergrå. Rubriken
-    "Temperature °C" på en rad under symbolraden, precis ovanför skalans översta värde (egen
-    18 px rad, `TITLE_H`) – ett ensamt "°C" gjorde kurvan tvetydig. Rubriken har sidans
-    bakgrund, så att NU-linjen inte syns genom texten.
+    `src/lib/client/timeline.ts`); siffror och axellinje i neutral skiffergrå. Rubriken
+    "Temperature °C" står i gruppens rubrikrad som de andra gruppernas rubriker – genomskinlig,
+    så att NU-linjen går obruten genom raden.
   - **Senaste temperaturobservationen**: en punkt på kurvan vid mätningens egen tid (aldrig
     flyttad till NU) och mätvärdet bredvid, t.ex. "11 °C". Etiketten (`placeTempLabel` i
     `src/lib/client/tempLabel.ts`) står ovanför eller under kurvan, vänster om NU-linjen; nära
@@ -266,21 +269,22 @@ WxgeekApp              – plats, datahämtning, auto-uppdatering (5 min när fl
     (SMHI-mätare) heldraget; prognos som trolig mängd (mörk, SMHI-ensemblens median) och
     möjlig mängd (ljus, max av medel och max). SMHI:s min används inte.
   - Dimma/dis: dimsymbol (tre streck) resp. dis (två streck) ersätter molnsymbolen i symbolraden. Åska markeras med ϟ.
-- Ingen förklaring (legend) och inga instruktionstexter under diagrammet.
-- **Tidsaxel överst**, direkt under symbolraden och ovanför temperaturgrafen: timtal för varje
-  timme, dygnsnamn vid midnatt och NOW/vald tid på samma rad. **Gridlinjer** för varje hel timme
-  genom temperatur, nederbörd, sol och vind (`--vgrid`, något tydligare `--vgrid-major` vid
-  00, 06, 12 och 18) – låg kontrast, så att de inte konkurrerar med data.
-  Vänsteraxeln har solid bakgrund så att moln tonar bort innan de når etiketterna.
+- Inga instruktionstexter under diagrammet. En enda förklaring: temperaturgruppens (Temp, Dew
+  point, Spread ≤ 2°), högerställd i rubrikraden – långt från NU-linjen och markören.
+- **Tidsaxel överst** (första gruppen): timtal för varje timme (varannan under 520 px),
+  dygnsnamn vid midnatt och NOW-pillen/vald tid ovanför axellinjen. **Gridlinjer** för varje
+  hel timme genom alla grupper (`--vgrid`, något tydligare `--vgrid-major` vid 00, 06, 12
+  och 18) – låg kontrast, så att de inte konkurrerar med data. Vänsteraxeln har solid bakgrund
+  med en kort toning; det som den eller vyns högerkant skulle klippa döljs i stället.
 - **Now-knappen**: samma utseende som Change (ljus yta, ljus kant, mörk text) – ändras inte
   när tiden scrollas, och aldrig NU-linjens mörka blågrå, så att den inte förväxlas med
   linjerna i diagrammet. Vid NU är den inaktiv men ser likadan ut; hovring ger mörkare kant.
-- **Vind under tidsaxeln**: en pil per timme (varifrån det blåser) med m/s under;
-  byar visas under när de är minst 3 m/s högre.
+- **Vind** (fjärde gruppen, "Wind (gusts) m/s"): en pil per timme (varifrån det blåser) med
+  medelvinden under och byarna under den i samma rad, inom parentes och i ljusare ton, när de
+  är minst 3 m/s högre.
 - Lufttryck och luftfuktighet visas inte. SMHI:s relativa fuktighet hämtas bara för daggpunkten.
-- TAF ritas inte i diagrammet (för plottrigt). Den styr prognosfönstrets längd,
-  visas som aktiva perioder i avläsningen (t.ex. "40 % risk 14–18: molnbas 310 m")
-  och i rått format under diagrammet. TAF omvandlas aldrig till timvärden.
+- Ur TAF ritas bara taket i molngruppen (huvudläget, se "Fem paneler" nedan). I övrigt
+  styr TAF prognosens huvudläge, visas i avläsningen och i rått format under diagrammet.
 
 ### Avläsning
 
@@ -345,23 +349,77 @@ WxgeekApp              – plats, datahämtning, auto-uppdatering (5 min när fl
   NSC-markering, saknas → "–". Dag/natt med solhöjd för platsen och tiden (`src/lib/sun.ts`).
   Försiktig tolkning: BKN (5–7/8) ritas som moln utan sol – med sol såg ett mulet BKN-läge ut
   som halvklart. Sol eller måne syns bara vid SKC, FEW och SCT.
-  Symbolerna ligger i en egen rad (35 px, `SKY_ROW_H`) ovanför temperaturdiagrammet, alla på
-  samma höjd och i samma tidsskala som diagrammet – symboler som följde kurvan fick den att se
-  ut som molnens undersida. Raden ligger utanför ritytans dagsljusbakgrund, och under den
-  kommer rubriken "Temperature °C" med luft emellan (~16 px under en torr symbol, ~6 px under
-  regnstrecken), så att symbolerna inte läses som värden över skalans topp. Ordning uppifrån:
-  NOW-etiketten, symbolraden, luft, rubriken, skalans översta värde och ritytan (220 px).
-  Var 2:a timme plus timmar med nederbörd och minst en per dimperiod; under 520 px vybredd
-  bara var 3:e timme, så att raden inte blir trång.
+  Symbolerna ligger överst i molngruppen (32 px, `SKY_H`), alla på samma höjd och i samma
+  tidsskala som diagrammet – symboler som följde kurvan fick den att se ut som molnens
+  undersida. Var 2:a timme plus timmar med nederbörd och minst en per dimperiod; under 520 px
+  vybredd bara var 3:e timme, så att raden inte blir trång. En symbol som vyns kanter skulle
+  klippa döljs.
 - Molnbasens höjdaxel och höjdplacerade moln är borttagna. Molnbas och alla lager visas i
   detaljraden under sammanfattningen, med källa och giltighet.
 - SMHI-prognosens lager för text: lägsta molnbas + mängd *låga* moln (`modelLayer`); den
   totala molnmängden kombineras aldrig med basen.
-- **Temperaturskala** (`tempScale`): 20 °C, gränser på 5 °C, 2 °C marginal; behålls så länge
-  alla värden ligger ≥ 1 °C innanför, flyttas annars i steg om 5 °C; ett utökat spann krymps
-  inte. Skalan sparas i appens state per plats.
+- **Temperaturskala** (`tempScale`, `TEMP_AXIS`): autoskalad över temperatur och daggpunkt
+  i fönstret, minst 10 °C spann och 1 °C marginal, avrundad utåt till jämna steg (2 °C, 5 °C
+  över 14 °C spann, 10 °C över 35 °C). 0 °C tas med när lägsta värdet ligger inom 5 °C från
+  noll (eller värdena korsar den) – då med en streckad 0°-linje, annars ingen. Behålls så
+  länge alla värden ligger minst 0,5 °C innanför, krymps aldrig under användning; sparas per
+  plats.
 - **Nederbörd per timme**: en serie staplar från nollinje (bara under trolig/uppmätt mängd),
-  linjär skala 0–max (minst 2 mm).
+  linjär skala 0–max (minst 2 mm/h) i ett 36 px band underst i molngruppen (`PRECIP_H`);
+  värdet ovanför stapeln från 0,1 mm/h, enheten "mm/h" i vänsterkolumnen.
   Mängd per timme (SMHI param 7 = summa 1 h; prognosens timsteg = mängd). Prognos: median
   (mörk) och övre spridning (ljus). Den ackumulerade vattenytan/snödjupet är borttaget.
-- **Tidsaxel** (överst): varje timme; midnatt med streck genom axeln och dygnsnamn.
+- **Tidsaxel** (överst): varje timme; midnatt med ett kort streck i datumraden (inte genom
+  timtalet "00") och dygnsnamnet.
+
+## Fem paneler (senaste versionen)
+
+Diagrammet är fem grupper på samma tidsaxel (`src/components/Timeline.tsx`), uppifrån:
+
+1. **Tidsaxel** (`AXIS_H` 36 px): NOW-pillen och datum överst, timtal, axellinjen.
+2. **Moln & nederbörd** ("Clouds & precipitation", "Clouds & precip." under 520 px):
+   vädersymbolerna, molntäcke i tre rader (High, Mid, Low – 8 px vardera), taket ur TAF
+   ("Ceiling") och nederbörden ("mm/h").
+3. **Temperatur & daggpunkt** ("Temperature °C", `TEMP_H` 148 px – en tredjedel lägre än
+   förut) med förklaringen högerställd i rubrikraden.
+4. **Vind** ("Wind (gusts) m/s", 50 px).
+5. **Ljus** ("Light", 64 px).
+
+- **Gemensamt**: samma `x(t)` för alla grupper; timgridlinjerna och NU-linjen går obrutna
+  genom alla. Rubrikerna står i den fasta vänsterkolumnen med samma plats, typografi och
+  radhöjd (15 px, `RUBRIC_H`) och är genomskinliga, så att NU-linjen syns genom raden.
+  Rubriktexterna är korta nog att sluta före NU-linjen i standardvyn – också på mobil. Lika
+  mycket luft (`GAP` 6 px) på var sida om en tunn avgränsare (`--rule`) mellan grupperna.
+  Enheten står i rubriken när gruppen har en; nederbördens "mm/h" står vid staplarna.
+- **Kantdöljning** (`placeMarkers`): symboler, vindpilar, etiketter, timtal och datum som
+  vänsterkolumnen eller vyns högerkant skulle klippa döljs i stället för att visas halva –
+  elementen bär sin utsträckning som `data-l`/`data-r` (SVG-x). Takets värde följer med in i
+  vyn så länge dess period syns och värdet ryms.
+- **Molntäcke per timme** (`cloudCoverHours`): prognos = SMHI:s låga, medelhöga och höga
+  molnmängd (`low/medium/high_type_cloud_area_fraction`, oktas) vid den hela timmen.
+  Observerat = METAR inom 35 min: varje lagers kategori (FEW 1,5, SCT 3,5, BKN 6, OVC/VV 8
+  åttondelar) i raden för dess bas (under 2 000 m låga, 2 000–6 000 m medelhöga, över höga),
+  största per rad. Rader under det högsta rapporterade lagret är klara (0), rader ovanför
+  okända och lämnas tomma – molnet skymmer dem eller så rapporteras de inte. Klart (SKC/CLR/NCD
+  och liknande) ger tre klara rader; CAVOK/NSC utan lager bara en klar låg rad. SMHI:s
+  stationer rapporterar bara molnbas och används inte här. Tonen (opaciteten) följer
+  åttondelarna; ingen interpolation mellan observationer.
+- **Tak ur TAF** (`tafCeilings`): lägsta BKN/OVC/VV i huvudläget (BASE/FM/BECMG, BECMG från
+  intervallets slut) per period, från NU (eller TAF:ens start) till giltighetstidens slut –
+  ingenting efter. TEMPO/PROB ritas inte som tak. En linje med startstreck, värdet i meter
+  (avrundat till 10 m, "VV" vid vertikal sikt) och ett diskret "TAF" på periodens första
+  segment; lika perioder i följd slås ihop.
+- **Daggpunkt**: observerad ur samma station som temperaturen när den har daggpunkt, annars
+  närmaste METAR (heldragen). Prognosen (streckad) ur SMHI:s relativa fuktighet (Magnus) –
+  `snow1g` saknar daggpunkt – som en spridning under temperaturen: SMHI:s egen spridning,
+  med skillnaden mot senaste observerade spridningen utklingande över 3 h, så att kurvan börjar
+  i senaste observationen (`dewAdjuster`). Avläsningen använder samma värde. Aldrig över
+  temperaturen.
+- **Dimrisk** (`fogBands`): svag yta mellan kurvorna där spridningen är högst 2 °C, med exakta
+  gränspunkter där spridningen passerar 2 °C; aldrig över luckor i någon av kurvorna.
+- **Vind**: byar inom parentes under medelvinden i samma rad (`.tl-wind-gust`, ljusare), bara
+  när de är minst 3 m/s högre.
+- **Verifierat** (Karlstad 26 sep 2026): ↑ 06:59:18 och ↓ 18:54:04 med kurvans korsning av
+  horisontlinjen på samma x som tiderna (0,4 px före 07-linjen respektive 3 px före 19-linjen),
+  "Max 29°", NU-linjen från pillen till nederkanten utan något ogenomskinligt element över sig,
+  på dator (780 px diagram), mobil (375 px) och i mörkt tema.

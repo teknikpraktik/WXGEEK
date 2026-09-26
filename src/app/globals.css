@@ -20,6 +20,10 @@
   --sun-civil: #e0e5ec;
   --sun-nautical: #c9d1dc;
   --sun-astro: #b1bccb;
+  --dew: #5f8f96; /* daggpunkt – lugnare än temperaturens tegelröd */
+  --fog-risk: rgba(95, 143, 150, 0.16); /* spridning ≤ 2 °C mellan kurvorna */
+  --cloud-cell: #858c96; /* molntäcke – tonen efter åttondelarna */
+  --ceiling: #4f5863; /* tak ur TAF */
   /* Timgridlinjer genom alla band – låg kontrast, något tydligare vid 00, 06, 12 och 18 */
   --vgrid: rgba(32, 37, 43, 0.05);
   --vgrid-major: rgba(32, 37, 43, 0.11);
@@ -73,6 +77,10 @@
     --sun-civil: #36445c;
     --sun-nautical: #263146;
     --sun-astro: #181f2d;
+    --dew: #86b9bf;
+    --fog-risk: rgba(134, 185, 191, 0.14);
+    --cloud-cell: #aab0b9;
+    --ceiling: #b3b8c0;
     --vgrid: rgba(255, 255, 255, 0.045);
     --vgrid-major: rgba(255, 255, 255, 0.1);
     --sun-horizon: rgba(233, 234, 236, 0.5);
@@ -538,17 +546,7 @@ main {
   /* Solid bakom etiketterna, kort toning i kanten – molnen försvinner innan de når axeln */
   background: linear-gradient(to right, var(--bg) 0, var(--bg) 46px, transparent 60px);
 }
-/* Körfälten under diagrammet (nederbörd, tidsaxel, vind) har bredare etiketter än
-   temperaturskalan – "PRECIP" slutar vid ~54 px. Där går bakgrunden längre ut, så att värden
-   och pilar tonar bort en bit från etiketterna i stället för att krocka med dem. */
-.tl-lanebg {
-  position: absolute;
-  left: 0;
-  bottom: 0;
-  width: 76px;
-  background: linear-gradient(to right, var(--bg) 0, var(--bg) 62px, transparent 76px);
-}
-.tl-yaxis span {
+.tl-yaxis > span {
   position: absolute;
   left: 16px;
   transform: translateY(-50%);
@@ -594,9 +592,6 @@ main {
   stroke: var(--grid);
   stroke-width: 1;
 }
-.tl-axisband {
-  fill: var(--bg);
-}
 .tl-axisline {
   stroke: var(--ink-2);
   stroke-width: 1;
@@ -639,12 +634,20 @@ main {
   stroke: var(--now-line);
   stroke-width: 2;
 }
-.tl-nowlabel {
+/* NOW som liten pill ovanför tidsaxeln, i NU-linjens mörka blågrå */
+.tl-nowpill {
+  position: absolute;
+  white-space: nowrap;
   font-family: var(--font-num);
   font-size: 10.5px;
   font-weight: 600;
-  letter-spacing: 0.08em;
-  fill: var(--now-text);
+  line-height: 14px;
+  letter-spacing: 0.04em;
+  color: var(--on-now);
+  background: var(--now);
+  padding: 1px 5px;
+  border-radius: 3px;
+  pointer-events: none;
 }
 .tl-side {
   font-family: var(--font-num);
@@ -719,14 +722,98 @@ main {
   stroke-width: 1;
 }
 
-/* Meteogram-körfält */
-.tl-yaxis .tl-lane {
+/* Gruppernas rubriker: samma plats, bredd och typografi i alla grupper. Genomskinliga, så att
+   NU-linjen och markören går obrutna genom rubrikraden. Enheten i sin egen stavning. */
+.tl-yaxis .tl-rubric {
   transform: none;
+  padding-top: 3px;
   font-family: var(--font-ui);
   font-size: 10px;
+  line-height: 1;
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--muted);
+}
+.tl-rubric .u {
+  text-transform: none;
+  letter-spacing: 0;
+}
+.tl-yaxis .tl-rowlabel {
+  font-family: var(--font-ui);
+  font-size: 8.5px;
+  line-height: 1;
+  color: var(--muted);
+}
+.tl-legend {
+  position: absolute;
+  right: 16px;
+  z-index: 2;
+  pointer-events: none;
+  padding-top: 3px;
+  white-space: nowrap;
+  font-family: var(--font-ui);
+  font-size: 9.5px;
+  line-height: 1;
+  color: var(--muted);
+}
+.tl-legend .lg {
+  display: inline-block;
+  width: 12px;
+  height: 2px;
+  margin: 0 3px 0 8px;
+  vertical-align: 3px;
+}
+.tl-legend .lg:first-child {
+  margin-left: 0;
+}
+.tl-legend .lg.temp { background: var(--temp); }
+.tl-legend .lg.dew { background: var(--dew); }
+.tl-legend .lg.fogrisk {
+  height: 8px;
+  vertical-align: 0;
+  background: var(--fog-risk);
+  outline: 1px solid var(--fog-risk);
+}
+/* Tunna avgränsare mellan grupperna */
+.tl-panelsep {
+  stroke: var(--rule);
+  stroke-width: 1;
+}
+/* Molntäcke per timme i tre skikt – tonen (opaciteten) efter åttondelarna */
+.tl-cloudcover .cc {
+  fill: var(--cloud-cell);
+}
+/* Tak ur TAF: markering med värdet i meter och en diskret källetikett */
+.tl-ceiling .line {
+  stroke: var(--ceiling);
+  stroke-width: 1.5;
+}
+.tl-ceiling .value {
+  font-family: var(--font-num);
+  font-size: 9.5px;
+  fill: var(--ink-2);
+}
+.tl-ceiling .via {
+  font-size: 8px;
+  letter-spacing: 0.06em;
+  fill: var(--muted);
+}
+/* Daggpunkt: lugnare färg, heldragen observation och streckad prognos som temperaturen */
+.tl-line.dew {
+  stroke: var(--dew);
+}
+.tl-line.obs.dew {
+  stroke-width: 1.75;
+}
+.tl-line.fc.dew {
+  stroke-width: 1.5;
+}
+.tl-dot.dew {
+  fill: var(--dew);
+}
+/* Dimrisk: ytan mellan kurvorna där spridningen är högst 2 °C – låg kontrast */
+.tl-fogrisk {
+  fill: var(--fog-risk);
 }
 .tl-lanesep {
   stroke: var(--rule);
@@ -759,7 +846,7 @@ main {
 }
 .tl-wind-gust {
   font-family: var(--font-num);
-  font-size: 9px;
+  font-size: 9.5px;
   fill: var(--muted);
 }
 .tl-thunder {
@@ -1523,9 +1610,12 @@ main {
 
 
 /* Temperaturaxeln: neutral skiffergrå för siffror, enhet och axellinje */
-.tl-yaxis .tl-ttick { font-weight: 600; color: var(--muted); }
-/* Lägsta värdet står på fältgränsen – etiketten ovanför linjen, så att den inte krockar med "Precip" */
-.tl-yaxis .tl-ttick.bottom { transform: translateY(-100%); }
+.tl-yaxis .tl-ttick { font-weight: 600; line-height: 1; color: var(--muted); }
+/* Lägsta värdet står på gruppens nederkant – etiketten ovanför linjen, så att den inte krockar
+   med avgränsaren och vindrubriken under */
+.tl-yaxis .tl-ttick.lo { transform: translateY(-100%); }
+/* Översta värdet under överkanten, så att det inte krockar med rubriken ovanför */
+.tl-yaxis .tl-ttick.hi { transform: none; }
 .tl-taxis {
   position: absolute;
   left: 50px;
@@ -1546,14 +1636,6 @@ main {
   stroke: var(--ink-2);
   stroke-opacity: 0.35;
   stroke-dasharray: 3 3;
-}
-.tl-yaxis .tl-lane-2 { line-height: 1.15; }
-/* Temperaturrubriken: en rad under symbolraden, precis ovanför skalan. Egen bakgrund, så att
-   NU-linjen eller markören inte syns genom texten när de scrollas under den. */
-.tl-yaxis .tl-ttitle {
-  line-height: 1;
-  padding-right: 4px;
-  background: var(--bg);
 }
 .tl-yaxis .tl-prscale {
   left: 40px;

@@ -39,11 +39,14 @@ export function solarElevation(lat: number, lon: number, t: number): number {
 
 /** Solhöjd vid soluppgång och solnedgång: övre kanten i horisonten, med refraktion. */
 export const SUNRISE_ALT = -0.833;
+/** Borgerlig gryning börjar och borgerlig skymning slutar när solen står 6° under horisonten. */
+export const CIVIL_ALT = -6;
 
 /** Dag = solen över horisonten (med hänsyn till refraktion). */
 export const isDaylight = (lat: number, lon: number, t: number) => solarElevation(lat, lon, t) > SUNRISE_ALT;
 
-export type SunEvent = { t: number; kind: "sunrise" | "sunset" };
+/** dawn: borgerlig gryning börjar (−6°, uppåt), sunrise, sunset, dusk: borgerlig skymning slutar (−6°, nedåt). */
+export type SunEvent = { t: number; kind: "dawn" | "sunrise" | "sunset" | "dusk" };
 
 /** Solbanan: solhöjden (grader) var 10:e minut mellan from och to (ms). */
 export function sunPath(lat: number, lon: number, from: number, to: number, step = 10 * 60_000): Array<{ t: number; alt: number }> {
@@ -52,32 +55,39 @@ export function sunPath(lat: number, lon: number, from: number, to: number, step
   return out;
 }
 
+const LIMITS = [
+  { alt: CIVIL_ALT, up: "dawn", down: "dusk" },
+  { alt: SUNRISE_ALT, up: "sunrise", down: "sunset" },
+] as const;
+
 /**
- * Soluppgångar och solnedgångar mellan from och to (ms): passager av solhöjden genom −0,833°,
- * sökta i steg om 5 min och halverade ned till en sekund. Midnattssol och polarnatt har ingen
- * passage – då hittas inga händelser.
+ * Solhändelser mellan from och to (ms): passager av solhöjden genom −6° (borgerlig gryning och
+ * skymning) och −0,833° (soluppgång och solnedgång), sökta i steg om 5 min och halverade ned till
+ * en sekund. Når solen inte en gräns – midnattssol, polarnatt, ljusa sommarnätter – finns ingen
+ * passage och ingen händelse hittas på.
  */
 export function sunEvents(lat: number, lon: number, from: number, to: number): SunEvent[] {
   const out: SunEvent[] = [];
-  const elev = (t: number) => solarElevation(lat, lon, t) - SUNRISE_ALT;
+  const elev = (t: number) => solarElevation(lat, lon, t);
   let t0 = from;
   let e0 = elev(t0);
   while (t0 < to) {
     const t1 = Math.min(t0 + 5 * 60_000, to);
     const e1 = elev(t1);
-    if (e0 < 0 !== e1 < 0) {
+    for (const l of LIMITS) {
+      if (e0 - l.alt < 0 === e1 - l.alt < 0) continue;
       const rising = e1 > e0;
       let a = t0;
       let b = t1;
       while (b - a > 1000) {
         const m = (a + b) / 2;
-        if (elev(m) < 0 === rising) a = m;
+        if (elev(m) - l.alt < 0 === rising) a = m;
         else b = m;
       }
-      out.push({ t: Math.round((a + b) / 2), kind: rising ? "sunrise" : "sunset" });
+      out.push({ t: Math.round((a + b) / 2), kind: rising ? l.up : l.down });
     }
     t0 = t1;
     e0 = e1;
   }
-  return out;
+  return out.sort((p, q) => p.t - q.t);
 }

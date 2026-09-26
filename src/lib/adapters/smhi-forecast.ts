@@ -44,6 +44,8 @@ export function normalizeSmhiForecast(raw: SmhiForecastRaw): Forecast {
       cloudBaseM: cloudBaseRaw !== undefined && cloudBaseRaw !== MISSING ? cloudBaseRaw : undefined,
       cloudCoverOktas: num(d, "cloud_area_fraction"),
       lowCloudCoverOktas: num(d, "low_type_cloud_area_fraction"),
+      midCloudCoverOktas: num(d, "medium_type_cloud_area_fraction"),
+      highCloudCoverOktas: num(d, "high_type_cloud_area_fraction"),
       precipitationMm: num(d, "precipitation_amount_mean"),
       precipitationMaxMm: num(d, "precipitation_amount_max"),
       precipitationMedianMm: num(d, "precipitation_amount_median"),

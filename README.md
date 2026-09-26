@@ -29,49 +29,69 @@ situation **now**, and the **forecast** for the next 24 hours, all on the same a
   it is not today). Values from another station or time are named separately, e.g.
   "; precipitation 08–09 · Kilsbergen-Suttarboda A"; in the forecast it names the TAF and
   SMHI. Nothing is made up when a time or station is missing.
-- Temperature chart (left axis): an adaptive scale chosen from all temperatures in the
-  window – the smallest range on multiples of 5 °C with margin and at least a 20 °C span,
-  preferring one that also shows 0 and −5 °C when that costs at most 5 °C extra. The scale
-  stays put while you select times and across small data updates, never shrinks while in
-  use, and is recomputed for a new place. The settings are collected in `TEMP_AXIS`. The axis
-  is titled "Temperature °C" – below the symbol row, just above the scale – and a dot marks
-  the latest temperature observation at its actual time (never moved to now) with the
-  measured value beside it, e.g. "11 °C".
-- **Weather symbols** sit in their own row above the temperature chart – all at the same
-  height and at their hour on the same time axis, so the curve is never read as a cloud base.
-  The row lies outside the shaded plot with some air below it (also under rain strokes), so a
-  symbol is never read as a value above the top of the scale:
-  one every 2 hours plus every hour with precipitation and at least one per fog period; on
-  narrow screens only every 3 hours. Sun, sun with a small cloud (FEW), sun partly
-  behind cloud (SCT), clouds without sun (BKN – 5–7/8 often looks overcast from the ground),
-  dark full cloud (OVC); moon instead of sun at night. The
-  symbol is a simplification: the largest category among simultaneous layers (oktas are never
-  summed). CAVOK, NSC and missing data are never shown as clear sky. **Fog** (three lines,
-  below 1 km) and **mist** (two lines) replace the cloud symbol when fog or mist is reported
-  (including fog in a TAF TEMPO/PROB group, e.g. BCFG), when visibility is below 1 km, or when
-  it is below 5 km without precipitation.
-- **Precipitation, mm per hour**: one series of bars from a zero line (dark = measured or
-  expected, light = possible; "≤0.3" = most likely dry, but up to 0.3 mm possible). The zero
-  line is drawn only under a measured or expected amount, not under "≤"; dry hours show
-  nothing, just like hours without data. A symbol at an hour with precipitation gets a few
-  short rain strokes (snow: dots) just below it – they only signal precipitation, the bars
-  show the amount.
-- The **time axis** sits at the top, just below the weather symbols: every hour, with the new
-  day's name at midnight, and NOW and the selected time labelled on it (hour labels they cover
-  are hidden). Faint vertical gridlines for every hour – a little stronger at 00, 06, 12 and
-  18 – run through temperature, precipitation, sun and wind. Wind arrows are at the bottom.
-- A **sun band** between precipitation and wind shows the sun's altitude on a fixed scale all
-  year (no autoscaling – the seasons are the point), split in two: 0° to 60° takes 65 % of the
-  height and −18° to 0° 35 %, so civil, nautical and astronomical twilight show as three clear
-  tones below the horizon; lower values are clipped at the bottom edge. The background above
-  the horizon is neutral – yellow fills only the area between the curve and the horizon while
-  the sun is up. Labels: the highest altitude at solar noon (e.g. "29°"), and sunrise and
-  sunset (−0.833°, with refraction) as local times on the day side of the crossing, above the
-  curve (e.g. "06:59", "18:54"); no text sits on the dark twilight tones. Midnight sun and polar
-  night draw the curve without rise/set labels. The sun is computed with NOAA's
-  solar calculator (Meeus) for the place, every 10 minutes on the same time axis as the rest of
-  the chart. The temperature chart has a neutral background; observed and forecast are told
-  apart by the NOW line, the OBSERVED/FORECAST labels and solid vs dashed lines.
+- The chart is **five panels on one time axis**, top to bottom: time, clouds and
+  precipitation, temperature and dew point, wind, and light. All panels share the same
+  x-scale; faint vertical gridlines for every hour – a little stronger at 00, 06, 12 and 18 –
+  and the NOW line run through all of them without a break. Each group has a rubric in a fixed
+  left column with the same typography and placement, with its unit where it has one
+  ("TEMPERATURE °C", "WIND (GUSTS) m/s"), and the same air on either side of a thin separator.
+  Anything the left column or the edge of the view would cut – a symbol, an arrow, a label, an
+  hour – is hidden rather than shown in half. Observed and forecast are told apart by the NOW
+  line, the OBSERVED/FORECAST labels and solid vs dashed lines.
+- **Time axis** at the top: every hour (every other hour on narrow screens), the day's name at
+  midnight, and NOW as a small pill above the axis, e.g. "NOW 10:29", plus the selected time;
+  hour labels they cover are hidden.
+- **Clouds & precipitation**:
+  - **Weather symbols** in a row of their own, all at the same height at their hour: one every
+    2 hours plus every hour with precipitation and at least one per fog period; on narrow
+    screens only every 3 hours. Sun, sun with a small cloud (FEW), sun partly behind cloud
+    (SCT), clouds without sun (BKN – 5–7/8 often looks overcast from the ground), dark full
+    cloud (OVC); moon instead of sun at night. The symbol is a simplification: the largest
+    category among simultaneous layers (oktas are never summed). CAVOK, NSC and missing data
+    are never shown as clear sky. **Fog** (three lines, below 1 km) and **mist** (two lines)
+    replace the cloud symbol when fog or mist is reported (including fog in a TAF TEMPO/PROB
+    group, e.g. BCFG), when visibility is below 1 km, or when it is below 5 km without
+    precipitation. A symbol at an hour with precipitation gets a few short rain strokes (snow:
+    dots) – they only signal precipitation, the bars show the amount.
+  - **Cloud cover per hour in three rows** – high, mid and low (bases below 2 000 m,
+    2 000–6 000 m and above) – shaded by the oktas. The forecast uses SMHI's low, medium and
+    high cloud cover. An observed hour uses the METAR within 35 minutes: each reported layer's
+    category (FEW 1.5/8, SCT 3.5/8, BKN 6/8, OVC/VV 8/8) in the row of its base; rows below the
+    highest reported layer are clear, rows above it stay empty (unknown – hidden above the
+    cloud or not reported).
+  - **Ceiling from the TAF** – the lowest BKN/OVC/VV of the main state (BASE, FM, BECMG) – as
+    a line per period with the value in metres and a discreet "TAF", from NOW until the TAF
+    expires and nothing after. TEMPO/PROB groups are not drawn as a ceiling. The value follows
+    into view while its period is visible.
+  - **Precipitation, mm per hour** in a narrow band: bars from a zero line on a linear scale of
+    at least 0–2 mm/h (larger when needed); dark = measured or expected, light = possible;
+    "≤0.3" = most likely dry, but up to 0.3 mm possible. The value stands above each bar from
+    0.1 mm/h. The zero line is drawn only under a measured or expected amount; dry hours and
+    hours without data show nothing.
+- **Temperature and dew point**: an adaptive scale over all temperatures and dew points in the
+  window – at least a 10 °C span with 1 °C margin, on even steps (2, 5 or 10 °C by span), and
+  including 0 °C with a dashed 0° line when the lowest value is within 5 °C of zero or the
+  values cross it (otherwise no 0° line). The scale stays put across small data updates, never
+  shrinks while in use and is recomputed for a new place (`TEMP_AXIS`). The dew point is a
+  second line in a calmer colour – solid observed (METAR), dashed forecast from SMHI's relative
+  humidity, joined to the last observation over 3 hours – and a faint area between the lines
+  marks a spread of 2 °C or less (fog risk). A legend at the right of the rubric row names
+  them. A dot marks the latest temperature observation at its actual time (never moved to
+  now) with the measured value beside it, e.g. "11 °C".
+- **Wind (gusts) m/s**: an arrow and the mean wind per hour, and gusts – when at least 3 m/s
+  above the mean – below it in the same row, in parentheses and a lighter tone.
+- **Light**: the sun's altitude on a fixed scale all year (no autoscaling – the seasons are
+  the point), split in two: the horizon to 60° takes 65 % of the height and −18° to the
+  horizon 35 %, so civil, nautical and astronomical twilight show as three clear tones. The
+  horizon line is at −0.833°, the standard altitude for sunrise and sunset (refraction and the
+  sun's radius), so the curve crosses it exactly at the sunrise and sunset times; yellow fills
+  only the area between the curve and the horizon while the sun is up, and the curve is hidden
+  below −18° instead of running flat along the bottom. Labels stay inside the plot and never
+  on the dark tones: the highest altitude ("Max 29°"), sunrise and sunset on the day side of
+  the crossing ("↑ 06:59", "↓ 18:54"), and the start of civil dawn and end of civil dusk
+  (−6°) as discreet times ("06:18", "19:34"); a label that would collide is left out.
+  Midnight sun and polar night draw the curve without rise/set labels. The sun is computed
+  with NOAA's solar calculator (Meeus) for the place, every 10 minutes.
 - Drag the chart (or use the arrow keys) to select a time within the fixed −12 h … +24 h
   window; **Now** returns to the current time. The selected time – NOW at start and after
   Now – sits a fifth into the plot, so 20 % of the view is observed and 80 % forecast, with
@@ -146,6 +166,8 @@ Architecture, station selection and caching: [`docs/architecture.md`](docs/archi
 - **METAR temperature is reported in whole degrees**, so WXGEEK shows all temperatures and dew points in whole degrees.
 - **METAR gusts** are reported only when strong, so SMHI gusts are preferred when available.
 - **SMHI forecast cloud base** has no documented reference level (ground or sea), so it is treated as approximate.
+- **Observed cloud cover** comes from the METAR's layer categories (FEW/SCT/BKN/OVC), not measured oktas, and says nothing about layers above the highest one reported. SMHI stations report only the cloud base.
+- **The forecast dew point** is derived from SMHI's temperature and relative humidity (Magnus formula) – `snow1g` has no dew point parameter.
 - **Precipitation gauges** are sparse.
 - **TAF** applies to the airport (within 50 km), while SMHI applies to the location's coordinates.
 - **Sweden only.**

@@ -83,7 +83,10 @@ export type ForecastPoint = {
   cloudBaseM?: number;
   /** oktas 0–8 */
   cloudCoverOktas?: number;
+  /** Molntäcke per skikt (oktas 0–8): låga, medelhöga och höga moln */
   lowCloudCoverOktas?: number;
+  midCloudCoverOktas?: number;
+  highCloudCoverOktas?: number;
   precipitationMm?: number;
   precipitationMaxMm?: number;
   precipitationMedianMm?: number;
