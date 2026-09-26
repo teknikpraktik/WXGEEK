@@ -13,9 +13,17 @@
   --grid: rgba(32, 37, 43, 0.09); /* stödlinjer – syns på både observerad och prognosbakgrund */
   --obs: #20252b;
   --obs-bg: rgba(32, 37, 43, 0.035);
-  /* Natt i diagrammets bakgrund: svagt blågrå, så att kurva, staplar och text syns tydligt */
-  --night: #e1e6ed;
-  --sun-mark: #e0a400; /* solmarkeringarnas halvsol – liten, inget färgfält */
+  /* Natt i bandet bakom klockslagen: mörkare blågrå, timtalen läsbara (AA) */
+  /* Solbandet: dag svagt varm, skymningszonerna allt mörkare blågrå, natt mörkast; kurvan i
+     mörk bärnsten – varken temperaturens tegelröd eller streckad */
+  --sun-day: #f4e8c8;
+  --sun-civil: #dde2e9;
+  --sun-nautical: #c5cdd9;
+  --sun-astro: #a9b4c5;
+  --sun-night: #8b98ae;
+  --sun-horizon: rgba(63, 71, 80, 0.65);
+  --sun-curve: #a26f0b;
+  --sun-text: #7a5207; /* maxhöjden – mörkare för kontrast mot den varma tonen */
   --fc: #5e6772;
   --fc-soft: rgba(94, 103, 114, 0.14);
   --now: #334155; /* nutidsmarkering */
@@ -59,8 +67,14 @@
     --grid: rgba(255, 255, 255, 0.08);
     --obs: #eef0f2;
     --obs-bg: rgba(255, 255, 255, 0.035);
-    --night: #172030;
-    --sun-mark: #d9a520;
+    --sun-day: #2a2516;
+    --sun-civil: #1f2631;
+    --sun-nautical: #19202a;
+    --sun-astro: #141921;
+    --sun-night: #0e1117;
+    --sun-horizon: rgba(233, 234, 236, 0.5);
+    --sun-curve: #e0b04c;
+    --sun-text: #f0c96a;
     --fc: #8d939c;
     --fc-soft: rgba(141, 147, 156, 0.18);
     --now: #cbd5e1;
@@ -541,9 +555,31 @@ main {
   white-space: nowrap;
 }
 
-/* Dagsljusbakgrunden: nattfärgen med nattgraden som opacitet (dag = sidans bakgrund) */
-.tl-night {
-  stop-color: var(--night);
+/* Solbandet: zonerna som horisontella band, horisonten vid 0°, solkurvan ovanpå */
+.tl-sunband .zone.day { fill: var(--sun-day); }
+.tl-sunband .zone.civil { fill: var(--sun-civil); }
+.tl-sunband .zone.nautical { fill: var(--sun-nautical); }
+.tl-sunband .zone.astro { fill: var(--sun-astro); }
+.tl-sunband .zone.night { fill: var(--sun-night); }
+.tl-sunband .horizon {
+  stroke: var(--sun-horizon);
+  stroke-width: 1;
+}
+.tl-sunband .curve {
+  fill: none;
+  stroke: var(--sun-curve);
+  stroke-width: 1.5;
+  stroke-linejoin: round;
+}
+.tl-sunband .label {
+  font-family: var(--font-num);
+  font-size: 9.5px;
+  font-weight: 500;
+  fill: var(--ink-2);
+}
+.tl-sunband .label.max {
+  font-weight: 600;
+  fill: var(--sun-text);
 }
 .tl-grid {
   stroke: var(--grid);
@@ -614,73 +650,6 @@ main {
   letter-spacing: 0.04em;
 }
 
-/* Soluppgång och solnedgång vid tidsaxeln: liten symbol på exakt tid, lokal tid bredvid */
-.tl-sun {
-  position: absolute;
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  height: 12px;
-  margin: 0;
-  padding: 0;
-  border: 0;
-  background: none;
-  color: var(--muted);
-  font-family: var(--font-num);
-  font-size: 9.5px;
-  line-height: 1;
-  cursor: default;
-  -webkit-tap-highlight-color: transparent;
-}
-/* Större träffyta för tryck än själva symbolen */
-.tl-sun::before {
-  content: "";
-  position: absolute;
-  inset: -8px -3px;
-}
-.tl-sun svg {
-  flex: none;
-  overflow: visible;
-}
-.tl-sun:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
-  border-radius: 2px;
-}
-.tl-sun-disc {
-  fill: var(--sun-mark);
-  opacity: 0.85;
-}
-.tl-sun-line,
-.tl-sun-arrow {
-  fill: none;
-  stroke: var(--muted);
-  stroke-width: 1.2;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-.tl-sun-tip {
-  position: absolute;
-  z-index: 1;
-  transform: translate(-50%, -100%);
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-  padding: 4px 7px;
-  white-space: nowrap;
-  font-size: 11.5px;
-  line-height: 1.3;
-  color: var(--ink-2);
-  background: var(--surface);
-  border: 1px solid var(--rule);
-  border-radius: 4px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
-  pointer-events: none;
-}
-.tl-sun-tip b {
-  font-weight: 600;
-  color: var(--ink);
-}
 .tl-side.fc {
   fill: var(--fc);
 }

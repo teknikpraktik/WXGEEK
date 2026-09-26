@@ -9,7 +9,7 @@ import type {
   WeatherObservation,
 } from "../types";
 import { PHENOMENON_GROUP } from "../weather/phenomena";
-import { isDaylight, nightProfile, sunEvents, type SunEvent } from "../sun";
+import { isDaylight, sunEvents, sunPath, type SunEvent } from "../sun";
 import { dewPointFromRh, oktasCover } from "../format";
 import {
   mergedForecastAt,
@@ -208,12 +208,8 @@ export type ChartData = {
   missing: { temp?: string; wind?: string; clouds?: string; forecast?: string };
   /** Tidpunkt då TAF slutar inom fönstret – därefter fortsätter SMHI */
   tafEnd?: { t: number; stationId: string };
-  /**
-   * Dagsljus för platsen: nattgrad (0 dag – 1 natt) att tona diagrammets bakgrund efter, över
-   * hela fönstret, och solhändelser (gryning, soluppgång, solnedgång, skymning) med 12 h
-   * marginal, så att varje soluppgång har sin gryning och varje solnedgång sin skymning.
-   */
-  daylight: { night: Array<{ t: number; n: number }>; events: SunEvent[] };
+  /** Solbanan för platsen över fönstret: solhöjden var 10:e minut, soluppgångar och solnedgångar */
+  sun: { path: Array<{ t: number; alt: number }>; events: SunEvent[] };
 };
 
 /** Molnbasaxeln (höger): linjär 0–3 000 m. */
@@ -615,16 +611,16 @@ export function buildChart(bundle: WeatherBundle, now: number, prevTempDomain?: 
       const t = tafEndWithin(bundle, now, Date.parse(bundle.forecastUntil));
       return t && bundle.taf ? { t, stationId: bundle.taf.stationId } : undefined;
     })(),
-    daylight: daylightOver(bundle, now),
+    sun: sunOver(bundle, now),
   };
 }
 
-/** Dagsljus över diagrammets fönster (samma som tidslinjens: hela timmar, 12 h bakåt). */
-function daylightOver(bundle: WeatherBundle, now: number): ChartData["daylight"] {
+/** Solbanan över diagrammets fönster (som tidslinjens: hela timmar, 12 h bakåt), med marginal. */
+function sunOver(bundle: WeatherBundle, now: number): ChartData["sun"] {
   const { latitude: lat, longitude: lon } = bundle.location;
   const from = Math.floor(now / HOUR) * HOUR - (PAST_HOURS + 1) * HOUR;
   const to = Math.ceil(Math.max(Date.parse(bundle.forecastUntil), now) / HOUR) * HOUR + 2 * HOUR;
-  return { night: nightProfile(lat, lon, from, to), events: sunEvents(lat, lon, from - 12 * HOUR, to + 12 * HOUR) };
+  return { path: sunPath(lat, lon, from, to), events: sunEvents(lat, lon, from, to) };
 }
 
 // ---------------------------------------------------------------------------

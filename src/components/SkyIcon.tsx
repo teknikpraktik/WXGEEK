@@ -3,7 +3,8 @@ import { COVER_LABEL, COVER_OKTAS } from "@/lib/format";
 
 // Ett konsekvent ikonsystem (SVG, ca 24 × 20 px, centrerat i origo):
 // SKC sol · FEW sol + litet moln · SCT sol delvis bakom större moln ·
-// BKN mest moln med liten solkant · OVC heltäckande moln. Natt: måne i stället för sol.
+// BKN moln utan sol (ljust framför mörkare) · OVC heltäckande mörka moln. Natt: måne i
+// stället för sol. BKN är 5–7/8 och ser från marken ofta mulet ut – därför ingen sol.
 // CAVOK utan komplement, NSC, okänd mängd och saknade uppgifter får neutrala markeringar.
 
 function Sun({ x = 0, y = 0, r = 5 }: { x?: number; y?: number; r?: number }) {
@@ -80,8 +81,8 @@ export function SkyIcon({ sky, day }: { sky: Sky; day: boolean }) {
     case "BKN":
       return (
         <>
-          <Light x={-6} y={-5.5} r={3.8} />
-          <Cloud x={1} y={1.5} k={1.05} />
+          <Cloud x={-3} y={-2} k={0.8} dark />
+          <Cloud x={2} y={2} k={1.05} />
         </>
       );
     case "OVC":

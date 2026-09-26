@@ -43,9 +43,9 @@ datakälla påverkar bara en adapter och `sources.ts`.
 | `src/lib/client/alerts.ts` | Varningar ur senaste METAR och TAF, bara väder med samhällspåverkan (åska, CB, medelvind ≥ 14 m/s eller byar ≥ 20 m/s, kraftig eller underkyld nederbörd, hagel, iskorn, yrsnö) – inte dimma, sikt eller låga moln |
 | `src/lib/client/timeline.ts` | Klientlogik: diagramdata, avläsning vid en tidpunkt |
 | `src/lib/client/sourceLine.ts` | Källraden under rutorna: mättid och station, eller prognoskälla, per värde |
-| `src/lib/client/sunMarks.ts` | Soluppgångens och solnedgångens markeringar vid tidsaxeln: läge, krockar, tooltip-text |
+| `src/lib/client/sunBand.ts` | Solbandets fasta skala, zoner och etiketter (middagshöjd, soluppgång, solnedgång) |
 | `src/lib/client/tempLabel.ts` | Placering av temperaturetiketten vid senaste observationen |
-| `src/lib/sun.ts` | Solens höjd (NOAA:s solkalkylator), solhändelser och nattgrad för dagsljusbakgrunden |
+| `src/lib/sun.ts` | Solens höjd (NOAA:s solkalkylator), solbanan var 10:e minut, soluppgång och solnedgång |
 | `*.test.ts` | Tester för tids-, TAF- och datalogik (`npm test`) |
 | `src/lib/format.ts` | Engelsk formatering (en-GB, Europe/Stockholm), avrundning mot falsk precision |
 | `src/app/api/*/route.ts` | API-routes |
@@ -152,7 +152,9 @@ WxgeekApp              – plats, datahämtning, auto-uppdatering (5 min när fl
   1 km eller mer (MIFG/BCFG/PRFG står kvar), BR/HZ/FU över 5 km. "0200 FG BECMG 2506/2508
   9999" betyder alltså att dimman har lättat 08Z. Nederbörd står kvar tills NSW. Vertikal
   sikt (VV) läses bara ur gruppens egen råtext – AWC:s avkodning för vidare VV från tidigare
-  grupp ("BECMG 9999 SCT020" efter "VV002" fick VV kvar).
+  grupp ("BECMG 9999 SCT020" efter "VV002" fick VV kvar). BECMG gäller från intervallets
+  sista klockslag – saknar AWC den tiden (`timeBec`) läses den ur råtexten ("BECMG 2607/2609"
+  → 09Z), så att en ändring aldrig räknas från intervallets början.
 - **TEMPO/PROB** används bara som komplement (varningar under diagrammet).
   PROB40 blir aldrig en generell regnsannolikhet.
 - **CAVOK** = sikt ≥ 10 km, inga moln under 1 500 m, ingen CB/TCU, inget väder. Ingen
@@ -204,24 +206,23 @@ WxgeekApp              – plats, datahämtning, auto-uppdatering (5 min när fl
   NU-linjen, rubrikerna OBSERVED/FORECAST och linjestilen (heldraget vs streckat) – inte med
   bakgrunden. Gula solar, grå moln och mörka vindpilar. Text och kontroller klarar WCAG AA
   mot sina bakgrunder, även i mörkt läge. Linjer dras aldrig över luckor i data.
-- **Dagsljusbakgrund** (ersätter den tonade historiken och den skrafferade prognosen): natt
-  svagt blågrå (`--night`, #E1E6ED; mörkt läge #172030), dag sidans bakgrund, och under
-  borgerlig gryning (solen från 6° under horisonten till soluppgång) och borgerlig skymning
-  (solnedgång till 6° under) en mjuk övergång. Nattgraden (0 dag – 1 natt, linjär i solhöjd
-  mellan −0,833° och −6°) räknas för platsens koordinater över hela fönstret, även över
-  midnatt (`nightProfile` i `src/lib/sun.ts`), och ritas som en horisontell SVG-gradient med
-  stopp var 5:e minut under gryning och skymning. Den täcker temperatur- och nederbördsytan
-  ned till tidsaxeln; symbolraden och vinden ligger på sidans bakgrund. Midnattssol, polarnatt
-  och ljusa sommarnätter (skymning hela natten) blir rätt utan påhittade händelser.
-- **Soluppgång och solnedgång** (`sunEvents`, `layoutSunMarks` i `src/lib/client/sunMarks.ts`,
-  `SunMarkers`): en liten halvsol med pil upp/ned på händelsens exakta tid, på tidsaxelns
-  nedre rad under timtalen, med lokal tid bredvid ("06:57"). Tiden döljs när den skulle krocka
-  med dygnsetiketten eller en annan markering; står en symbol där dygnsetiketten brukar stå
-  flyttas etiketten till vänster om dygnsstrecket. Knappar: tooltip vid hovring, fokus och
-  tryck ("Sunset 18:57 · Civil dusk until 19:37", eller "Civil twilight all night"), och
-  samma text för skärmläsare via `aria-describedby` på tidslinjen.
-- **Solen** beräknas med NOAA:s solkalkylator (Jean Meeus) – soluppgång och solnedgång inom
-  någon minut upp till 72° latitud. Den förenklade varianten (Spencers serier) felade 3–5 min
+- **Solbandet** (`SUN_H` 48 px mellan nederbörden och tidsaxeln, etikett "Sun °"): solhöjden
+  för platsens koordinater var 10:e minut (`sunPath`) i fast skala året runt, −20°…60° – ingen
+  autoskalning, säsongsskillnaden är poängen (Karlstad: ~7° vid vintersolståndet, ~29° i slutet
+  av september, ~54° vid sommarsolståndet). Zonerna ritas som horisontella band: dag (svagt
+  varm), borgerlig (0…−6°), nautisk (−6…−12°) och astronomisk (−12…−18°) skymning i allt
+  mörkare blågrått, natt (under −18°) mörkast; horisontlinje vid 0°. Kurvan är heldragen, tunn
+  och bärnstensfärgad – varken temperaturens tegelröd eller streckad – och klipps i bandets
+  kanter. Etiketter (`sunBandLabels` i `src/lib/client/sunBand.ts`): maxhöjden vid varje
+  middag ("29°", ovanför toppen, under den när toppen når överkanten), soluppgång och
+  solnedgång (−0,833°) som lokal tid vid passagen – till vänster om uppgången och till höger om
+  nedgången, strax ovanför horisonten där kurvan inte går. Etiketter som skulle krocka eller gå
+  utanför diagrammet visas inte; polarfall ger kurvan utan tider. Samma tidsaxel (`x(t)`) som
+  övriga lager: kurvans 0°-passage ligger exakt under motsvarande tid i temperaturgrafen.
+  Färger som variabler (`--sun-*`) för ljust och mörkt tema. Temperaturgrafen har neutral
+  bakgrund – den tidigare natt-skuggningen och solmarkeringarna vid tidsaxeln är borttagna.
+- **Solen** beräknas med NOAA:s solkalkylator (Jean Meeus), som redan fanns i projektet i stället
+  för ett nytt beroende (SunCalc) – soluppgång och solnedgång inom någon minut upp till 72° latitud. Den förenklade varianten (Spencers serier) felade 3–5 min
   kring dagjämningarna.
 - **Ett diagram med två y-axlar**:
   - **Höger axel – molnbas (m)**, linjär 0–3 000 m. Molnlager ritas som molnformer med platt underkant vid molnbasen;
@@ -335,6 +336,8 @@ WxgeekApp              – plats, datahämtning, auto-uppdatering (5 min när fl
   SMHI – aldrig TEMPO/PROB). Regel: största kategorin bland samtidiga lager. CAVOK → SMHI:s
   totala molnmängd om den finns (märkt "SMHI model"), annars neutral CAVOK-markering. NSC →
   NSC-markering, saknas → "–". Dag/natt med solhöjd för platsen och tiden (`src/lib/sun.ts`).
+  Försiktig tolkning: BKN (5–7/8) ritas som moln utan sol – med sol såg ett mulet BKN-läge ut
+  som halvklart. Sol eller måne syns bara vid SKC, FEW och SCT.
   Symbolerna ligger i en egen rad (35 px, `SKY_ROW_H`) ovanför temperaturdiagrammet, alla på
   samma höjd och i samma tidsskala som diagrammet – symboler som följde kurvan fick den att se
   ut som molnens undersida. Raden ligger utanför ritytans dagsljusbakgrund, och under den

@@ -264,3 +264,28 @@ test("nederbörd i prognosen: timmen som vald tid ligger i, trolig och möjlig m
   const bar = buildChart(b, T(23, 15) * 1000).precipHours.find((h) => h.t0 === T(23, 16) * 1000)!;
   assert.deepEqual([bar.likely, bar.possible], [0, 0.3]);
 });
+
+test("BECMG räknas från intervallets sista klockslag, också när AWC saknar den tiden", () => {
+  // Riktig TAF 2026-09-26; AWC:s timeBec borttagen – sluttiden läses då ur "BECMG 2607/2609".
+  const taf: AwcTaf = {
+    icaoId: "ESOK",
+    issueTime: "2026-09-26T05:30:00.000Z",
+    validTimeFrom: T(26, 6),
+    validTimeTo: T(26, 15),
+    rawTAF: "TAF ESOK 260530Z 2606/2615 21005KT 9999 BKN015 PROB40 2606/2608 4000 -RADZ BKN008 BECMG 2607/2609 28012KT",
+    lat: 59.44,
+    lon: 13.34,
+    fcsts: [
+      { timeFrom: T(26, 6), timeTo: T(26, 7), timeBec: null, fcstChange: null, probability: null, wdir: 210, wspd: 5, wgst: null, visib: "6+", wxString: null, clouds: [{ cover: "BKN", base: 1500, type: null }] },
+      { timeFrom: T(26, 6), timeTo: T(26, 8), timeBec: null, fcstChange: "PROB", probability: 40, wdir: null, wspd: null, wgst: null, visib: 2.49, wxString: "-RA -DZ", clouds: [{ cover: "BKN", base: 800, type: null }] },
+      { timeFrom: T(26, 7), timeTo: T(26, 15), timeBec: null, fcstChange: "BECMG", probability: null, wdir: 280, wspd: 12, wgst: null, visib: "6+", wxString: null, clouds: [{ cover: "BKN", base: 1500, type: null }] },
+    ],
+  };
+  const t = normalizeTaf(taf, 11);
+  assert.equal(t.periods[2].becomingBy, new Date(T(26, 9) * 1000).toISOString());
+  const during = tafMainAt(t, T(26, 8) * 1000)!;
+  assert.equal(during.state.windDirectionDeg, 210, "under övergången gäller tidigare vind");
+  assert.ok(during.transition);
+  assert.equal(tafMainAt(t, T(26, 9) * 1000)!.state.windDirectionDeg, 280, "ny vind först 09Z");
+  assert.equal(tafMainAt(t, T(26, 12) * 1000)!.state.cloudLayers?.[0].cover, "BKN", "molnen står kvar – BECMG anger bara vind");
+});

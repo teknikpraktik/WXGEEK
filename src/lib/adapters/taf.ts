@@ -125,6 +125,18 @@ function summarize(p: Omit<TafPeriod, "summary">, only?: TafElement[]): string {
   return s ? s.charAt(0).toUpperCase() + s.slice(1) : "No details in group";
 }
 
+/**
+ * Periodens slut ur gruppens råtext ("BECMG 2607/2609" → den 26:e 09Z, s), i samma månad som
+ * gruppens start – nästa månad om dagen är lägre.
+ */
+function groupEnd(g: string, from: number): number | undefined {
+  const m = g.match(/\b(\d{2})(\d{2})\/(\d{2})(\d{2})\b/);
+  if (!m) return undefined;
+  const d = new Date(from * 1000);
+  const at = (month: number) => Date.UTC(d.getUTCFullYear(), month, +m[3], +m[4]) / 1000;
+  return at(d.getUTCMonth()) >= from ? at(d.getUTCMonth()) : at(d.getUTCMonth() + 1);
+}
+
 export function normalizeTaf(t: AwcTaf, distanceKm: number): Taf {
   const groups = splitTafGroups(t.rawTAF);
   const groupsMatch = groups.length === t.fcsts.length;
@@ -171,12 +183,15 @@ export function normalizeTaf(t: AwcTaf, distanceKm: number): Taf {
     if (vvFt != null) layers.push({ cover: "VV", baseM: Math.round(vvFt * FT_TO_M) });
 
     const changes = g ? elementsInGroup(g) : undefined;
+    // BECMG gäller först när övergången är klar – vid intervallets sista klockslag. Saknar AWC
+    // den tiden läses den ur råtexten, så att ändringen aldrig räknas från intervallets början.
+    const bec = f.timeBec ?? (change === "BECMG" && g ? groupEnd(g, f.timeFrom) : undefined);
     const base: Omit<TafPeriod, "summary"> = {
       change,
       probability: f.probability ?? undefined,
       from: iso(f.timeFrom),
       to: iso(f.timeTo),
-      becomingBy: f.timeBec ? iso(f.timeBec) : undefined,
+      becomingBy: bec ? iso(bec) : undefined,
       windDirectionDeg: typeof f.wdir === "number" ? f.wdir : undefined,
       windVariable: f.wdir === "VRB" || undefined,
       windSpeedMs: typeof f.wspd === "number" ? ktToMs(f.wspd) : undefined,

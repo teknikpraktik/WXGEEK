@@ -43,7 +43,8 @@ situation **now**, and the **forecast** for the next 24 hours, all on the same a
   symbol is never read as a value above the top of the scale:
   one every 2 hours plus every hour with precipitation and at least one per fog period; on
   narrow screens only every 3 hours. Sun, sun with a small cloud (FEW), sun partly
-  behind cloud (SCT), mostly cloud (BKN), full cloud (OVC); moon instead of sun at night. The
+  behind cloud (SCT), clouds without sun (BKN – 5–7/8 often looks overcast from the ground),
+  dark full cloud (OVC); moon instead of sun at night. The
   symbol is a simplification: the largest category among simultaneous layers (oktas are never
   summed). CAVOK, NSC and missing data are never shown as clear sky. **Fog** (three lines,
   below 1 km) and **mist** (two lines) replace the cloud symbol when fog or mist is reported
@@ -57,16 +58,15 @@ situation **now**, and the **forecast** for the next 24 hours, all on the same a
   show the amount.
 - Wind arrows run below the time axis, which labels every hour. Midnight is marked by a line
   through the time axis with the new day's name.
-- The chart **background shows daylight** for the place: night in a faint blue-grey, day in
-  the page's own light background, with soft transitions through civil dawn (sun 6° below
-  the horizon until sunrise) and civil dusk (sunset until 6° below). It covers the
-  temperature and precipitation area down to the time axis, over midnight too; midnight sun,
-  polar night and light summer nights are shown as they are, without invented events. Small
-  **sunrise and sunset** symbols with the local time sit at their exact time just below the
-  hour labels; hover, focus or tap shows e.g. "Sunrise 06:57 · Civil dawn from 06:16". The sun
-  is computed with NOAA's solar calculator (Meeus) for the place's coordinates. Observed and
-  forecast are told apart by the NOW line, the OBSERVED/FORECAST labels and solid vs dashed
-  lines.
+- A **sun band** between precipitation and the time axis shows the sun's altitude on a fixed
+  scale all year (−20° to 60°, no autoscaling – the seasons are the point), with the horizon at
+  0° and civil, nautical and astronomical twilight and night as ever darker horizontal bands
+  below it. Labels: the highest altitude at solar noon (e.g. "29°"), and sunrise and sunset
+  (−0.833°, with refraction) as local times at the crossing (e.g. "06:59", "18:54"). Midnight
+  sun and polar night draw the curve without rise/set labels. The sun is computed with NOAA's
+  solar calculator (Meeus) for the place, every 10 minutes on the same time axis as the rest of
+  the chart. The temperature chart has a neutral background; observed and forecast are told
+  apart by the NOW line, the OBSERVED/FORECAST labels and solid vs dashed lines.
 - Drag the chart (or use the arrow keys) to select a time within the fixed −12 h … +24 h
   window; **Now** returns to the current time. The selected time – NOW at start and after
   Now – sits a fifth into the plot, so 20 % of the view is observed and 80 % forecast, with
@@ -78,7 +78,8 @@ situation **now**, and the **forecast** for the next 24 hours, all on the same a
   while the TAF is valid. **SMHI** covers temperature, precipitation, missing values and
   the rest of the window. A BECMG group that raises the visibility ends fog (at 1 km or
   more) and mist or haze (above 5 km) even without NSW, e.g. "0200 FG BECMG 2506/2508 9999",
-  and a vertical visibility (VV) is only taken from the group's own text.
+  and a vertical visibility (VV) is only taken from the group's own text. A BECMG change
+  applies from the last time of its interval (read from the raw text if AWC lacks it).
 - Raw METAR and TAF are printed at the bottom of the page under the name of the airport they
   are from, followed by discreet warnings:
   SMHI weather warnings (meteorological only – not water shortage, high flows, flooding,

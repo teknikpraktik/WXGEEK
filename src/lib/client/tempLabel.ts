@@ -39,7 +39,8 @@ export function placeTempLabel(o: {
   /** Kurvans y vid ett x */
   curveY: (x: number) => number;
 }): TempLabel {
-  const lo = o.minX ?? -Infinity;
+  // Gränsen gäller bara när punkten själv syns – annars följer etiketten punkten ut ur vyn.
+  const lo = o.minX !== undefined && o.cx >= o.minX ? o.minX : -Infinity;
   const end0 = Math.min(Math.max(o.cx + 4, lo + o.width), o.nowX - 4);
   /** Går kurvan helt under eller helt över texten (y top–bottom) när den slutar vid `end`? */
   const clear = (end: number, top: number, bottom: number) => {

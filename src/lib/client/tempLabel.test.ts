@@ -59,3 +59,8 @@ test("smal historik (mobil): etiketten hålls till höger om vänsteraxeln och f
   // Utan gräns står den som förut, högerjusterad mot punkten.
   assert.equal(placeTempLabel({ ...base, cx: 88.6, nowX: 105.6, width: 41, cy: 160, curveY: flat(160) }).x, 92.6);
 });
+
+test("punkten utanför den synliga historiken: etiketten dras inte in i vyn utan sin punkt", () => {
+  const l = placeTempLabel({ ...base, cx: 20, nowX: 105.6, width: 34, minX: 62, cy: 160, curveY: flat(160) });
+  assert.equal(l.x, 24, "högerjusterad mot punkten som förut");
+});
