@@ -202,7 +202,8 @@ export function normalizeTaf(t: AwcTaf, distanceKm: number): Taf {
       noSignificantCloud: (nsc && layers.length === 0) || undefined,
       cavok: cavok || undefined,
       nsw,
-      phenomena: parseMetarWeather(f.wxString),
+      // CAVOK: inget väder av betydelse, oavsett vad AWC för vidare
+      phenomena: cavok ? [] : parseMetarWeather(f.wxString),
       changes,
       group: g || undefined,
     };

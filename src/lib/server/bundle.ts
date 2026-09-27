@@ -258,6 +258,10 @@ export async function buildWeatherBundle(lat: number, lon: number): Promise<Weat
     if (nearest) {
       try {
         taf = normalizeTaf(nearest.t, nearest.d);
+        // Flygplatsens senaste METAR avgör om PROB-grupper tillämpas (se forecast.ts), också
+        // när flygplatsen inte är vald station för någon parameter.
+        const m = latestMetar.get(taf.stationId);
+        if (m && now - m.obsTime * 1000 <= MAX_AGE_MS.METAR) taf.metar = normalizeMetar(m, nearest.d);
       } catch {
         taf = null;
       }

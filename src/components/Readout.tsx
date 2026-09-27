@@ -204,8 +204,12 @@ function HeightText({ h }: { h: CloudHeight }) {
   );
 }
 
-/** Lägre sikt i TAF:ens TEMPO/PROB vid vald tid, t.ex. "PROB40 300 m". */
+/**
+ * Undertext till sikten: TAF-gruppen när sikten kommer från en tillämpad PROB-grupp ("PROB40"),
+ * annars lägre sikt i TAF:ens TEMPO eller i en PROB-grupp som inte tillämpas, t.ex. "PROB40 300 m".
+ */
 function visSub(snap: Snapshot): string {
+  if (snap.mode === "forecast" && snap.visibility?.origin.group) return snap.visibility.origin.group;
   const low = tafLowVisibility(snap);
   return low ? `${low.group} ${fmtVisibility(low.m, low.atLeast)}` : "";
 }

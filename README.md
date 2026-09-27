@@ -19,10 +19,12 @@ situation **now**, and the **forecast** for the next 24 hours, all on the same a
   ("BKN"), the amount in oktas ("5–7/8", plus CB/TCU if reported) and how low: the ceiling
   (the lowest BKN/OVC/VV) or else the lowest base, e.g. "Ceiling 850 m" ("Ceil." on a narrow
   phone when the precipitation cell is shown); CAVOK/NSC give "None below 1500 m". With fog or
-  mist – the same rule as the chart's fog symbol, including fog in a TAF TEMPO/PROB group –
-  the clouds cell shows the fog symbol and FG, BR or FZFG (fog below 0 °C) instead, with the
-  TAF group (e.g. "PROB40") and the height below. Lower visibility in a TAF TEMPO/PROB group
-  is shown under the visibility, e.g. "PROB40 2.5 km". Precipitation appears when something
+  mist – the same rule as the chart's fog symbol, including fog in a TAF TEMPO group or an
+  applied PROB group (see the TAF rules below) – the clouds cell shows the fog symbol and FG, BR
+  or FZFG (fog below 0 °C) instead, with the TAF group (e.g. "PROB40") and the height below. A
+  visibility from an applied PROB group is marked with the group ("PROB40"); lower visibility
+  in a TEMPO group or a PROB group that is not applied is shown under the visibility, e.g.
+  "PROB40 2.5 km". Precipitation appears when something
   falls in the hour of the selected time – the same bar as under the cursor – and in the
   forecast also when it only might: "max 0.3 mm" as in the chart, with SMHI's probability
   below. All cells stay on one row, also on mobile, and keep the same height.
@@ -43,30 +45,39 @@ situation **now**, and the **forecast** for the next 24 hours, all on the same a
   and values are 12 px. Anything the left column or the edge of the view would cut – a symbol,
   an arrow, a label – is hidden rather than shown in half, and no text is crossed by the NOW
   line: labels move aside instead.
-- **Time axis** at the top, with a compact **Now** button at its left edge. A thin row of its
-  own holds NOW as a small pill ("NOW 10:29") with "← OBSERVED" and "FORECAST →" on either
-  side, the selected time and the day's name at the day-change line – so no hour label is ever
-  hidden by them. Below it every hour (every other hour on narrow screens).
+- **Time axis** at the top. A thin row of its own holds NOW as a small pill ("NOW 10:29") with
+  "← OBSERVED" and "FORECAST →" on either side, the selected time and the day's name at the
+  day-change line – so no hour label is ever hidden by them. Below it every hour (every other
+  hour on narrow screens). The axis stays fixed under the header on a solid background while
+  the page scrolls, until the chart has scrolled past, and follows the panels' horizontal scroll
+  exactly. A **Now** button appears at its right end, in the row of hour labels, only when the
+  NOW line is out of view or the selected time is more than an hour from now: "← Now" when now
+  lies to the left, "Now →" when it lies to the right. It fades in and out, hides the hour
+  labels under it, has a touch target of at least 44 × 44 px and scrolls back to now.
 - **Clouds & precipitation**:
-  - **Weather symbols** in a row of their own, all at the same height at their hour: one every
-    2 hours plus every hour with precipitation and at least one per fog period; on narrow
-    screens only every 3 hours. Sun, sun with a small cloud (FEW), sun partly behind cloud
-    (SCT), clouds without sun (BKN – 5–7/8 often looks overcast from the ground), dark full
-    cloud (OVC); moon instead of sun at night. The symbol is a simplification: the largest
-    category among simultaneous layers (oktas are never summed). CAVOK, NSC and missing data
-    are never shown as clear sky. **Fog** (three lines, below 1 km) and **mist** (two lines)
-    replace the cloud symbol when fog or mist is reported (including fog in a TAF TEMPO/PROB
-    group, e.g. BCFG), when visibility is below 1 km, or when it is below 5 km without
-    precipitation. A symbol at an hour with precipitation gets a few short rain strokes (snow:
+  - **Weather symbols** in a row of their own, all at the same height at their hour: one per
+    hour where the data is hourly and one per data step where it is sparser (3 h/6 h) – never
+    interpolated – sized to fit an hour's column also on a phone. In the TAF period they follow
+    the TAF interpretation, e.g. fog under an applied PROB40 FG. Sun, sun with a small cloud
+    (FEW), sun partly behind cloud (SCT), clouds without sun (BKN – 5–7/8 often looks overcast
+    from the ground), dark full cloud (OVC); moon instead of sun at night. The symbol is a
+    simplification: the largest category among simultaneous layers (oktas are never summed).
+    CAVOK, NSC and missing data are never shown as clear sky. **Fog** (three lines, below 1 km)
+    and **mist** (two lines) replace the cloud symbol when fog or mist is reported or forecast
+    (including fog in a TAF TEMPO group, e.g. BCFG, or an applied PROB group), when visibility
+    is below 1 km, or when it is below 5 km without precipitation. A symbol at an hour with precipitation gets a few short rain strokes (snow:
     dots) – they only signal precipitation, the bars show the amount.
-  - **Cloud cover per hour in three rows** – High, Mid and Low (bases below 2 000 m,
-    2 000–6 000 m and above), 10 px each – on one scale for all rows: a known hour gets a faint
-    base (clear) and the cloud's tone on top by the oktas, light = few, dark = overcast. No
-    data is left blank, so it never looks like clear sky. The forecast uses SMHI's low, medium
-    and high cloud cover. An observed hour uses the METAR within 35 minutes: each reported
-    layer's category (FEW 1.5/8, SCT 3.5/8, BKN 6/8, OVC/VV 8/8) in the row of its base; rows
-    below the highest reported layer are clear, rows above it stay blank (unknown – hidden
-    above the cloud or not reported).
+  - **Cloud base** ("Cloud base m") directly under the symbols: height above ground on a
+    logarithmic scale from 0 to 3 000 m with lines at 100, 300, 1 000 and 3 000 m, so the low
+    heights get the most room. Each layer is a bar with its underside at the cloud base, toned
+    by the amount – FEW lightest, OVC filled (legend at the rubric). Vertical visibility is
+    hatched from the ground up to its height and labelled "VV". The observed part comes from the
+    METAR (all layers), the TAF period from the TAF interpretation and the rest from SMHI's model
+    (its lowest base, with the amount of the layer the base lies in; outlined when unknown).
+    The sources differ discreetly in style and have small labels where they begin ("METAR",
+    "TAF", "SMHI model"). No data is left blank, never drawn as zero; bases above 3 000 m are
+    not drawn. PROB groups are marked over their period at the top of the panel: a dashed
+    bracket with e.g. "PROB40 FG" when the group is not applied, a solid one when it is.
   - **Precipitation**, with "mm/h" in the row label: saturated bars from a zero line on a
     linear scale of at least 0–2 mm/h (larger when needed); dark = measured or SMHI's median,
     light = the SMHI ensemble's largest amount. The value stands above each bar from 0.1 mm/h:
@@ -113,10 +124,19 @@ situation **now**, and the **forecast** for the next 24 hours, all on the same a
   (phone locked, another app) – and the data is never taken from the browser cache.
 - The forecast uses **TAF first** for wind, visibility, cloud and weather at the airport
   while the TAF is valid. **SMHI** covers temperature, precipitation, missing values and
-  the rest of the window. A BECMG group that raises the visibility ends fog (at 1 km or
-  more) and mist or haze (above 5 km) even without NSW, e.g. "0200 FG BECMG 2506/2508 9999",
-  and a vertical visibility (VV) is only taken from the group's own text. A BECMG change
-  applies from the last time of its interval (read from the raw text if AWC lacks it).
+  the rest of the window. FM applies from its exact time; a BECMG change applies from the
+  middle of its interval ("BECMG 2708/2710" from 09Z, the end read from the raw text if AWC
+  lacks it) – before that the previous state holds. A BECMG group that raises the visibility
+  ends fog (at 1 km or more) and mist or haze (above 5 km) even without NSW, e.g. "0200 FG
+  BECMG 2506/2508 9999", and a vertical visibility (VV) is only taken from the group's own
+  text. **PROB30/PROB40** (also PROB TEMPO) are not applied, except when the group starts
+  within 3 hours of the airport's latest METAR (or has begun) and that METAR – at most 2 hours
+  old – supports it: fog or mist in the group needs FG or BR, visibility at most 1 000 m or VV
+  in the METAR; precipitation or thunder needs the same phenomenon or its precursor (VCSH for
+  showers, VCTS for thunder); otherwise a METAR visibility of at most twice the group's, or
+  BKN/OVC/VV at most twice the group's height. An applied group then holds for its whole
+  period and ends when a new METAR no longer supports it. TEMPO is additional information only,
+  over its whole period.
 - Raw METAR and TAF are printed at the bottom of the page under the name of the airport they
   are from, followed by discreet warnings:
   SMHI weather warnings (meteorological only – not water shortage, high flows, flooding,
@@ -177,7 +197,7 @@ Architecture, station selection and caching: [`docs/architecture.md`](docs/archi
 - **SMHI observations are published with ~1 h delay.** METAR is often fresher but only exists at airports.
 - **METAR temperature is reported in whole degrees**, so WXGEEK shows all temperatures and dew points in whole degrees.
 - **METAR gusts** are reported only when strong, so SMHI gusts are preferred when available.
-- **SMHI forecast cloud base** has no documented reference level (ground or sea), so it is treated as approximate.
+- **SMHI forecast cloud base** has no documented reference level (ground or sea), so it is treated as approximate. The model gives only the lowest base (no layers), so the cloud base panel shows one layer per hour there, with the amount of the layer the base lies in.
 - **Observed cloud cover** comes from the METAR's layer categories (FEW/SCT/BKN/OVC), not measured oktas, and says nothing about layers above the highest one reported. SMHI stations report only the cloud base.
 - **Gusts while a TAF is valid** come from the TAF, which only reports gusts when they are strong (a G group). Without one only the mean wind is shown; SMHI's gusts are not mixed with the TAF's mean wind.
 - **Precipitation "max"** is the largest amount among SMHI's ensemble members for the hour – not an upper bound.

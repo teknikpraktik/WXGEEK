@@ -88,8 +88,8 @@ test("luckor i historiken dras inte ihop och fylls inte med prognos", () => {
   assert.equal(chart.missing.forecast, "No forecast");
 });
 
-test("dimma i avläsningen: rapporterad, underkyld vid minusgrader, i TAF:ens PROB och vid låg sikt", () => {
-  const r = <T>(value: T) => ({ value, origin: { kind: "METAR", timestamp: now } }) as Reading<T>;
+test("dimma i avläsningen: rapporterad, underkyld vid minusgrader, i en tillämpad PROB, i TEMPO och vid låg sikt", () => {
+  const r = <T>(value: T, group?: string) => ({ value, origin: { kind: "METAR", timestamp: now, group } }) as Reading<T>;
   const fog = (o: Partial<Parameters<typeof fogOf>[0]>) =>
     fogOf({ mode: "forecast", phenomena: null, supplements: [], visibility: null, precipitation: null, temperature: null, ...o });
   const fg: Phenomenon = { kind: "dimma", label: "Fog", code: "FG" };
@@ -101,10 +101,14 @@ test("dimma i avläsningen: rapporterad, underkyld vid minusgrader, i TAF:ens PR
   assert.equal(fog({ phenomena: r([{ kind: "dis", label: "Mist", code: "BR" }]), temperature: r(-2) })?.code, "BR");
   assert.equal(fog({ phenomena: r([{ kind: "dimma", label: "Fog", code: "7" }]) })?.code, "FG");
 
-  // Dimma bara i en PROB-grupp syns i prognosläget, med gruppen – men inte vid NU, där observationen gäller.
+  // En tillämpad PROB-grupp ingår i det prognostiserade vädret – med gruppens namn.
+  assert.deepEqual(fog({ phenomena: r([fg], "PROB40"), temperature: r(-1) }), { code: "FZFG", label: "Freezing fog", severe: true, group: "PROB40" });
+  // En PROB-grupp som inte tillämpas ger ingen dimma; dimma i TEMPO syns i prognosläget, men inte vid NU.
   const prob: TafPeriod = { change: "PROB", probability: 40, from: iso(now), to: iso(now + 4 * H), visibilityM: 300, phenomena: [fg], summary: "" };
-  assert.deepEqual(fog({ supplements: [prob], temperature: r(-1) }), { code: "FZFG", label: "Freezing fog", severe: true, group: "PROB40" });
-  assert.equal(fog({ mode: "now", supplements: [prob] }), undefined);
+  const tempo: TafPeriod = { ...prob, change: "TEMPO", probability: undefined };
+  assert.equal(fog({ supplements: [prob] }), undefined);
+  assert.deepEqual(fog({ supplements: [tempo], temperature: r(3) }), { code: "FG", label: "Fog", severe: true, group: "TEMPO" });
+  assert.equal(fog({ mode: "now", supplements: [tempo] }), undefined);
 
   // Låg sikt utan rapporterat väder: dimma under 1 km, dis under 5 km – men inte när nederbörden skymmer.
   assert.equal(fog({ visibility: vis(600) })?.code, "FG");

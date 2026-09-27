@@ -115,7 +115,7 @@ export type TafPeriod = {
   probability?: number;
   from: string;
   to: string;
-  /** För BECMG: när övergången är klar */
+  /** För BECMG: övergångsintervallets slut. Ändringen räknas i intervallets mitt (`becmgAt`). */
   becomingBy?: string;
   windDirectionDeg?: number;
   windVariable?: boolean;
@@ -149,6 +149,8 @@ export type Taf = {
   validTo: string;
   raw: string;
   periods: TafPeriod[];
+  /** Senaste METAR från samma flygplats – avgör om PROB-grupper tillämpas */
+  metar?: WeatherObservation;
 };
 
 /** Parametrar som kan visas och som har egen stationsvalslogik. */

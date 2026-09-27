@@ -146,18 +146,28 @@ WxgeekApp              – plats, datahämtning, auto-uppdatering (5 min när fl
   bara för element TAF anger. Sista TAF-läget dras aldrig ut efter giltighetstiden.
 - **SMHI** (punktprognos för platsens koordinater) för temperatur, nederbördsmängd,
   variabler TAF saknar och efter TAF:s slut. Utan TAF används SMHI för allt.
-- **Huvudprognos** = BASE/FM. **BECMG** ändrar bara de element gruppen anger (läses ur
-  rå-TAF); under övergångsintervallet gäller tidigare läge och övergången redovisas
-  som "någon gång under 16–18" – aldrig som ett exakt ögonblick. Undantag: dimma och dis
+- **Huvudprognos** = BASE/FM; FM gäller från exakt angiven tid. **BECMG** ändrar bara de
+  element gruppen anger (läses ur rå-TAF) och räknas mitt i sitt intervall (`becmgAt`:
+  "BECMG 2708/2710" → 09Z); under intervallets första halva gäller tidigare läge och
+  övergången redovisas. Undantag: dimma och dis
   som den nya sikten utesluter följer inte med när gruppen saknar väder (och NSW) – FG vid
   1 km eller mer (MIFG/BCFG/PRFG står kvar), BR/HZ/FU över 5 km. "0200 FG BECMG 2506/2508
   9999" betyder alltså att dimman har lättat 08Z. Nederbörd står kvar tills NSW. Vertikal
   sikt (VV) läses bara ur gruppens egen råtext – AWC:s avkodning för vidare VV från tidigare
-  grupp ("BECMG 9999 SCT020" efter "VV002" fick VV kvar). BECMG gäller från intervallets
-  sista klockslag – saknar AWC den tiden (`timeBec`) läses den ur råtexten ("BECMG 2607/2609"
-  → 09Z), så att en ändring aldrig räknas från intervallets början.
-- **TEMPO/PROB** används bara som komplement (varningar under diagrammet).
-  PROB40 blir aldrig en generell regnsannolikhet.
+  grupp ("BECMG 9999 SCT020" efter "VV002" fick VV kvar). Intervallets slut – saknar AWC den
+  tiden (`timeBec`) läses den ur råtexten ("BECMG 2607/2609" → mitten 08Z).
+- **PROB30/PROB40** (även PROB TEMPO) tillämpas inte i grundprognosen (`probDecisions`), utom
+  när gruppen börjar inom 3 h från flygplatsens senaste METAR (eller redan pågår) och den
+  METAR:en – högst 2 h gammal, också när flygplatsen inte är vald station (`Taf.metar`) –
+  stöder den (`probSupported`). Gruppens väder avgör när den har väder: dimma/dis kräver FG
+  eller BR, sikt högst 1 000 m eller VV; nederbörd och åska samma fenomen eller föregångaren
+  (VCSH för skurar, VCTS för åska). Utan väder avgör sikten (METAR högst 2 × gruppens) eller
+  molnen (BKN/OVC/VV på högst 2 × gruppens höjd). En tillämpad grupp gäller hela sin period
+  och ersätter bara de element den anger (`tafStateAt`); värdet får gruppens namn i källan
+  ("PROB40"). Beslutet görs om med varje ny METAR – tillämpningen upphör när perioden är slut
+  eller METAR:en inte längre stöder gruppen. PROB40 blir aldrig en generell regnsannolikhet.
+- **TEMPO** används bara som komplement över hela sin period, ingen mittpunkt (samma regler
+  som PROB gäller inte TEMPO ännu).
 - **CAVOK** = sikt ≥ 10 km, inga moln under 1 500 m, ingen CB/TCU, inget väder. Ingen
   molnbas härleds. AWC:s avkodning tappar CAVOK och VV – de läses ur råtexten.
 - Källa och giltighet bevaras per variabel och tidpunkt. TAF gäller flygplatsen och SMHI
@@ -187,8 +197,8 @@ WxgeekApp              – plats, datahämtning, auto-uppdatering (5 min när fl
   höger om vänsteraxeln (`minX` i `placeTempLabel`).
 - Tid väljs genom att dra grafen under en **fast markör en femtedel in** (native scroll på
   touch, musdrag på desktop). Klick flyttar inte grafen. Knappen **Now** återgår till NU och
-  sitter i tidsaxelns vänsterkant – inte över markören, där den skulle se ut att höra till
-  vald tid. Tangentbord: pilar (±1 h, Shift ±6 h) och `N`.
+  sitter längst till höger i den fasta tidsaxeln – inte över markören, där den skulle se ut
+  att höra till vald tid. Tangentbord: pilar (±1 h, Shift ±6 h) och `N`.
 - **Vald tid** och **NU** har olika markörer som fungerar utan färgseende: NU är en tunn
   heldragen linje i mörk blågrå genom alla fem paneler med en liten pill "NOW 17:12" som en
   flagga i tidsaxelns egen pillrad; vald tid är en streckad linje i dämpad blå med en fylld
@@ -269,7 +279,7 @@ WxgeekApp              – plats, datahämtning, auto-uppdatering (5 min när fl
     möjlig mängd (ljus, max av medel och max). SMHI:s min används inte.
   - Dimma/dis: dimsymbol (tre streck) resp. dis (två streck) ersätter molnsymbolen i symbolraden. Åska markeras med ϟ.
 - Förklaringar högerställda i varje grupps rubrikrad – långt från NU-linjen och markören:
-  molntäckets toner ("Cloud cover: few … overcast · blank = no data"), Temp / Dew point / Fog
+  molnbasens mängder ("Cloud base: FEW SCT BKN OVC VV"), Temp / Dew point / Fog
   risk, "arrow = direction of flow" och skymningszonerna. Kortare varianter på smala skärmar,
   så att de aldrig når NU-linjen. Under diagrammet, när dimrisk finns i fönstret: "Small
   temperature–dew point spread indicates possible fog; it is not a fog forecast."
@@ -281,17 +291,19 @@ WxgeekApp              – plats, datahämtning, auto-uppdatering (5 min när fl
   12 och 18); **dygnsbytet** som en linje genom alla grupper (`--dayline`), tydligt kraftigare
   än timlinjerna och svagare än NU. Vänsteraxeln har solid bakgrund med en kort toning; det som
   den eller vyns högerkant skulle klippa döljs i stället.
-- **Now-knappen**: liten och kompakt i tidsaxelns vänsterkant, före första timtalet – ingen egen
-  rad. Samma utseende som Change (ljus yta, ljus kant, mörk text), aldrig NU-linjens mörka
-  blågrå. Vid NU är den inaktiv men ser likadan ut; hovring ger mörkare kant.
+- **Now-knappen**: längst till höger i den fasta tidsaxeln, i timtalens rad, och bara när
+  NU-linjen är utanför vyn eller vald tid ligger mer än en timme från NU (`NOW_BTN_AWAY_PX`).
+  "Now →" när NU ligger till höger, "← Now" när det ligger till vänster. Samma utseende som
+  Change (ljus yta, ljus kant, mörk text), aldrig NU-linjens mörka blågrå; diskret in- och
+  uttoning, tryckyta minst 44 × 44 px, timtal under knappen döljs. Tryck: animerad scroll till NU.
 - **Vind** (fjärde gruppen, "Wind m/s (gusts)"): pilen visar åt vilket håll vinden blåser
   (förklaringen "arrow = direction of flow"; texten i avläsningen säger varifrån), medelvinden
   och byarna i samma rad, "6 (9)", byarna i ljusare ton. Byar visas när källan har ett byvärde
   över medelvinden; saknas det står bara medelvinden, och "(gusts)" står i rubriken bara när
   minst ett byvärde syns. Varannan timme när texterna annars skulle krocka.
 - Lufttryck och luftfuktighet visas inte. SMHI:s relativa fuktighet hämtas bara för daggpunkten.
-- TAF ritas inte som egna lager i diagrammet: den styr prognosens huvudläge, visas i
-  avläsningen och i rått format under diagrammet.
+- TAF styr prognosens läge (symboler, sikt, molnbas), visas i avläsningen och i rått format
+  under diagrammet; i molnbaspanelen ritas TAF-periodens lager och PROB-gruppernas klamrar.
 
 ### Avläsning
 
@@ -330,10 +342,12 @@ WxgeekApp              – plats, datahämtning, auto-uppdatering (5 min när fl
 - Dimma/dis (`fogOf`, samma regel som diagrammets dimsymbol – men aldrig när nederbörden är det
   som skymmer): molnrutan visar dimsymbolen och koden (FG, BR, BCFG …; FZFG för dimma vid
   minusgrader), TAF-gruppen på rad 2 (t.ex. "PROB40") och höjden på rad 3. Ordet ("Fog")
-  står på väderraden. Dimma i TAF:ens TEMPO/PROB räknas bara i prognosläget – vid NU
-  gäller observationen.
-- Sikt: lägre sikt i TAF:ens TEMPO/PROB i undertexten, t.ex. "PROB40 2.5 km" (prognosläget,
-  `tafLowVisibility`).
+  står på väderraden. Dimma ur en tillämpad PROB-grupp ingår i prognosens väder; dimma i
+  TAF:ens TEMPO räknas bara i prognosläget – vid NU gäller observationen. PROB-grupper som
+  inte tillämpas ger ingen dimma.
+- Sikt: kommer sikten från en tillämpad PROB-grupp står gruppen i undertexten ("PROB40");
+  annars lägre sikt i TEMPO eller en PROB-grupp som inte tillämpas, t.ex. "PROB40 2.5 km"
+  (prognosläget, `tafLowVisibility`).
 - Korta rubriker under 560 px: "Temp/Dew", "Vis", "Precip". Där blir "old" en liten klocka
   i varningsfärg efter rubriken (texten finns kvar för skärmläsare), så att rubriken inte klipps.
 - Observationer äldre än 90 min markeras "old"; äldre än maxåldern visas som saknade.
@@ -353,20 +367,20 @@ WxgeekApp              – plats, datahämtning, auto-uppdatering (5 min när fl
 ## Molnighet, temperaturskala och nederbörd (senaste versionen)
 
 - **Molnighetsrad** (`ChartData.sky`, `skyOf` i `src/lib/client/timeline.ts`, ikoner i
-  `src/components/SkyIcon.tsx`): en post per hel timme; observerat = närmaste observation inom
-  rapporttoleransen (METAR 35 min, SMHI 40 min), prognos = huvudläget (TAF BASE/FM/BECMG eller
-  SMHI – aldrig TEMPO/PROB). Regel: största kategorin bland samtidiga lager. CAVOK → SMHI:s
+  `src/components/SkyIcon.tsx`): en post per hel timme där data är timvis, annars en per
+  datasteg (ingen interpolering); observerat = närmaste observation inom rapporttoleransen
+  (METAR 35 min, SMHI 40 min), prognos = TAF-läget (BASE/FM/BECMG med tillämpade PROB-grupper,
+  aldrig TEMPO) eller SMHI. Regel: största kategorin bland samtidiga lager. CAVOK → SMHI:s
   totala molnmängd om den finns (märkt "SMHI model"), annars neutral CAVOK-markering. NSC →
   NSC-markering, saknas → "–". Dag/natt med solhöjd för platsen och tiden (`src/lib/sun.ts`).
   Försiktig tolkning: BKN (5–7/8) ritas som moln utan sol – med sol såg ett mulet BKN-läge ut
   som halvklart. Sol eller måne syns bara vid SKC, FEW och SCT.
   Symbolerna ligger överst i molngruppen (32 px, `SKY_H`), alla på samma höjd och i samma
   tidsskala som diagrammet – symboler som följde kurvan fick den att se ut som molnens
-  undersida. Var 2:a timme plus timmar med nederbörd och minst en per dimperiod; under 520 px
-  vybredd bara var 3:e timme, så att raden inte blir trång. En symbol som vyns kanter skulle
-  klippa döljs.
-- Molnbasens höjdaxel och höjdplacerade moln är borttagna. Molnbas och alla lager visas i
-  detaljraden under sammanfattningen, med källa och giltighet.
+  undersida. En symbol per timme (26 px i en timkolumn på 34 px, också på mobil). En symbol
+  som vyns kanter skulle klippa döljs.
+- Molnbasen har åter en höjdskala – i en egen delpanel, se "TAF-tolkning, fast tidsaxel och
+  molnbas" nedan.
 - SMHI-prognosens lager för text: lägsta molnbas + mängd *låga* moln (`modelLayer`); den
   totala molnmängden kombineras aldrig med basen.
 - **Temperaturskala** (`tempScale`, `TEMP_AXIS`): autoskalad över temperatur och daggpunkt
@@ -390,9 +404,9 @@ WxgeekApp              – plats, datahämtning, auto-uppdatering (5 min när fl
 Diagrammet är fem grupper på samma tidsaxel (`src/components/Timeline.tsx`), uppifrån:
 
 1. **Tidsaxel** (`AXIS_H` 40 px): pillraden (NOW, vald tid, ← OBSERVED | FORECAST →, datum),
-   timtalen och axellinjen; Now-knappen i vänsterkanten.
-2. **Moln & nederbörd** ("Clouds & precipitation"): vädersymbolerna, molntäcke i tre rader
-   (High, Mid, Low – 10 px vardera med 4 px luft) och nederbörden ("Precip mm/h").
+   timtalen och axellinjen; fast under sidhuvudet, Now-knappen längst till höger.
+2. **Moln & nederbörd** ("Clouds & precipitation"): vädersymbolerna, molnbasen ("Cloud base m",
+   13 + 60 px) och nederbörden ("Precip mm/h").
 3. **Temperatur & daggpunkt** ("Temperature °C", `TEMP_H` 148 px).
 4. **Vind** ("Wind m/s (gusts)", 44 px).
 5. **Ljus** ("Light", 92 px).
@@ -408,15 +422,7 @@ Diagrammet är fem grupper på samma tidsaxel (`src/components/Timeline.tsx`), u
 - **Kantdöljning** (`placeMarkers`): symboler, vindpilar, etiketter och datum som vänster-
   kolumnen eller vyns högerkant skulle klippa döljs i stället för att visas halva – elementen
   bär sin utsträckning som `data-l`/`data-r` (SVG-x). Timtal döljs bara vid kanterna.
-- **Molntäcke per timme** (`cloudCoverHours`): prognos = SMHI:s låga, medelhöga och höga
-  molnmängd (`low/medium/high_type_cloud_area_fraction`, oktas) vid den hela timmen.
-  Observerat = METAR inom 35 min: varje lagers kategori (FEW 1,5, SCT 3,5, BKN 6, OVC/VV 8
-  åttondelar) i raden för dess bas (under 2 000 m låga, 2 000–6 000 m medelhöga, över höga),
-  största per rad. Rader under det högsta rapporterade lagret är klara (0), rader ovanför
-  okända. Samma skala i alla rader: en känd timme får en svag botten (`--cloud-track`, klart)
-  och molnets ton ovanpå efter åttondelarna; okänt lämnas helt tomt – så att saknade data
-  aldrig ser ut som klar himmel. SMHI:s stationer rapporterar bara molnbas och används inte här.
-- **Taket ur TAF** är borttaget ur diagrammet (avläsningen visar ceiling som förut).
+- **Molntäcke per timme** (High/Mid/Low) är ersatt av molnbasen – se nästa avsnitt.
 - **Daggpunkt**: observerad ur samma station som temperaturen när den har daggpunkt, annars
   närmaste METAR (heldragen). Prognosen (streckad) ur SMHI:s relativa fuktighet (Magnus) –
   `snow1g` saknar daggpunkt – som en spridning under temperaturen: SMHI:s egen spridning,
@@ -434,3 +440,44 @@ Diagrammet är fem grupper på samma tidsaxel (`src/components/Timeline.tsx`), u
   19:34 exakt på −6°-linjen, "Sun alt. max 29°"; kurvan korsar 0° 07:07 och 18:47. Inga timtal
   dolda, ingen text på NU-linjen, inga överlapp eller klippta etiketter – på dator (780 px
   diagram), mobil (375 och 320 px) och i mörkt tema.
+
+## TAF-tolkning, fast tidsaxel och molnbas (senaste versionen)
+
+- **Underlag** (kontrollerat 27 sep 2026): SMHI `snow1g` har `cloud_base_altitude` och
+  `cloud_top_altitude` – ett värde vardera per tidssteg (lägsta basen), inga lager; 9999 = inga
+  moln. Mängden finns som total, låga, medelhöga och höga moln i oktas. Prognosen är timvis
+  ~55 h efter referenstiden, därefter ett 2 h- och ett 3 h-steg, sedan 6 h och 12 h. Diagrammets
+  24 h är alltså timvisa; symboler och molnbas följer ändå datans steg där den är glesare.
+- **TAF-tolkningen** (`src/lib/client/forecast.ts`, tester i `tafInterpretation.test.ts`): se
+  "Prognosens källor" ovan – FM från exakt tid, BECMG i intervallets mitt, PROB30/PROB40 bara
+  när senaste METAR stöder gruppen, TEMPO som komplement. Samma beslut används i diagrammet och
+  i avläsningen (`probDecisions` i `buildChart` och `snapshotAt`).
+- **Fast tidsaxel** (`.tl-axis`): eget lager överst i diagrammet, `position: sticky` under
+  sidhuvudet (`--hdr-h`, sidhuvudets höjd sätts i `WxgeekApp`) och inom diagrammet – den följer
+  med vid lodrät scroll och försvinner när diagrammet scrollats förbi. Solid bakgrund. Den
+  följer panelernas horisontella scroll med en scrolldriven animation (`animation-timeline`,
+  exakt på kompositorn, också under touchens tröghetsscroll) och annars med samma förskjutning
+  i `placeMarkers`. Drag och vågrät hjulscroll på axeln flyttar panelerna; lodräta svep på
+  touch scrollar sidan (`touch-action: pan-y`).
+- **Molnbas** ("Cloud base m", `CB_BAND_H` 13 + `CB_SCALE_H` 60 px) direkt under symbolerna:
+  höjd över mark, logaritmisk 0–3 000 m (`cloudBaseFrac`: ln(1 + h/100)/ln(31); linjer vid 100,
+  300, 1 000 och 3 000 m). Ett lager = en stapel med underkanten vid basen, tonad efter mängden
+  (FEW ljusast … OVC fylld); VV skrafferad från marken upp till VV-höjden med etiketten "VV".
+  Källor (`cloudBaseHours`): observerat varje METAR-rapport med alla lager (vald molnbasstation,
+  annars närmaste METAR), TAF-perioden ur TAF-tolkningen (CAVOK/NSC = inga moln i panelen),
+  därefter SMHI:s lägsta bas med mängden i basens skikt (`modelBaseOktas`; okänd mängd = bara
+  streckad kontur). Stilen skiljer källorna diskret (METAR heldraget, TAF något ljusare, SMHI
+  ljusare med streckad kant), med små etiketter där de börjar ("METAR" slutar vid NU, "TAF",
+  "SMHI model") och en streckad lodrät linje vid byte inom prognosen. Ingen uppgift = tomt,
+  aldrig noll; baser över 3 000 m ritas inte (symbolen visar ändå molnen).
+- **PROB-markeringar** (`probMarks`): varje PROB-grupp som inte är slut, över sin period överst
+  i molnbaspanelen – streckad klammer och dämpad etikett ("PROB40 FG", annars sikt eller moln)
+  när gruppen inte tillämpas, heldragen när den gör det; verktygstipset säger varför.
+- **Verifierat** (dagens ESOK-TAF "2706/2715 19004KT CAVOK PROB40 2706/2708 0100 FG VV002",
+  klockan satt till 05:45Z): med senaste METAR 05:20Z FG 0300 tillämpas PROB40 FG 08–10 lokal
+  tid (dimsymboler, VV 60 m), därefter CAVOK; med samma METAR ändrad till CAVOK tillämpas
+  gruppen inte men markeras. Tidsaxeln ligger exakt under sidhuvudet vid lodrät scroll och
+  försvinner efter diagrammet; timstrecken ligger på samma pixel som panelernas timlinjer vid
+  panorering (även med fast axel). Now-knappen syns bara bort från NU, längst ned till höger i
+  axeln, med tryckyta ≥ 44 × 44 px; vald tid behålls när fönstret ändrar storlek eller mobilen
+  vrids. Dator, mobil (375 px) och mörkt tema.

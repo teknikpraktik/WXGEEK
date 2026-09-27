@@ -521,6 +521,7 @@ main {
   user-select: none;
   -webkit-user-select: none;
 }
+/* Panelerna under tidsaxeln (top = AXIS_H sätts i Timeline.tsx) */
 .tl-scroller {
   position: absolute;
   inset: 0;
@@ -773,6 +774,21 @@ main {
 .tl-yaxis .tl-rowlabel.two {
   line-height: 1.15;
 }
+/* Molnbasens radnamn i panelens översta band och höjderna vid sina linjer */
+.tl-yaxis .tl-cblabel {
+  font-size: 11px;
+}
+.tl-yaxis .tl-cblabel .u {
+  color: var(--muted);
+}
+.tl-yaxis .tl-cbtick {
+  font-size: 10px;
+  line-height: 1;
+}
+/* 3 000 m under sin linje, så att den inte krockar med radnamnet ovanför */
+.tl-yaxis .tl-cbtick.hi {
+  transform: translateY(1px);
+}
 .tl-legend {
   position: absolute;
   right: 16px;
@@ -793,8 +809,28 @@ main {
   margin: 0 3px;
   vertical-align: -1px;
 }
-.tl-legend .sw.cc { background: var(--cloud-cell); margin: 0 1px; }
-.tl-legend .sw.cc:first-of-type { margin-left: 4px; }
+/* Molnbasens mängder som i panelen: kant och ton efter mängden, VV skrafferad */
+.tl-legend .sw.cb {
+  width: 12px;
+  height: 6px;
+  margin: 0 3px 0 7px;
+  vertical-align: 1px;
+  border: 1px solid var(--cloud-cell);
+  border-radius: 1px;
+}
+.tl-legend .sw.cb:first-of-type { margin-left: 3px; }
+.tl-legend .sw.cb.few { background: color-mix(in srgb, var(--cloud-cell) 18%, transparent); }
+.tl-legend .sw.cb.sct { background: color-mix(in srgb, var(--cloud-cell) 45%, transparent); }
+.tl-legend .sw.cb.bkn { background: color-mix(in srgb, var(--cloud-cell) 72%, transparent); }
+.tl-legend .sw.cb.ovc { background: var(--cloud-cell); }
+.tl-legend .sw.cb.vv {
+  height: 8px;
+  vertical-align: 0;
+  border: 0;
+  background:
+    repeating-linear-gradient(135deg, var(--cloud) 0 1.2px, transparent 1.2px 3px),
+    color-mix(in srgb, var(--cloud-cell) 20%, transparent);
+}
 .tl-legend .sw.civil { background: var(--sun-civil); margin-left: 6px; }
 .tl-legend .sw.nautical { background: var(--sun-nautical); margin-left: 6px; }
 .tl-legend .sw.astro { background: var(--sun-astro); margin-left: 6px; }
@@ -837,12 +873,86 @@ main {
   stroke: var(--rule);
   stroke-width: 1;
 }
-/* Molntäcke per timme i tre skikt – tonen (opaciteten) efter åttondelarna */
-.tl-cloudcover .cc {
-  fill: var(--cloud-cell);
+/* Molnbasen: höjdlinjer vid 100, 300, 1 000 och 3 000 m, marken, ett lager per stapel med tonen
+   efter mängden (FEW ljusast, OVC fylld – kanten syns alltid) och VV som skraffering från marken. */
+.tl-cloudbase .grid {
+  stroke: var(--grid);
+  stroke-width: 1;
 }
-.tl-cloudcover .cc-track {
-  fill: var(--cloud-track);
+.tl-cloudbase .ground {
+  stroke: var(--rule);
+  stroke-width: 1;
+}
+/* Byte av källa inom prognosen (t.ex. TAF → SMHI) */
+.tl-cloudbase .switch {
+  stroke: var(--ink-2);
+  stroke-opacity: 0.45;
+  stroke-width: 1;
+  stroke-dasharray: 2 3;
+}
+.tl-cloudbase .layer {
+  fill: var(--cloud-cell);
+  stroke: var(--cloud-cell);
+  stroke-width: 1;
+}
+.tl-cloudbase .layer.c-few { fill-opacity: 0.18; }
+.tl-cloudbase .layer.c-sct { fill-opacity: 0.45; }
+.tl-cloudbase .layer.c-bkn { fill-opacity: 0.72; }
+.tl-cloudbase .layer.c-ovc { fill-opacity: 1; }
+/* Mängd okänd (SMHI-bas utan mängd i basens skikt): bara kontur */
+.tl-cloudbase .layer.c-unknown {
+  fill: none;
+  stroke-dasharray: 2 2;
+}
+.tl-cloudbase .vvshade {
+  fill: url(#vv);
+}
+.tl-vv-bg {
+  fill: var(--cloud-cell);
+  fill-opacity: 0.2;
+}
+/* Källorna skiljs diskret: METAR heldraget, TAF något ljusare, SMHI:s modell ljusare med streckad kant */
+.tl-cloudbase .src-taf {
+  opacity: 0.85;
+}
+.tl-cloudbase .src-smhi {
+  opacity: 0.75;
+}
+.tl-cloudbase .src-smhi .layer {
+  stroke-dasharray: 3 2;
+}
+.tl-cloudbase .vvlabel {
+  font-family: var(--font-num);
+  font-size: 10px;
+  font-weight: 600;
+  fill: var(--ink-2);
+  paint-order: stroke;
+  stroke: var(--bg);
+  stroke-width: 3px;
+  stroke-linejoin: round;
+}
+/* PROB-grupper över sin period, överst i panelen: streckad klammer och dämpad text när gruppen
+   inte tillämpas, heldragen när senaste METAR stöder den */
+.tl-cloudbase .prob path {
+  fill: none;
+  stroke: var(--muted);
+  stroke-width: 1;
+  stroke-dasharray: 3 2;
+}
+.tl-cloudbase .prob.applied path {
+  stroke: var(--ink-2);
+  stroke-dasharray: none;
+}
+/* Etiketter i panelens översta band: PROB-grupper och källan vid övergångarna */
+.tl-spanlabel {
+  font-family: var(--font-num);
+  font-size: 10px;
+  letter-spacing: 0.02em;
+  fill: var(--muted);
+}
+.tl-cloudbase .prob.applied .tl-spanlabel {
+  font-weight: 600;
+  fill: var(--ink-2);
 }
 /* Daggpunkt: lugnare färg, heldragen observation och streckad prognos som temperaturen */
 .tl-line.dew {
@@ -1300,31 +1410,127 @@ main {
   margin-right: 6px;
 }
 
-/* Now: liten knapp i tidsaxelns vänsterkant, före första timtalet – ingen egen rad. Samma
-   utseende som Change (ljus yta, ljus kant, mörk text), aldrig NU-linjens mörka blågrå. Vid NU
-   är den inaktiv men ser likadan ut; bara hovring ger en mörkare kant. */
+/* Den fasta tidsaxeln: ett eget lager överst i diagrammet som ligger kvar under sidhuvudet när
+   sidan scrollas (sticky inom diagrammet – den försvinner när diagrammet scrollats förbi) och som
+   följer panelernas horisontella scroll. Solid bakgrund, så att panelerna inte syns igenom.
+   --hdr-h = sidhuvudets höjd (sätts i WxgeekApp). */
+.tl-axis {
+  position: sticky;
+  top: var(--hdr-h, 0px);
+  z-index: 10;
+  background: var(--bg);
+  /* Lodräta svep scrollar sidan; vågräta drar tidslinjen (Timeline.tsx) */
+  touch-action: pan-y;
+  cursor: grab;
+}
+.tl-axis:active {
+  cursor: grabbing;
+}
+.tl-axis-clip {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+.tl-axis-track {
+  position: absolute;
+  left: 0;
+  top: 0;
+  height: 100%;
+  will-change: transform;
+}
+/* Vänsterkolumnen i axeln: samma solida bakgrund med kort toning som .tl-yaxis */
+.tl-axis::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 60px; /* = AXIS_W */
+  z-index: 1;
+  pointer-events: none;
+  background: linear-gradient(to right, var(--bg) 0, var(--bg) 46px, transparent 60px);
+}
+/* Där webbläsaren har scrolldrivna animationer följer axeln panelerna på kompositorn – exakt, även
+   under touchens tröghetsscroll. Annars sätter Timeline.tsx samma förskjutning vid varje scroll.
+   --tl-shift = största scrollavståndet (sätts i Timeline.tsx). */
+@supports (animation-timeline: scroll()) {
+  .tl {
+    timeline-scope: --tl-x;
+  }
+  .tl-scroller {
+    scroll-timeline: --tl-x x;
+  }
+  .tl-axis-track {
+    animation: tl-axis-follow linear both;
+    animation-timeline: --tl-x;
+  }
+}
+@keyframes tl-axis-follow {
+  from {
+    transform: translate3d(0, 0, 0);
+  }
+  to {
+    transform: translate3d(calc(-1 * var(--tl-shift, 0px)), 0, 0);
+  }
+}
+
+/* Now: längst till höger i tidsaxeln, i timtalens rad, och bara när man panorerat bort från NU
+   (mer än en timme, eller NU-linjen utanför vyn). "Now →" när NU ligger till höger, "← Now" när
+   det ligger till vänster. Samma utseende som Change (ljus yta, ljus kant, mörk text), aldrig
+   NU-linjens mörka blågrå. Diskret in- och uttoning; tryckytan är minst 44 × 44 px. Timtal under
+   knappen döljs (Timeline.tsx), och skuggan i bakgrundsfärg tonar ner det som ligger intill. */
 .tl-now-btn {
   position: absolute;
-  left: 10px;
-  top: 9px;
+  right: 12px;
+  top: 17px;
   z-index: 4;
-  height: 22px;
+  height: 21px;
   padding: 0 8px;
   font-family: var(--font-ui);
   font-size: 12px;
   font-weight: 500;
-  line-height: 20px;
+  line-height: 19px;
+  white-space: nowrap;
   color: var(--ink);
   background: var(--surface);
   border: 1px solid var(--rule);
   border-radius: 5px;
+  box-shadow: -8px 0 8px 0 var(--bg);
   cursor: pointer;
+  opacity: 0;
+  visibility: hidden;
+  transition:
+    opacity 0.18s ease,
+    visibility 0s linear 0.18s;
 }
-.tl-now-btn:disabled {
-  cursor: default;
+.tl-now-btn.shown {
+  opacity: 1;
+  visibility: visible;
+  transition: opacity 0.18s ease;
 }
-.tl-now-btn:hover:not(:disabled) {
+.tl-now-btn::before {
+  content: "";
+  position: absolute;
+  left: -8px;
+  right: -8px;
+  top: -12px;
+  bottom: -12px;
+}
+.tl-now-btn .arr {
+  display: none;
+}
+.tl-now-btn.to-left .arr.l,
+.tl-now-btn:not(.to-left) .arr.r {
+  display: inline;
+}
+.tl-now-btn:hover {
   border-color: var(--ink-2);
+}
+@media (prefers-reduced-motion: reduce) {
+  .tl-now-btn,
+  .tl-now-btn.shown {
+    transition: none;
+  }
 }
 
 /* Vald tid: streckad linje genom hela diagrammet och en fylld etikett i dämpad blå (--cursor)

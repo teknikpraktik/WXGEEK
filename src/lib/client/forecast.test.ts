@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { normalizeTaf, splitTafGroups, type AwcTaf } from "../adapters/taf";
 import { mergedForecastAt, tafMainAt, tafSupplementsAt, tafEndWithin } from "./forecast";
-import { buildChart, matchedSpread, snapshotAt } from "./timeline";
+import { buildChart, cloudBaseFrac, matchedSpread, modelBaseOktas, snapshotAt } from "./timeline";
 import type { ForecastPoint, WeatherBundle } from "../types";
 
 const T = (d: number, h: number) => Date.UTC(2026, 8, d, h) / 1000;
@@ -89,22 +89,25 @@ test("CAVOK, VV och sikt i meter läses ur råtexten", () => {
   assert.deepEqual(becmg.changes?.sort(), ["clouds", "visibility", "weather"]);
 });
 
-test("BECMG: tidigare läge under övergången, nytt läge först efter becomingBy", () => {
+test("BECMG: tidigare läge före intervallets mitt, nytt läge från mitten", () => {
+  // BECMG 2318/2320 → 19Z
   const taf = normalizeTaf(ESNS, 20);
   const before = tafMainAt(taf, T(23, 17) * 1000)!;
   assert.equal(before.state.cavok, true);
   assert.equal(before.transition, undefined);
 
-  const during = tafMainAt(taf, T(23, 19) * 1000)!;
-  assert.equal(during.state.cavok, true, "under övergången gäller CAVOK fortfarande");
-  assert.ok(during.transition, "övergången redovisas");
-  assert.equal(during.transition!.until, T(23, 20) * 1000);
-  assert.equal(during.transition!.to.visibilityM, 300);
+  const early = tafMainAt(taf, (T(23, 18) + 59 * 60) * 1000)!;
+  assert.equal(early.state.cavok, true, "före mitten gäller CAVOK fortfarande");
+  assert.ok(early.transition, "övergången redovisas");
+  assert.equal(early.transition!.until, T(23, 19) * 1000);
+  assert.equal(early.transition!.to.visibilityM, 300);
 
-  const after = tafMainAt(taf, T(23, 21) * 1000)!;
-  assert.equal(after.state.visibilityM, 300);
-  assert.equal(after.state.windSpeedMs, before.state.windSpeedMs, "vinden ändras inte av BECMG utan vindgrupp");
-  assert.equal(after.state.cavok, undefined);
+  const mid = tafMainAt(taf, T(23, 19) * 1000)!;
+  assert.equal(mid.state.visibilityM, 300, "från mitten gäller det nya läget");
+  assert.equal(mid.transition, undefined);
+  assert.equal(mid.periodFrom, T(23, 19) * 1000);
+  assert.equal(mid.state.windSpeedMs, before.state.windSpeedMs, "vinden ändras inte av BECMG utan vindgrupp");
+  assert.equal(mid.state.cavok, undefined);
 });
 
 test("BECMG med bara moln behåller vind och sikt från huvudprognosen", () => {
@@ -211,22 +214,24 @@ const ESOK: AwcTaf = {
 };
 
 test("BECMG till sikt som utesluter dimman avslutar FG även utan NSW", () => {
+  // BECMG 2506/2508 → dimman lättar i intervallets mitt, 07Z
   const taf = normalizeTaf(ESOK, 11);
-  assert.deepEqual(tafMainAt(taf, T(25, 7) * 1000)!.state.phenomena?.map((p) => p.code), ["FG"], "dimma under övergången");
-  const after = tafMainAt(taf, T(25, 9) * 1000)!.state;
+  const early = (T(25, 6) + 30 * 60) * 1000;
+  assert.deepEqual(tafMainAt(taf, early)!.state.phenomena?.map((p) => p.code), ["FG"], "dimma före mitten");
+  const after = tafMainAt(taf, T(25, 7) * 1000)!.state;
   assert.equal(after.visibilityM, 10000);
   assert.deepEqual(after.phenomena, [], "9999 efter 0200 FG: dimman har lättat");
   // AWC för vidare VV002 till BECMG-gruppen – gruppens egen text (SCT020) gäller.
   assert.deepEqual(after.cloudLayers, [{ cover: "SCT", baseM: 610, type: undefined }]);
-  assert.equal(tafMainAt(taf, T(25, 7) * 1000)!.state.cloudLayers?.[0].cover, "VV", "VV före övergången");
+  assert.equal(tafMainAt(taf, early)!.state.cloudLayers?.[0].cover, "VV", "VV före mitten");
 
   const b = { ...bundleWith(ESOK, smhiHours(T(25, 6), 12)), forecastUntil: iso(T(25, 18)) };
   assert.deepEqual(mergedForecastAt(b, T(25, 12) * 1000).weather?.value, []);
-  const fog = buildChart(b, T(25, 7) * 1000).lowVis.filter((v) => v.phenomenon);
+  const fog = buildChart(b, T(25, 6) * 1000).lowVis.filter((v) => v.phenomenon);
   assert.deepEqual(
     fog.map((v) => new Date((v.t0 + v.t1) / 2).getUTCHours()),
-    [7],
-    "dimsymbol bara till BECMG-gruppens slut (08Z), inte till TAF:ens slut",
+    [6],
+    "dimsymbol bara till BECMG-intervallets mitt (07Z), inte till TAF:ens slut",
   );
 });
 
@@ -265,7 +270,7 @@ test("nederbörd i prognosen: timmen som vald tid ligger i, trolig och möjlig m
   assert.deepEqual([bar.likely, bar.possible], [0, 0.3]);
 });
 
-test("BECMG räknas från intervallets sista klockslag, också när AWC saknar den tiden", () => {
+test("BECMG räknas i intervallets mitt, också när AWC saknar intervallets slut", () => {
   // Riktig TAF 2026-09-26; AWC:s timeBec borttagen – sluttiden läses då ur "BECMG 2607/2609".
   const taf: AwcTaf = {
     icaoId: "ESOK",
@@ -283,10 +288,10 @@ test("BECMG räknas från intervallets sista klockslag, också när AWC saknar d
   };
   const t = normalizeTaf(taf, 11);
   assert.equal(t.periods[2].becomingBy, new Date(T(26, 9) * 1000).toISOString());
-  const during = tafMainAt(t, T(26, 8) * 1000)!;
-  assert.equal(during.state.windDirectionDeg, 210, "under övergången gäller tidigare vind");
+  const during = tafMainAt(t, (T(26, 7) + 59 * 60) * 1000)!;
+  assert.equal(during.state.windDirectionDeg, 210, "före mitten gäller tidigare vind");
   assert.ok(during.transition);
-  assert.equal(tafMainAt(t, T(26, 9) * 1000)!.state.windDirectionDeg, 280, "ny vind först 09Z");
+  assert.equal(tafMainAt(t, T(26, 8) * 1000)!.state.windDirectionDeg, 280, "ny vind från mitten, 08Z");
   assert.equal(tafMainAt(t, T(26, 12) * 1000)!.state.cloudLayers?.[0].cover, "BKN", "molnen står kvar – BECMG anger bara vind");
 });
 
@@ -313,16 +318,64 @@ function panelBundle(dew = 11): WeatherBundle {
   };
 }
 
-test("molntäcke per skikt: METAR-lagrens kategorier observerat, SMHI:s skikt i prognosen", () => {
-  const c = buildChart(panelBundle(), T(25, 9) * 1000).cloudCover;
-  const at = (h: number) => c.find((x) => x.t === T(25, h) * 1000)!;
-  // 07 (METAR 07:20): FEW 30 m = låga 1,5/8, BKN 2 500 m = medelhöga 6/8, höga okända
-  assert.deepEqual([at(7).low, at(7).mid, at(7).high, at(7).forecast], [1.5, 6, undefined, false]);
-  // 08: OVC 150 m – låga 8/8, högre skikt okända (skymda eller inte rapporterade)
-  assert.deepEqual([at(8).low, at(8).mid, at(8).high], [8, undefined, undefined]);
-  assert.equal(c.find((x) => x.t === T(25, 9) * 1000), undefined, "ingen METAR inom 35 min – inget påhittat");
-  // Prognos: SMHI:s låga, medelhöga och höga moln
-  assert.deepEqual([at(10).low, at(10).mid, at(10).high, at(10).forecast], [8, 2, 0, true]);
+test("molnbas: varje METAR med alla lager observerat, SMHI:s bas med mängden i basens skikt därefter", () => {
+  const chart = buildChart(panelBundle(), T(25, 9) * 1000);
+  const c = chart.cloudBase;
+  const obs = c.filter((x) => !x.forecast);
+  // METAR 07:20: alla lager under 3 000 m; 08:20 OVC 150 m – den senaste ritad fram till NU
+  assert.deepEqual(
+    obs.map((h) => [new Date(h.t).getUTCHours(), h.layers.map((l) => `${l.cover} ${l.baseM}`)]),
+    [
+      [7, ["FEW 30", "BKN 2500"]],
+      [8, ["OVC 150"]],
+    ],
+  );
+  assert.equal(obs[0].source, "METAR");
+  assert.equal(obs[1].t1, T(25, 9) * 1000, "senaste rapporten gäller fram till NU");
+  assert.ok(obs[0].t0 < T(25, 7) * 1000 && obs[0].t0 > T(25, 6) * 1000, "inget före första rapporten – tomt, inte noll");
+  const at = (h: number) => c.find((x) => x.t === T(25, h) * 1000 && x.forecast);
+  // Prognos: SMHI:s bas 800 m med mängden låga moln (8/8), från NU
+  assert.deepEqual(at(10)!.layers, [{ baseM: 800, cover: "OVC", oktas: 8 }]);
+  assert.equal(at(10)!.source, "SMHI");
+  assert.equal(at(9)!.t0, T(25, 9) * 1000, "prognosdelen börjar vid NU");
+  // Källorna i följd, för etiketterna vid övergångarna
+  assert.deepEqual(
+    chart.cloudSources.map((s) => s.source),
+    ["METAR", "SMHI"],
+  );
+});
+
+test("SMHI:s molnbas: 9999 (ingen bas) ger tom modelldel, mängden tas ur basens skikt – aldrig totalen", () => {
+  const b = panelBundle();
+  b.forecast!.points = b.forecast!.points.map((p, i) => (i === 3 ? { ...p, cloudBaseM: undefined, cloudCoverOktas: 5 } : p));
+  const hour = buildChart(b, T(25, 9) * 1000).cloudBase.find((x) => x.t === Date.parse(b.forecast!.points[3].timestamp))!;
+  assert.deepEqual(hour.layers, [], "moln men ingen bas: inget ritat");
+  assert.match(hour.label, /no cloud base given/);
+
+  assert.equal(modelBaseOktas(831, 8, 0), 8, "låg bas: låga moln");
+  assert.equal(modelBaseOktas(2728, 0, 8), 8, "över 2 000 m: medelhöga moln");
+  assert.equal(modelBaseOktas(1800, 0, 6), 6, "nära gränsen: det skikt som har moln");
+  assert.equal(modelBaseOktas(900, 0, 6), undefined, "låg bas utan låga moln: okänd mängd");
+});
+
+test("molnbasens skala: logaritmisk från 100 m – låga höjder får mest plats", () => {
+  assert.equal(cloudBaseFrac(0), 0);
+  assert.equal(cloudBaseFrac(3000), 1);
+  assert.equal(cloudBaseFrac(5000), 1, "över 3 000 m vid toppen");
+  const f = [100, 300, 1000].map((m) => Math.round(cloudBaseFrac(m) * 100) / 100);
+  assert.deepEqual(f, [0.2, 0.4, 0.7]);
+});
+
+test("symboler per tidssteg: varje timme där prognosen är timvis, glesare där den är glesare", () => {
+  const start = T(25, 6);
+  const pts: ForecastPoint[] = [
+    ...smhiHours(start, 6).map((p) => ({ ...p, cloudCoverOktas: 2 })),
+    // Efter 12Z tretimmarssteg
+    ...[15, 18].map((h) => ({ timestamp: iso(T(25, h)), intervalStart: iso(T(25, h - 3)), temperatureC: 10, cloudCoverOktas: 8 })),
+  ];
+  const b = { ...bundleWith(null, pts), forecastUntil: iso(T(25, 19)) };
+  const fcHours = buildChart(b, start * 1000).sky.filter((s) => s.forecast).map((s) => new Date(s.t).getUTCHours());
+  assert.deepEqual(fcHours, [7, 8, 9, 10, 11, 12, 15, 18], "ingen interpolering mellan 12, 15 och 18");
 });
 
 test("daggpunkt: observerad ur METAR, prognos ur SMHI:s fuktighet – sammanfogade vid senaste observationen", () => {

@@ -172,7 +172,8 @@ Senaste körning: `.../snow1g/version/1/createdtime.json`
    "data":{"air_temperature":11.8,"wind_from_direction":85,"wind_speed":1.4, ...}}]}
 ```
 
-- ~81 tidssteg: **timvis ca 57 h**, därefter 6 h och 12 h upp till ~10 dygn.
+- ~80 tidssteg: **timvis ca 55–57 h** efter referenstiden, därefter enstaka 2 h- och 3 h-steg,
+  sedan 6 h och 12 h upp till ~10 dygn (27 sep 2026: timvis 06Z–29 sep 13Z).
 - Saknat värde = `9999` (för `cloud_base_altitude` betyder 9999 i praktiken "inga moln"). `precipitation_frozen_part` = `-9` när ingen nederbörd.
 - Nederbördsparametrar avser intervallet `intervalParametersStartTime` → `time`.
 - Punkter utanför modellområdet ger `404`.
@@ -185,8 +186,8 @@ Senaste körning: `.../snow1g/version/1/createdtime.json`
 | `relative_humidity` | % – bara för daggpunkt (Magnus) |
 | `wind_from_direction`, `wind_speed`, `wind_speed_of_gust` | °, m/s |
 | `visibility_in_air` | **km** |
-| `cloud_area_fraction`, `low_type_cloud_area_fraction` | **oktas** (0–8) |
-| `cloud_base_altitude` | m – referensnivå (mark/hav) anges inte i metadata; tolkas som ungefärlig höjd |
+| `cloud_area_fraction`, `low_type_cloud_area_fraction`, `medium_type_cloud_area_fraction`, `high_type_cloud_area_fraction` | **oktas** (0–8) |
+| `cloud_base_altitude` | m – lägsta molnbasen, ett värde per tidssteg (inga lager); referensnivå (mark/hav) anges inte i metadata, tolkas som ungefärlig höjd. `cloud_top_altitude` finns också men används inte |
 | `precipitation_amount_mean`, `_min`, `_max` | mm under intervallet |
 | `probability_of_precipitation` | % |
 | `thunderstorm_probability` | % |

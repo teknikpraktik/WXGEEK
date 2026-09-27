@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { Place, WeatherBundle } from "@/lib/types";
 import { buildChart, HOUR, snapshotAt } from "@/lib/client/timeline";
 import { aviationAlerts } from "@/lib/client/alerts";
@@ -224,15 +224,27 @@ export function WxgeekApp() {
   const t = cursor ?? now;
   const snap = useMemo(() => (bundle ? snapshotAt(bundle, t, now) : null), [bundle, t, now]);
   const onCursor = useCallback((tt: number) => setCursor(tt), []);
-  const onNow = useCallback(() => setRecenter((n) => n + 1), []);
-  const awayFromNow = cursor !== null && Math.abs(cursor - now) > 10 * 60 * 1000;
+
+  // Sidhuvudets höjd som --hdr-h: diagrammets tidsaxel ligger fast direkt under det låsta huvudet.
+  const appEl = useRef<HTMLDivElement>(null);
+  const headerEl = useRef<HTMLElement>(null);
+  useLayoutEffect(() => {
+    const app = appEl.current;
+    const header = headerEl.current;
+    if (!app || !header) return;
+    const set = () => app.style.setProperty("--hdr-h", `${header.offsetHeight}px`);
+    const ro = new ResizeObserver(set);
+    ro.observe(header);
+    set();
+    return () => ro.disconnect();
+  }, []);
 
   // ---------------------------------------------------------------------------
   // Render
   // ---------------------------------------------------------------------------
   return (
-    <div className="app">
-      <header className="top">
+    <div className="app" ref={appEl}>
+      <header className="top" ref={headerEl}>
         <h1 className="wordmark">
           {place ? (
             // Loggan laddar om platsen och går till NU
@@ -303,15 +315,13 @@ export function WxgeekApp() {
             <>
               <Readout snap={snap} now={now}>
                 <section className="timeline-wrap" aria-label="Timeline">
-                  {/* "Now" sitter i tidsaxelns vänsterkant – ingen egen rad */}
+                  {/* "Now" sitter längst till höger i den fasta tidsaxeln och visas bara bort från NU */}
                   <Timeline
                     now={now}
                     until={Date.parse(bundle.forecastUntil)}
                     data={chart}
                     onCursor={onCursor}
                     recenterSignal={recenter}
-                    awayFromNow={awayFromNow}
-                    onNow={onNow}
                   />
                   {/* Förklaringen följer dimrisken när den finns i fönstret */}
                   {chart.fogRisk.length > 0 && (
