@@ -775,21 +775,6 @@ main {
 .tl-yaxis .tl-rowlabel.two {
   line-height: 1.15;
 }
-/* Molnbasens radnamn i panelens översta band och höjderna vid sina linjer */
-.tl-yaxis .tl-cblabel {
-  font-size: 11px;
-}
-.tl-yaxis .tl-cblabel .u {
-  color: var(--muted);
-}
-.tl-yaxis .tl-cbtick {
-  font-size: 10px;
-  line-height: 1;
-}
-/* 3 000 m under sin linje, så att den inte krockar med radnamnet ovanför */
-.tl-yaxis .tl-cbtick.hi {
-  transform: translateY(1px);
-}
 .tl-legend {
   position: absolute;
   right: 16px;
@@ -817,60 +802,11 @@ main {
 }
 .tl-legend .lg.temp { background: var(--temp); }
 .tl-legend .lg.dew { background: var(--dew); }
-.tl-legend .lg.fogrisk {
-  height: 8px;
-  vertical-align: 0;
-  background: var(--fog-risk);
-}
 /* Förklaringen till dimrisken under diagrammet */
 /* Tunna avgränsare mellan grupperna */
 .tl-panelsep {
   stroke: var(--rule);
   stroke-width: 1;
-}
-/* Molnbasen: höjdlinjer vid 100, 300, 1 000 och 3 000 m, marken och basen som en linje i
-   molnens neutrala grå – samma stil för alla källor, inga punktmarkörer. */
-.tl-cloudbase .grid {
-  stroke: var(--grid);
-  stroke-width: 1;
-}
-.tl-cloudbase .ground {
-  stroke: var(--rule);
-  stroke-width: 1;
-}
-.tl-cloudbase .base {
-  fill: none;
-  stroke: var(--cloud);
-  stroke-width: 1.75;
-  stroke-linejoin: round;
-  stroke-linecap: round;
-}
-/* Osynliga ytor per punkt – bär verktygstipset (tid och höjd) */
-.tl-cloudbase .hit {
-  fill: transparent;
-}
-/* PROB-grupper över sin period, överst i panelen: streckad klammer och dämpad text när gruppen
-   inte tillämpas, heldragen när senaste METAR stöder den */
-.tl-cloudbase .prob path {
-  fill: none;
-  stroke: var(--muted);
-  stroke-width: 1;
-  stroke-dasharray: 3 2;
-}
-.tl-cloudbase .prob.applied path {
-  stroke: var(--ink-2);
-  stroke-dasharray: none;
-}
-/* PROB-gruppernas etiketter i panelens översta band */
-.tl-spanlabel {
-  font-family: var(--font-num);
-  font-size: 10px;
-  letter-spacing: 0.02em;
-  fill: var(--muted);
-}
-.tl-cloudbase .prob.applied .tl-spanlabel {
-  font-weight: 600;
-  fill: var(--ink-2);
 }
 /* Daggpunkt: lugnare färg, heldragen observation och streckad prognos som temperaturen */
 .tl-line.dew {
@@ -885,15 +821,9 @@ main {
 .tl-dot.dew {
   fill: var(--dew);
 }
-/* Dimrisk: ytan mellan kurvorna där spridningen är högst 2 °C – låg kontrast */
+/* Dimrisk: ytan mellan kurvorna där spridningen är under 1 °C – låg kontrast, ingen text */
 .tl-fogrisk {
   fill: var(--fog-risk);
-}
-.tl-foglabel {
-  font-family: var(--font-ui);
-  font-size: 11px;
-  font-weight: 500;
-  fill: var(--dew);
 }
 .tl-lanesep {
   stroke: var(--rule);
@@ -1388,10 +1318,10 @@ main {
 }
 
 /* Now: längst till höger i tidsaxeln, i timtalens rad, och bara när man panorerat bort från NU
-   (mer än en timme, eller NU-linjen utanför vyn). "Now →" när NU ligger till höger, "← Now" när
-   det ligger till vänster. Samma utseende som Change (ljus yta, ljus kant, mörk text), aldrig
-   NU-linjens mörka blågrå. Diskret in- och uttoning; tryckytan är minst 44 × 44 px. Timtal under
-   knappen döljs (Timeline.tsx), och skuggan i bakgrundsfärg tonar ner det som ligger intill. */
+   (mer än en timme, eller NU-linjen utanför vyn), med bara texten "Now". Samma utseende som
+   Change (ljus yta, ljus kant, mörk text), aldrig NU-linjens mörka blågrå. Diskret in- och
+   uttoning; tryckytan är minst 44 × 44 px. Timtal under knappen döljs (Timeline.tsx), och
+   skuggan i bakgrundsfärg tonar ner det som ligger intill. */
 .tl-now-btn {
   position: absolute;
   right: 12px;
@@ -1428,13 +1358,6 @@ main {
   right: -8px;
   top: -12px;
   bottom: -12px;
-}
-.tl-now-btn .arr {
-  display: none;
-}
-.tl-now-btn.to-left .arr.l,
-.tl-now-btn:not(.to-left) .arr.r {
-  display: inline;
 }
 .tl-now-btn:hover {
   border-color: var(--ink-2);

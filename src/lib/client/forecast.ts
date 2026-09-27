@@ -21,7 +21,7 @@ import { fmtTime } from "../format";
 //   räknas mitt i sitt intervall – före mitten gäller tidigare läge.
 // • PROB30/PROB40 (även PROB TEMPO) tillämpas inte, utom när gruppen börjar inom 3 h från
 //   senaste METAR (eller redan pågår) och den METAR:en stöder den – då gäller gruppen hela
-//   sin period. Övriga PROB-grupper markeras i diagrammet men ändrar inte prognosen.
+//   sin period. Övriga PROB-grupper ändrar inte prognosen (de syns i avläsningens sikt).
 // • TEMPO är kompletterande information – aldrig värden för perioden.
 // • Källa och giltighet bevaras per variabel och tidpunkt.
 // ---------------------------------------------------------------------------

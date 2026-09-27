@@ -1,19 +1,9 @@
 "use client";
 
 import { memo, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
-import {
-  CLOUD_BASE_TICKS,
-  HOUR,
-  PAST_HOURS,
-  cloudBaseFrac,
-  type ChartData,
-  type Precip,
-  type PrecipHour,
-  type Pt,
-} from "@/lib/client/timeline";
-import { fmtCloudBase, fmtDateTime, localHour, fmtTemp, fmtTime } from "@/lib/format";
+import { HOUR, PAST_HOURS, type ChartData, type Precip, type PrecipHour, type Pt } from "@/lib/client/timeline";
+import { fmtDateTime, localHour, fmtTemp, fmtTime } from "@/lib/format";
 import { placeTempLabel } from "@/lib/client/tempLabel";
-import { FOG_NOTE } from "@/lib/client/fogBand";
 import {
   EVENT_ALT,
   SUN_TEXT_H,
@@ -52,16 +42,6 @@ const RUBRIC_H = 18;
 /** Vädersymbolerna (molnsymbol med regnstreck) och deras mitt i raden. */
 const SKY_H = 32;
 const SKY_CY = 13;
-/**
- * Molnbaspanelen: ett band överst för PROB-markeringarna, därunder höjdskalan 0–3 000 m
- * (logaritmisk från 100 m) med molnbasen som en linje.
- */
-const CB_BAND_H = 13;
-const CB_SCALE_H = 60;
-/** Molnbaslinjen binder inte ihop punkter som ligger längre isär än så här – luckan syns. */
-const CB_MAX_GAP = 90 * 60 * 1000;
-/** En ensam punkt ritas som ett kort vågrätt streck (px), inte som en punktmarkör. */
-const CB_LONE_W = 12;
 /** NU-linjens streckmönster ("3 3") – axelns del slutar på en hel period, så att mönstret
  *  fortsätter obrutet ned genom panelerna. */
 const NOW_DASH = 6;
@@ -89,8 +69,6 @@ const SKY_HALF_W = 13;
 const TLAST_CHAR_W = 7.2;
 /** Dimriskytans minsta höjd (px) – annars försvinner den där kurvorna sammanfaller. */
 const FOG_MIN_PX = 6;
-/** Etiketten "Fog risk" i ytan (11 px) */
-const FOG_LABEL_W = 44;
 /** Nederbördens värden: siffror 12 px (mono), "max" 10 px */
 const MM_CHAR_W = 7.2;
 const MAX_PREFIX_W = 22;
@@ -140,16 +118,11 @@ export const Timeline = memo(function Timeline({ now, until, data, onCursor, rec
   const tAt = useCallback((scrollLeft: number) => start + (scrollLeft / PX_PER_HOUR) * HOUR, [start]);
   const maxOffsetH = Math.max(1, Math.round((until - now) / HOUR));
   const narrow = viewW > 0 && viewW < 520;
-  /** Mycket smal skärm (320 px): de kortaste förklaringarna */
-  const tiny = viewW > 0 && viewW < 360;
 
   // Grupperna uppifrån, med avgränsare mitt i luften mellan dem
   const cloudTop = AXIS_H + GAP; // tidsaxelns linje avgränsar första gruppen
   const skyTop = cloudTop + RUBRIC_H;
-  const cbTop = skyTop + SKY_H;
-  const cbScaleTop = cbTop + CB_BAND_H;
-  const cbGround = cbScaleTop + CB_SCALE_H;
-  const precipTop = cbGround + 6;
+  const precipTop = skyTop + SKY_H + 4;
   const cloudBottom = precipTop + PRECIP_H;
   const tempTop = cloudBottom + 2 * GAP + 1;
   const chartTop = tempTop + RUBRIC_H;
@@ -165,8 +138,6 @@ export const Timeline = memo(function Timeline({ now, until, data, onCursor, rec
   // Temperaturskala (°C, linjär) över hela ritytan
   const [t0, t1] = data.temp.domain;
   const yTemp = useCallback((v: number) => chartBottom - ((v - t0) / (t1 - t0)) * TEMP_H, [t0, t1, chartBottom]);
-  // Molnbasens höjdskala: marken nederst, 3 000 m överst
-  const yCb = useCallback((m: number) => cbGround - cloudBaseFrac(m) * CB_SCALE_H, [cbGround]);
   // Nederbördens skala: 0 till ett jämnt värde (minst 2 mm) över fönstrets största mängd.
   const precipMax = Math.max(2, Math.ceil(Math.max(0, ...data.precipHours.map((p) => p.possible))));
 
@@ -288,7 +259,6 @@ export const Timeline = memo(function Timeline({ now, until, data, onCursor, rec
   const sunEdgeL = useRef<SVGTextElement>(null);
   const sunEdgeR = useRef<SVGTextElement>(null);
   const gustWord = useRef<HTMLSpanElement>(null);
-  const cbLabel = useRef<HTMLSpanElement>(null);
   const measure = useRef<HTMLSpanElement>(null);
   // Rubrikerna i den längsta variant som ryms före NU-linjen (uppmätt i rubrikens egen typografi);
   // "(gusts)" stryks där inte ens det ryms.
@@ -352,13 +322,12 @@ export const Timeline = memo(function Timeline({ now, until, data, onCursor, rec
       const cross = (a: Span, b: Span) => a[1] > b[0] && a[0] < b[1];
 
       // Now-knappen längst till höger i axeln: bara när NU-linjen är utanför vyn eller vald tid
-      // ligger mer än en timme från NU. Pilen pekar mot NU.
+      // ligger mer än en timme från NU.
       const btn = nowBtn.current;
       const away = viewW > 0 && (Math.abs(scrollLeft - nowX) > NOW_BTN_AWAY_PX || nowX < visL || nowX > visR);
       let btnBox: Span | null = null;
       if (btn) {
         btn.classList.toggle("shown", away);
-        btn.classList.toggle("to-left", nowX < scrollLeft);
         if (away) btnBox = [visR - (viewW - btn.offsetLeft) - 6, visR];
       }
 
@@ -421,36 +390,6 @@ export const Timeline = memo(function Timeline({ now, until, data, onCursor, rec
         const any = [...svg.querySelectorAll<SVGGElement>(".tl-wind.has-gust")].some((g) => g.style.visibility !== "hidden");
         gustWord.current.style.display = any && fit.gusts ? "" : "none";
       }
-
-      // PROB-gruppernas etiketter följer sin period inom den synliga ytan, från periodens början.
-      // Ingen etikett korsar NU-linjen eller en annan; det som inte ryms döljs. Radnamnet
-      // "Cloud base" i vänsterkolumnen sticker ut över ritytans vänsterkant.
-      const cbw = cbLabel.current?.getBoundingClientRect().width ?? 0;
-      const bandBoxes: Span[] = [[visL - AXIS_W, visL + 16 + cbw - AXIS_W + 2]];
-      svg.querySelectorAll<SVGTextElement>(".tl-spanlabel.prob").forEach((t) => {
-        const a = Number(t.dataset.a);
-        const b = Number(t.dataset.b);
-        const w = t.getComputedTextLength();
-        // Etiketten börjar inom sin period men får sticka ut över dess slut – en kort återstående
-        // period ska ändå ha sin etikett.
-        const lo = Math.max(a, visL) + 4;
-        let x0 = lo;
-        for (let k = 0; k < 4; k++) {
-          const box: Span = [x0 - 3, x0 + w + 3];
-          const hit = bandBoxes.find((s) => cross(box, s)) ?? (nowX > box[0] && nowX < box[1] ? ([nowX, nowX] as Span) : undefined);
-          if (!hit) break;
-          x0 = hit[1] + 4;
-        }
-        const ok =
-          x0 < b - 4 &&
-          x0 + w <= visR - 4 + 0.5 &&
-          !bandBoxes.some((s) => cross([x0 - 3, x0 + w + 3], s)) &&
-          !(nowX > x0 - 3 && nowX < x0 + w + 3);
-        t.style.visibility = ok ? "" : "hidden";
-        if (!ok) return;
-        t.setAttribute("x", String(x0));
-        bandBoxes.push([x0 - 3, x0 + w + 3]);
-      });
 
       // Solhändelser vid kanten: utanför vyn med pil ("← Sunrise 06:59"), och händelser nära
       // kanten vars egen etikett klipps – på en rad där etiketten inte krockar med någon annan.
@@ -611,44 +550,23 @@ export const Timeline = memo(function Timeline({ now, until, data, onCursor, rec
   }, [data.temp.observed, x, yTemp, now, chartTop, chartBottom, tempPts, dewPts, start, viewW, histW]);
 
   // Dimrisk: ytan mellan temperatur och daggpunkt där spridningen är under 1 °C – minst
-  // FOG_MIN_PX hög, så att den syns även där kurvorna sammanfaller – och en diskret etikett
-  // "Fog risk" under ytan vid sammanhängande perioder som är breda nog.
-  const fog = useMemo(() => {
-    const paths = data.fogRisk.map((b) => {
-      const ys = b.map((p) => {
-        const hi = yTemp(p.hi);
-        const lo = yTemp(p.lo);
-        const mid = (hi + lo) / 2;
-        return lo - hi < FOG_MIN_PX ? [mid - FOG_MIN_PX / 2, mid + FOG_MIN_PX / 2] : [hi, lo];
-      });
-      const top = b.map((p, i) => `${i ? "L" : "M"}${x(p.t).toFixed(1)},${ys[i][0].toFixed(1)}`).join("");
-      const bottom = b.map((p, i) => [p, i] as const).reverse().map(([p, i]) => `L${x(p.t).toFixed(1)},${ys[i][1].toFixed(1)}`).join("");
-      return `${top}${bottom}Z`;
-    });
-    // Sammanhängande perioder: observerat och prognos som möts vid NU räknas som en.
-    const periods: Array<Array<{ t: number; lo: number }>> = [];
-    for (const b of data.fogRisk) {
-      const last = periods.at(-1);
-      const pts = b.map((p) => ({ t: p.t, lo: Math.max(yTemp(p.lo), (yTemp(p.hi) + yTemp(p.lo)) / 2 + FOG_MIN_PX / 2) }));
-      if (last && last.at(-1)!.t === b[0].t) last.push(...pts);
-      else periods.push(pts);
-    }
-    const tl = lastTemp ? [lastTemp.label.x - lastTemp.text.length * TLAST_CHAR_W, lastTemp.label.x, lastTemp.label.baseline - 10, lastTemp.label.baseline + 2] : null;
-    const labels = periods.flatMap((pts) => {
-      const a = x(pts[0].t);
-      const b = x(pts.at(-1)!.t);
-      if (b - a < FOG_LABEL_W + 10) return [];
-      const cx = (a + b) / 2;
-      // Under ytans nedre kant där etiketten står (med en timmes marginal åt vardera håll)
-      const near = pts.filter((p) => Math.abs(x(p.t) - cx) <= FOG_LABEL_W / 2 + PX_PER_HOUR).map((p) => p.lo);
-      const y = Math.max(...(near.length ? near : pts.map((p) => p.lo))) + 13;
-      if (y > chartBottom - 3) return [];
-      if (nowX > cx - FOG_LABEL_W / 2 - 3 && nowX < cx + FOG_LABEL_W / 2 + 3) return [];
-      if (tl && cx - FOG_LABEL_W / 2 < tl[1] && tl[0] < cx + FOG_LABEL_W / 2 && y - 10 < tl[3] && tl[2] < y + 2) return [];
-      return [{ cx, y }];
-    });
-    return { paths, labels };
-  }, [data.fogRisk, x, yTemp, chartBottom, lastTemp, nowX]);
+  // FOG_MIN_PX hög, så att den syns även där kurvorna sammanfaller. Ingen text: betraktaren
+  // förstår själv vad ytan betyder.
+  const fogPaths = useMemo(
+    () =>
+      data.fogRisk.map((b) => {
+        const ys = b.map((p) => {
+          const hi = yTemp(p.hi);
+          const lo = yTemp(p.lo);
+          const mid = (hi + lo) / 2;
+          return lo - hi < FOG_MIN_PX ? [mid - FOG_MIN_PX / 2, mid + FOG_MIN_PX / 2] : [hi, lo];
+        });
+        const top = b.map((p, i) => `${i ? "L" : "M"}${x(p.t).toFixed(1)},${ys[i][0].toFixed(1)}`).join("");
+        const bottom = b.map((p, i) => [p, i] as const).reverse().map(([p, i]) => `L${x(p.t).toFixed(1)},${ys[i][1].toFixed(1)}`).join("");
+        return `${top}${bottom}Z`;
+      }),
+    [data.fogRisk, x, yTemp],
+  );
 
   // Nederbörd kring timmen t – ger regn under molnsymbolen. En observerad symbol använder bara
   // observationer och en prognossymbol bara prognosen, så att den senaste observationen inte
@@ -674,36 +592,6 @@ export const Timeline = memo(function Timeline({ now, until, data, onCursor, rec
     () => data.sky.filter((k) => x(k.t) - SKY_HALF_W >= 0 && x(k.t) + SKY_HALF_W <= W),
     [data.sky, x, W],
   );
-
-  // Molnbasen som en linje – en serie utan markering av källbyten: en punkt per METAR-rapport för
-  // passerad tid, därefter per prognossteg (TAF, annars SMHI). Höjden är lägsta molnbasen under
-  // panelens topp, eller den vertikala sikten när himlen är skymd. Linjen bryts där det saknas moln
-  // under 3 000 m (CAVOK, NSC, klart) och där data saknas – aldrig ned till noll eller över luckan.
-  // En ensam punkt blir ett kort streck. Verktygstips per punkt: tid och höjd.
-  const cloudLine = useMemo(() => {
-    type P = { t: number; t0: number; t1: number; m: number; vv: boolean };
-    const runs: P[][] = [];
-    let run: P[] = [];
-    let lastT = -Infinity;
-    for (const h of data.cloudBase) {
-      if (h.forecast && h.t < now) continue; // passerad tid: observerat
-      const base = h.layers[0]?.baseM;
-      const m = h.vv !== undefined && (base === undefined || h.vv <= base) ? h.vv : base;
-      if (m === undefined || h.t - lastT > CB_MAX_GAP) {
-        if (run.length) runs.push(run);
-        run = [];
-      }
-      lastT = h.t;
-      if (m !== undefined) run.push({ t: h.t, t0: h.t0, t1: h.t1, m, vv: m === h.vv });
-    }
-    if (run.length) runs.push(run);
-    const paths = runs.map((r) =>
-      r.length > 1
-        ? r.map((p, i) => `${i ? "L" : "M"}${x(p.t).toFixed(1)},${yCb(p.m).toFixed(1)}`).join("")
-        : `M${(x(r[0].t) - CB_LONE_W / 2).toFixed(1)},${yCb(r[0].m).toFixed(1)}h${CB_LONE_W}`,
-    );
-    return { paths, points: runs.flat() };
-  }, [data.cloudBase, now, x, yCb]);
 
   // Nederbördens värden: medianen som siffra, ensemblens maximum som "max 0.4" när medianen är
   // under 0,1 mm. Över stapeln, eller bredvid NU-linjen när den annars skulle korsa texten; en
@@ -810,16 +698,10 @@ export const Timeline = memo(function Timeline({ now, until, data, onCursor, rec
         <div ref={axisCursorEl} className="tl-cursor tl-cursor-axis at-now" style={{ left: cursorX, top: 0, height: AXIS_H }} aria-hidden>
           <span ref={cursorLabel} className="tl-cursor-label" style={{ top: PILL_TOP }} />
         </div>
-        {/* Now: längst till höger i timtalens rad, bara när man panorerat bort från NU; pilen pekar
-            mot NU. Tryckytan är minst 44 × 44 px. */}
+        {/* Now: längst till höger i timtalens rad, bara när man panorerat bort från NU. Tryckytan är
+            minst 44 × 44 px. */}
         <button ref={nowBtn} type="button" className="tl-now-btn" onClick={goNow} aria-label="Back to now">
-          <span className="arr l" aria-hidden>
-            ←{" "}
-          </span>
           Now
-          <span className="arr r" aria-hidden>
-            {" "}→
-          </span>
         </button>
       </div>
 
@@ -828,14 +710,6 @@ export const Timeline = memo(function Timeline({ now, until, data, onCursor, rec
         <span className="tl-rubric" style={{ top: cloudTop }}>
           {RUBRIC_TEXT.clouds[fit.clouds]}
         </span>
-        <span ref={cbLabel} className="tl-rowlabel tl-cblabel" style={{ top: cbTop + CB_BAND_H / 2 }}>
-          Cloud base{!tiny && <span className="u"> m</span>}
-        </span>
-        {CLOUD_BASE_TICKS.map((m) => (
-          <span key={m} className={m === CLOUD_BASE_TICKS.at(-1) ? "tl-cbtick hi" : "tl-cbtick"} style={{ top: yCb(m) }}>
-            {m}
-          </span>
-        ))}
         <span className="tl-rowlabel two" style={{ top: precipTop + PRECIP_H / 2 }}>
           Precip
           <br />
@@ -869,8 +743,6 @@ export const Timeline = memo(function Timeline({ now, until, data, onCursor, rec
         Temp
         <i className="lg dew" />
         Dew point
-        <i className="lg fogrisk" />
-        <span title={FOG_NOTE}>Fog risk</span>
       </div>
       <div className="tl-legend" style={{ top: windPanelTop }} aria-hidden>
         arrow = direction of flow
@@ -900,7 +772,7 @@ export const Timeline = memo(function Timeline({ now, until, data, onCursor, rec
             height={H - AXIS_H}
             style={{ position: "absolute", left: padL, top: 0 }}
             role="img"
-            aria-label="Chart in five panels on one time axis: time; clouds (weather symbols and cloud base) and precipitation per hour; temperature and dew point with fog risk; wind with gusts; and daylight as the sun's altitude. Solid is observed, dashed is forecast."
+            aria-label="Chart in five panels on one time axis: time; clouds (weather symbols) and precipitation per hour; temperature and dew point; wind with gusts; and daylight as the sun's altitude. Solid is observed, dashed is forecast."
           >
             {/* Samma koordinater som hela diagrammet – tidsaxeln (0–AXIS_H) ligger i eget lager ovanför */}
             <g transform={`translate(0,${-AXIS_H})`}>
@@ -934,40 +806,6 @@ export const Timeline = memo(function Timeline({ now, until, data, onCursor, rec
                 <line key={`sep${y}`} x1={0} x2={W} y1={y} y2={y} className="tl-panelsep" shapeRendering="crispEdges" />
               ))}
 
-              {/* Molnbasen: höjdlinjer vid 100, 300, 1 000 och 3 000 m och marken */}
-              <g className="tl-cloudbase">
-                {CLOUD_BASE_TICKS.map((m) => (
-                  <line key={`cbg${m}`} x1={0} x2={W} y1={yCb(m)} y2={yCb(m)} className="grid" shapeRendering="crispEdges" />
-                ))}
-                <line x1={0} x2={W} y1={cbGround + 0.5} y2={cbGround + 0.5} className="ground" />
-                {/* Molnbasen: en linje, bruten vid luckor */}
-                {cloudLine.paths.map((d, i) => (
-                  <path key={`cbl${i}`} d={d} className="base" />
-                ))}
-                {/* Osynliga ytor per punkt för verktygstipset: tid och höjd */}
-                {cloudLine.points.map((p) => (
-                  <rect key={`cbh${p.t}`} x={x(p.t0)} y={cbScaleTop} width={Math.max(1, x(p.t1) - x(p.t0))} height={CB_SCALE_H} className="hit">
-                    <title>{`${fmtTime(p.t)} · ${p.vv ? "VV " : ""}${fmtCloudBase(p.m)}`}</title>
-                  </rect>
-                ))}
-                {/* PROB-grupper över sin period: streckad klammer när gruppen inte tillämpas, heldragen
-                    när senaste METAR stöder den. Etiketten placeras i placeMarkers. */}
-                {data.probMarks.map((p) => {
-                  const a = x(p.t0);
-                  const b = x(p.t1);
-                  const y0 = cbTop + 1.5;
-                  return (
-                    <g key={`prob${p.t0}${p.label}`} className={`prob${p.applied ? " applied" : ""}`}>
-                      <path d={`M${a + 0.5},${y0 + 5}V${y0}H${b - 0.5}V${y0 + 5}`} />
-                      <text className="tl-spanlabel prob" data-a={a} data-b={b} x={a + 4} y={cbTop + 11}>
-                        {p.label}
-                      </text>
-                      <title>{p.title}</title>
-                    </g>
-                  );
-                })}
-              </g>
-
               {/* Diskreta stödlinjer för temperaturen; 0 °C tydligare när den ryms i skalan. Kanterna
                   ritas som gruppens ram – som 0°-linje när skalan slutar på 0 °C. */}
               {data.temp.ticks
@@ -985,15 +823,8 @@ export const Timeline = memo(function Timeline({ now, until, data, onCursor, rec
               ))}
 
               {/* Dimrisk mellan kurvorna, sedan daggpunkt och temperatur överst */}
-              {fog.paths.map((d, i) => (
-                <path key={`fog${i}`} d={d} className="tl-fogrisk">
-                  <title>{`Fog risk: temperature–dew point spread under 1 °C. ${FOG_NOTE}`}</title>
-                </path>
-              ))}
-              {fog.labels.map((l) => (
-                <text key={`fl${l.cx}`} x={l.cx} y={l.y} textAnchor="middle" data-l={l.cx - FOG_LABEL_W / 2} data-r={l.cx + FOG_LABEL_W / 2} className="tl-foglabel">
-                  Fog risk
-                </text>
+              {fogPaths.map((d, i) => (
+                <path key={`fog${i}`} d={d} className="tl-fogrisk" />
               ))}
               {data.dew.forecast.map((s, i) => (
                 <path key={`df${i}`} d={pathOf(s)} className="tl-line fc dew" />

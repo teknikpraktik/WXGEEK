@@ -1,8 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { fogOf, matchedSpread, tafLowVisibility, type Reading, type Snapshot } from "@/lib/client/timeline";
-import { FOG_NOTE, FOG_SPREAD } from "@/lib/client/fogBand";
+import { fogOf, tafLowVisibility, type Reading, type Snapshot } from "@/lib/client/timeline";
 import { sourceLine } from "@/lib/client/sourceLine";
 import type { CloudLayer } from "@/lib/types";
 import {
@@ -72,8 +71,6 @@ export function Readout({ snap, now, children }: Props) {
           short="Temp/Dew"
           r={snap.temperature}
           old={stale(snap.temperature)}
-          sub={dewSub(snap)}
-          subTitle={dewSub(snap) ? FOG_NOTE : undefined}
         >
           {snap.temperature && (
             <Val
@@ -214,15 +211,6 @@ function visSub(snap: Snapshot): string {
   return low ? `${low.group} ${fmtVisibility(low.m, low.atLeast)}` : "";
 }
 
-/**
- * Dimrisk när spridningen mellan temperatur och daggpunkt är under 1 °C – samma villkor som i
- * diagrammet, och bara med tidsmatchade värden (samma mätning eller samma prognossteg).
- */
-function dewSub(snap: Snapshot): string {
-  const sp = matchedSpread(snap);
-  return sp !== undefined && sp < FOG_SPREAD ? "Fog risk" : "";
-}
-
 function precipSub(snap: Snapshot): string {
   const pr = snap.precipitation?.value;
   if (!pr) return "";
@@ -276,7 +264,6 @@ function Cell<T>({
   className,
   r,
   sub,
-  subTitle,
   old,
   children,
 }: {
@@ -288,8 +275,6 @@ function Cell<T>({
   r: Reading<T>;
   /** Undertext; null = ingen undertextrad (rutan lägger själv ut sina rader inom samma höjd) */
   sub?: string | null;
-  /** Förklaring till undertexten (verktygstips); annars undertexten själv */
-  subTitle?: string;
   old?: boolean;
   children: ReactNode;
 }) {
@@ -319,7 +304,7 @@ function Cell<T>({
         {r ? children : <span className="val missing-val">–</span>}
         {/* The sub line always reserves its height so the grid never jumps */}
         {sub !== null && (
-          <span className="sub" title={subTitle ?? (sub || undefined)}>
+          <span className="sub" title={sub || undefined}>
             {sub || " "}
           </span>
         )}
