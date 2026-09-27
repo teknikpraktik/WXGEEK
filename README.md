@@ -48,8 +48,9 @@ situation **now**, and the **forecast** for the next 24 hours, all on the same a
 - **Time axis** at the top. A thin row of its own holds NOW as a small pill ("NOW 10:29") with
   "← OBSERVED" and "FORECAST →" on either side, the selected time and the day's name at the
   day-change line – so no hour label is ever hidden by them. Below it every hour (every other
-  hour on narrow screens). The axis stays fixed under the header on a solid background while
-  the page scrolls, until the chart has scrolled past, and follows the panels' horizontal scroll
+  hour on narrow screens). The axis stays fixed directly under the header on a solid background
+  while the page scrolls – with no gap, also when Safari's address bar collapses or expands on
+  an iPhone – until the chart has scrolled past, and follows the panels' horizontal scroll
   exactly. A **Now** button appears at its right end, in the row of hour labels, only when the
   NOW line is out of view or the selected time is more than an hour from now. It fades in and
   out, hides the hour labels under it, has a touch target of at least 44 × 44 px and scrolls

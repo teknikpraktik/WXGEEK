@@ -224,16 +224,22 @@ export function WxgeekApp() {
   const snap = useMemo(() => (bundle ? snapshotAt(bundle, t, now) : null), [bundle, t, now]);
   const onCursor = useCallback((tt: number) => setCursor(tt), []);
 
-  // Sidhuvudets höjd som --hdr-h: diagrammets tidsaxel ligger fast direkt under det låsta huvudet.
+  // Diagrammets tidsaxel ligger fast direkt under det låsta huvudet, på --hdr-pad + --hdr-body
+  // (globals.css). Toppmarginalen --hdr-pad – den säkra ytan, som Safari ändrar när adressfältet
+  // fälls ihop – räknas i CSS, så att huvudet och axeln alltid följs åt; här mäts bara resten av
+  // huvudets höjd, vid varje ändring av dess yttre mått.
   const appEl = useRef<HTMLDivElement>(null);
   const headerEl = useRef<HTMLElement>(null);
   useLayoutEffect(() => {
     const app = appEl.current;
     const header = headerEl.current;
     if (!app || !header) return;
-    const set = () => app.style.setProperty("--hdr-h", `${header.offsetHeight}px`);
+    const set = () => {
+      const body = header.getBoundingClientRect().height - parseFloat(getComputedStyle(header).paddingTop);
+      app.style.setProperty("--hdr-body", `${body}px`);
+    };
     const ro = new ResizeObserver(set);
-    ro.observe(header);
+    ro.observe(header, { box: "border-box" });
     set();
     return () => ro.disconnect();
   }, []);

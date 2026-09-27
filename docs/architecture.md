@@ -188,8 +188,8 @@ WxgeekApp              – plats, datahämtning, auto-uppdatering (5 min när fl
   annan app) eller återställd ur webbläsarens bakåtcache. Kortare flikbyten behåller vald tid.
 - Låst överst på alla bredder (`position: sticky`), så att man alltid ser vilken plats vädret
   gäller; bakgrunden täcker diagrammets fulla bredd, linjen innehållets. Säker yta på iPhone
-  ligger i huvudet, så att den följer med när huvudet låses. Under 560 px två rader (logga +
-  Change, platsen på hela bredden under).
+  ligger i huvudets toppmarginal (`--hdr-pad`), så att den följer med när huvudet låses. Under
+  560 px två rader (logga + Change, platsen på hela bredden under).
 
 ### Tidslinjen
 
@@ -463,9 +463,13 @@ Diagrammet är fem grupper på samma tidsaxel (`src/components/Timeline.tsx`), u
   "Prognosens källor" ovan – FM från exakt tid, BECMG i intervallets mitt, PROB30/PROB40 bara
   när senaste METAR stöder gruppen, TEMPO som komplement. Samma beslut används i diagrammet och
   i avläsningen (`probDecisions` i `buildChart` och `snapshotAt`).
-- **Fast tidsaxel** (`.tl-axis`): eget lager överst i diagrammet, `position: sticky` under
-  sidhuvudet (`--hdr-h`, sidhuvudets höjd sätts i `WxgeekApp`) och inom diagrammet – den följer
-  med vid lodrät scroll och försvinner när diagrammet scrollats förbi. Solid bakgrund. Den
+- **Fast tidsaxel** (`.tl-axis`): eget lager överst i diagrammet, `position: sticky` direkt
+  under sidhuvudet och inom diagrammet – den följer med vid lodrät scroll och försvinner när
+  diagrammet scrollats förbi. Låst på `--hdr-pad` + `--hdr-body`: huvudets toppmarginal, samma
+  CSS-värde som huvudet, plus resten av huvudets höjd, som `WxgeekApp` mäter vid varje ändring
+  av huvudets yttre mått. Safari på iPhone ändrar den säkra ytan när adressfältet fälls ihop
+  eller ut; en uppmätt helhöjd hann bli inaktuell och gav ett glapp ovanför axeln där
+  diagrammet syntes, men nu följer axeln huvudet i samma bildruta. Solid bakgrund. Den
   följer panelernas horisontella scroll med en scrolldriven animation (`animation-timeline`,
   exakt på kompositorn, också under touchens tröghetsscroll) och annars med samma förskjutning
   i `placeMarkers`. Drag och vågrät hjulscroll på axeln flyttar panelerna; lodräta svep på

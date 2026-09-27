@@ -193,6 +193,10 @@ pre {
   min-height: 100dvh;
   display: flex;
   flex-direction: column;
+  /* Sidhuvudets toppmarginal – säker yta på iPhone. Tidsaxeln (.tl-axis) låses med samma värde,
+     så att de följs åt när Safari ändrar den säkra ytan: adressfältet fälls ihop och ut när man
+     scrollar. */
+  --hdr-pad: max(16px, env(safe-area-inset-top));
 }
 
 main {
@@ -214,7 +218,7 @@ main {
   align-items: center;
   gap: 12px;
   margin: 0 -16px;
-  padding: max(16px, env(safe-area-inset-top)) 16px 12px;
+  padding: var(--hdr-pad) 16px 12px;
   background:
     linear-gradient(var(--ink), var(--ink)) center bottom / calc(100% - 32px) 1px no-repeat,
     var(--bg);
@@ -1085,12 +1089,15 @@ main {
 }
 /* Mobil: sidhuvudet i två rader (logga + Change, platsen på hela bredden under), tätare */
 @media (max-width: 560px) {
+  .app {
+    --hdr-pad: max(10px, env(safe-area-inset-top));
+  }
   .top {
     grid-template-areas:
       "logo . change"
       "place place place";
     row-gap: 4px;
-    padding: max(10px, env(safe-area-inset-top)) 16px 8px;
+    padding: var(--hdr-pad) 16px 8px;
   }
   .place {
     justify-self: start;
@@ -1250,10 +1257,12 @@ main {
 /* Den fasta tidsaxeln: ett eget lager överst i diagrammet som ligger kvar under sidhuvudet när
    sidan scrollas (sticky inom diagrammet – den försvinner när diagrammet scrollats förbi) och som
    följer panelernas horisontella scroll. Solid bakgrund, så att panelerna inte syns igenom.
-   --hdr-h = sidhuvudets höjd (sätts i WxgeekApp). */
+   Låst direkt under sidhuvudet, utan glapp: huvudets toppmarginal (--hdr-pad, samma CSS-värde
+   som huvudet, så att axeln följer den säkra ytan i samma bildruta) plus resten av huvudets
+   höjd (--hdr-body, mäts i WxgeekApp). */
 .tl-axis {
   position: sticky;
-  top: var(--hdr-h, 0px);
+  top: calc(var(--hdr-pad, 0px) + var(--hdr-body, 0px));
   z-index: 10;
   background: var(--bg);
   /* Lodräta svep scrollar sidan; vågräta drar tidslinjen (Timeline.tsx) */
