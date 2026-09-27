@@ -12,7 +12,7 @@ import {
   fmtPrecip,
   fmtTemp,
   fmtVisibility,
-  fmtWindFrom,
+  fmtWindDeg,
   fmtWindSpeed,
 } from "@/lib/format";
 import { WindArrow } from "./WindArrow";
@@ -84,12 +84,15 @@ export function Readout({ snap, now, children }: Props) {
             />
           )}
         </Cell>
-        <Cell label="Wind" r={snap.wind} old={stale(snap.wind)} sub={w ? windSub(w, gust) : undefined}>
+        <Cell label="Wind" r={snap.wind} old={stale(snap.wind)} sub={w ? windSub(w) : undefined}>
           {w && (
             <Val
               v={w.speed !== undefined && w.speed < 0.5 ? "0" : fmtWindSpeed(w.speed)}
               unit="m/s"
               icon={w.deg !== undefined && !w.variable && (w.speed ?? 0) >= 0.5 ? <WindArrow deg={w.deg} size={18} /> : undefined}
+              // Byarna inom parentes efter medelvinden, som i diagrammet: "6 (9) m/s"
+              extra={gustShown ? `(${fmtWindSpeed(gust)})` : undefined}
+              extraClass="val-gust"
             />
           )}
         </Cell>
@@ -135,11 +138,10 @@ export function Readout({ snap, now, children }: Props) {
 
 // ---------------------------------------------------------------------------
 
-function windSub(w: { deg?: number; variable?: boolean; speed?: number }, gust: number | undefined): string {
+/** Varifrån vinden kommer, i hela tiotal grader: "From 270°" – byarna står inom parentes i värdet. */
+function windSub(w: { deg?: number; variable?: boolean; speed?: number }): string {
   if (w.speed !== undefined && w.speed < 0.5) return "Calm";
-  const dir = w.variable ? "Variable" : w.deg !== undefined ? fmtWindFrom(w.deg) : "";
-  const g = gust !== undefined && gust >= (w.speed ?? 0) + 1 ? `gusts ${fmtWindSpeed(gust)} m/s` : "";
-  return [dir, g].filter(Boolean).join(" · ");
+  return w.variable ? "Variable" : w.deg !== undefined ? `From ${fmtWindDeg(w.deg)}` : "";
 }
 
 const TEXT_SKY = new Set<Snapshot["sky"]["kind"]>(["CAVOK", "NSC", "UNKNOWN", "MISSING"]);
@@ -230,7 +232,26 @@ function weatherSummary(snap: Snapshot): string {
 
 /** Value + unit, same typography for all quantities. */
 /** sign/extraSign: temperaturens tecken – rött över 0 °C, blått under (CSS t-pos/t-neg). */
-function Val({ v, unit, icon, extra, muted, sign, extraSign }: { v: string; unit: string; icon?: ReactNode; extra?: string; muted?: boolean; sign?: string; extraSign?: string }) {
+function Val({
+  v,
+  unit,
+  icon,
+  extra,
+  muted,
+  sign,
+  extraSign,
+  extraClass,
+}: {
+  v: string;
+  unit: string;
+  icon?: ReactNode;
+  extra?: string;
+  muted?: boolean;
+  sign?: string;
+  extraSign?: string;
+  /** Extra klass för tillägget, t.ex. byarna */
+  extraClass?: string;
+}) {
   return (
     <span className="val">
       {icon}
@@ -249,7 +270,7 @@ function Val({ v, unit, icon, extra, muted, sign, extraSign }: { v: string; unit
           v
         )}
       </b>
-      {extra && <b className={`${muted ? "val-extra val-dew" : "val-extra"}${extraSign ? ` t-${extraSign}` : ""}`}>{extra}</b>}
+      {extra && <b className={`${muted ? "val-extra val-dew" : "val-extra"}${extraClass ? ` ${extraClass}` : ""}${extraSign ? ` t-${extraSign}` : ""}`}>{extra}</b>}
       {unit && <span className="unit">{unit}</span>}
     </span>
   );

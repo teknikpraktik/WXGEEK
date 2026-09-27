@@ -12,9 +12,9 @@ situation **now**, and the **forecast** for the next 24 hours, all on the same a
 ```
 
 - The header shows **temperature / dew point** in whole degrees ("12/11 °C", red above 0 and
-  blue below, the dew point lighter), **wind** in m/s
-  with the arrow pointing where the wind blows and the text saying where it comes from ("From SW
-  240°"), visibility and
+  blue below, the dew point lighter – never shown when the data puts it above the temperature),
+  **wind** in m/s with the gusts in parentheses ("6 (9) m/s"), the arrow pointing where the wind
+  blows and the text saying where it comes from ("From 240°"), visibility and
   **clouds** in three short rows: the symbol and code for how much of the sky is covered
   ("BKN"), the amount in oktas ("5–7/8", plus CB/TCU if reported) and how low: the ceiling
   (the lowest BKN/OVC/VV) or else the lowest base, e.g. "Ceiling 850 m" ("Ceil." on a narrow
@@ -24,10 +24,9 @@ situation **now**, and the **forecast** for the next 24 hours, all on the same a
   or FZFG (fog below 0 °C) instead, with the TAF group (e.g. "PROB40") and the height below. A
   visibility from an applied PROB group is marked with the group ("PROB40"); lower visibility
   in a TEMPO group or a PROB group that is not applied is shown under the visibility, e.g.
-  "PROB40 2.5 km". Precipitation appears when something
-  falls in the hour of the selected time – the same bar as under the cursor – and in the
-  forecast also when it only might: "max 0.3 mm" as in the chart, with SMHI's probability
-  below. All cells stay on one row, also on mobile, and keep the same height.
+  "PROB40 2.5 km". Precipitation appears when something falls in the hour of the selected
+  time – the same bar as under the cursor – and in the forecast also when it only might:
+  "max 0.3 mm" as in the chart, with SMHI's probability below. All cells stay on one row, also on mobile, and keep the same height.
 - A discreet **source line** under the cells says where and when the values were measured,
   in local time: "Karlstad flygplats · METAR 10:50 · SMHI obs 11:00 (temp, wind)" – the main
   source first, others with what they give, and their station when it is another one (with
@@ -41,8 +40,8 @@ situation **now**, and the **forecast** for the next 24 hours, all on the same a
   marked in the time axis only – and a very faint tone covers the observed part. Each group
   has a rubric in a fixed left column with the same typography and placement, with its unit
   where it has one ("TEMPERATURE °C", "WIND m/s
-  (gusts)") – the longest wording that ends before the NOW line on the screen – a small legend
-  at the right of the rubric row, and the same air on either side of a thin separator. Rubrics
+  (gusts)") – the longest wording that ends before the NOW line on the screen – no legends,
+  and the same air on either side of a thin separator. Rubrics
   and values are 12 px. Anything the left column or the edge of the view would cut – a symbol,
   an arrow, a label – is hidden rather than shown in half, and no text is crossed by the NOW
   line: labels move aside instead.
@@ -83,14 +82,16 @@ situation **now**, and the **forecast** for the next 24 hours, all on the same a
   0° line, and likewise the axis numbers and line, the latest value at now and the header
   (a value shown as 0 stays neutral). The dew point is a second, thinner and lighter line in
   the same two colours – solid observed (METAR), dashed forecast from SMHI's relative
-  humidity, joined to the last observation over 3 hours. A faint shading between the lines
+  humidity, joined to the last observation over 3 hours. The dew point is never above the
+  temperature: where the data puts it higher, it is not drawn and the line breaks there
+  (the two lines never cross). A faint shading between the lines
   marks where the spread is under 1 °C – computed only where temperature and dew point have
   time-matched values (the same report, or the same forecast step), never across gaps – at
   least a few pixels high so it shows where the lines coincide, without label or legend (the
   viewer reads it from the curves). A dot marks the latest temperature observation at
   its actual time (never moved to now) with the measured value beside it, e.g. "11 °C".
-- **Wind m/s (gusts)**: the arrow shows where the wind blows (the legend says "arrow =
-  direction of flow"; the header text says where it comes from), with the mean wind and the
+- **Wind m/s (gusts)**: the arrow shows where the wind blows (the header text says where it
+  comes from), with the mean wind and the
   gusts in the same row, "6 (9)". Without a gust value only the mean is shown – missing gusts
   never look like zero – and "(gusts)" is in the rubric only while a gust value is in view.
   Every other hour when the texts would otherwise collide.
@@ -115,8 +116,11 @@ situation **now**, and the **forecast** for the next 24 hours, all on the same a
   page is opened – a fresh load, or coming back after at least a minute in the background
   (phone locked, another app) – and the data is never taken from the browser cache.
 - The forecast uses **TAF first** for wind, visibility, cloud and weather at the airport
-  while the TAF is valid. **SMHI** covers temperature, precipitation, missing values and
-  the rest of the window. FM applies from its exact time; a BECMG change applies from the
+  while the TAF is valid – METAR and TAF govern now and during the TAF's validity. TAF also
+  decides whether there is precipitation: without it in the TAF no precipitation is shown,
+  with it only in a TEMPO or PROB group only SMHI's possible amount ("max 0.4"), and with it in
+  the TAF's state SMHI's amounts. **SMHI** covers temperature, the amounts, missing values and
+  the rest of the window after the TAF. FM applies from its exact time; a BECMG change applies from the
   middle of its interval ("BECMG 2708/2710" from 09Z, the end read from the raw text if AWC
   lacks it) – before that the previous state holds. A BECMG group that raises the visibility
   ends fog (at 1 km or more) and mist or haze (above 5 km) even without NSW, e.g. "0200 FG

@@ -739,16 +739,6 @@ export const Timeline = memo(function Timeline({ now, until, data, onCursor, rec
         {/* Mäter rubrikernas bredd i deras egen typografi */}
         <span ref={measure} className="tl-rubric measure" />
       </div>
-      {/* Förklaringar, högerställda i gruppernas rubrikrader – långt från NU-linjen */}
-      <div className="tl-legend" style={{ top: tempTop }} aria-hidden>
-        <i className="lg temp" />
-        Temp
-        <i className="lg dew" />
-        Dew point
-      </div>
-      <div className="tl-legend" style={{ top: windPanelTop }} aria-hidden>
-        arrow = direction of flow
-      </div>
       <div
         ref={scroller}
         className="tl-scroller"

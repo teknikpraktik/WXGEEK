@@ -137,7 +137,7 @@ test("TEMPO och PROB är kompletterande grupper, inte värden", () => {
   assert.match(prob[0].summary, /210 m/, "PROB-texten anger vad sannolikheten gäller (BKN007 = 700 fot ≈ 210 m)");
 });
 
-test("TAF först för vind/sikt/moln/väder; SMHI för temperatur och nederbörd; SMHI efter TAF:s slut", () => {
+test("TAF först för vind/sikt/moln/väder och om det blir nederbörd; SMHI för temperatur; SMHI efter TAF:s slut", () => {
   const b = bundleWith(ESNS, smhiHours(T(23, 15), 12));
   const inTaf = mergedForecastAt(b, T(23, 16) * 1000);
   assert.equal(inTaf.wind?.source.kind, "TAF");
@@ -145,7 +145,7 @@ test("TAF först för vind/sikt/moln/väder; SMHI för temperatur och nederbörd
   assert.equal(inTaf.clouds?.value.cavok, true);
   assert.equal(inTaf.clouds?.value.baseM, undefined, "ingen påhittad molnbas vid CAVOK");
   assert.equal(inTaf.temperature?.source.kind, "SMHI-PROGNOS");
-  assert.equal(inTaf.precipitation?.source.kind, "SMHI-PROGNOS");
+  assert.equal(inTaf.precipitation, undefined, "TAF utan nederbörd styr – ingen mängd från SMHI");
 
   const afterTaf = mergedForecastAt(b, T(23, 23) * 1000);
   assert.equal(afterTaf.wind?.source.kind, "SMHI-PROGNOS");
@@ -171,10 +171,37 @@ test("variabel som TAF saknar kompletteras av SMHI", () => {
   assert.equal(m.visibility?.source.kind, "SMHI-PROGNOS");
 });
 
-test("motsägelse mellan TAF och SMHI om nederbörd förklaras", () => {
-  const pts = smhiHours(T(23, 15), 6).map((p) => ({ ...p, precipitationMm: 0.6 }));
-  const m = mergedForecastAt(bundleWith(ESNS, pts), T(23, 16) * 1000);
-  assert.match(m.note ?? "", /TAF gives no precipitation/);
+test("TAF styr nederbörden under sin giltighetstid: ingen nederbörd i TAF – ingen från SMHI; efter TAF gäller SMHI", () => {
+  // ESNS 2315/2322 CAVOK (NSW) – SMHI ger 0,6 mm varje timme
+  const pts = smhiHours(T(23, 15), 10).map((p) => ({ ...p, precipitationMm: 0.6, precipitationMedianMm: 0.6 }));
+  const b = bundleWith(ESNS, pts);
+  const during = mergedForecastAt(b, (T(23, 16) + 30 * 60) * 1000);
+  assert.equal(during.precipitation, undefined, "TAF utan nederbörd: ingen nederbörd");
+  assert.equal(during.note, undefined);
+  const after = mergedForecastAt(b, (T(23, 23) + 30 * 60) * 1000);
+  assert.equal(after.precipitation?.value.mm, 0.6, "efter TAF:ens slut 22Z: SMHI");
+  // Timstaplarna följer samma regel
+  const hours = buildChart(b, T(23, 15) * 1000).precipHours.filter((h) => h.forecast);
+  assert.ok(hours.length > 0 && hours.every((h) => h.t0 >= T(23, 22) * 1000), "staplar bara efter TAF:en");
+});
+
+test("TAF styr nederbörden: bara i TEMPO ger bara möjlig mängd, i huvudprognosen SMHI:s mängd", () => {
+  // ESGG: huvudprognosen utan väder, TEMPO 2315/2317 RA BR – SMHI median 0,6 mm, max 1,4 mm
+  const pts = smhiHours(T(23, 15), 12).map((p) => ({ ...p, precipitationMm: 0.6, precipitationMedianMm: 0.6, precipitationMaxMm: 1.4 }));
+  const tempo = mergedForecastAt(bundleWith(ESGG, pts), (T(23, 15) + 30 * 60) * 1000);
+  assert.equal(tempo.precipitation?.value.mm, 0, "bara möjlig i TEMPO – ingen trolig mängd");
+  assert.equal(tempo.precipitation?.value.possibleMm, 1.4);
+  // Efter TEMPO-grupperna (23Z) har ESGG ingen nederbörd – ingen mängd
+  const later = mergedForecastAt(bundleWith(ESGG, smhiHours(T(23, 22), 4).map((p) => ({ ...p, precipitationMm: 0.6 }))), (T(24, 0) + 30 * 60) * 1000);
+  assert.equal(later.precipitation, undefined);
+  // Nederbörd i huvudprognosen: SMHI:s mängd gäller
+  const rain: AwcTaf = {
+    ...ESNS,
+    rawTAF: "TAF ESNS 231430Z 2315/2322 17007KT 5000 -RA BKN010",
+    fcsts: [{ ...ESNS.fcsts[0], timeTo: T(23, 22), visib: 3.11, wxString: "-RA", clouds: [{ cover: "BKN", base: 1000, type: null }] }],
+  };
+  const yes = mergedForecastAt(bundleWith(rain, pts), (T(23, 16) + 30 * 60) * 1000);
+  assert.equal(yes.precipitation?.value.mm, 0.6);
 });
 
 test("dimma i TAF:ens TEMPO (BCFG) ger dimsymbol under gruppens tid", () => {
@@ -387,6 +414,21 @@ test("daggpunkt: observerad ur METAR, prognos ur SMHI:s fuktighet – sammanfoga
   assert.equal(snap.dewPoint?.value, dewAt(10));
   // Skalan tar med daggpunkterna
   assert.ok(chart.temp.domain[0] <= 10.4 - 1);
+});
+
+test("daggpunkten aldrig över temperaturen: högre daggpunkt ritas inte och visas inte i avläsningen", () => {
+  const b = panelBundle(13); // METAR 12 °C men daggpunkt 13 °C
+  const now = T(25, 9) * 1000;
+  const chart = buildChart(b, now);
+  assert.deepEqual(chart.dew.observed, [], "observerade daggpunkter över temperaturen ritas inte");
+  assert.ok(!chart.dew.forecast.flat().some((p) => p.t === (T(25, 8) + 20 * 60) * 1000), "inte heller prognosens startpunkt (13 °C)");
+  for (const p of chart.dew.forecast.flat()) {
+    const tp = chart.temp.forecast.flat().find((q) => q.t === p.t);
+    if (tp) assert.ok(p.v <= tp.v, `${new Date(p.t).toISOString()}: daggpunkt ${p.v} över ${tp.v}`);
+  }
+  assert.equal(snapshotAt(b, now, now).dewPoint, null, "avläsningen visar ingen daggpunkt i stället för att kapa den");
+  // Med daggpunkt under temperaturen är allt som förut
+  assert.deepEqual(buildChart(panelBundle(11), now).dew.observed.flat().map((p) => p.v), [11, 11]);
 });
 
 test("dimrisk i diagrammet: spridning under 1 °C – observerat där METAR:ens värden är lika, och i prognosen", () => {

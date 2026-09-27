@@ -146,6 +146,11 @@ WxgeekApp              – plats, datahämtning, auto-uppdatering (5 min när fl
   bara för element TAF anger. Sista TAF-läget dras aldrig ut efter giltighetstiden.
 - **SMHI** (punktprognos för platsens koordinater) för temperatur, nederbördsmängd,
   variabler TAF saknar och efter TAF:s slut. Utan TAF används SMHI för allt.
+- **Nederbörd under TAF:ens giltighetstid** (`tafPrecipAt`, i timmens mitt): TAF styr om det
+  blir nederbörd – METAR och TAF före SMHI:s modell. Nederbörd i TAF-läget (med tillämpade
+  PROB-grupper): SMHI:s mängd. Bara i en TEMPO- eller PROB-grupp som inte tillämpas: bara den
+  möjliga mängden ("max 0.4"). Ingen nederbörd i TAF: inga staplar, inga regnstreck och ingen
+  nederbörd i avläsningen, oavsett SMHI. Efter TAF:en gäller SMHI.
 - **Huvudprognos** = BASE/FM; FM gäller från exakt angiven tid. **BECMG** ändrar bara de
   element gruppen anger (läses ur rå-TAF) och räknas mitt i sitt intervall (`becmgAt`:
   "BECMG 2708/2710" → 09Z); under intervallets första halva gäller tidigare läge och
@@ -171,8 +176,8 @@ WxgeekApp              – plats, datahämtning, auto-uppdatering (5 min när fl
 - **CAVOK** = sikt ≥ 10 km, inga moln under 1 500 m, ingen CB/TCU, inget väder. Ingen
   molnbas härleds. AWC:s avkodning tappar CAVOK och VV – de läses ur råtexten.
 - Källa och giltighet bevaras per variabel och tidpunkt. TAF gäller flygplatsen och SMHI
-  platsens koordinater; båda anges i koden per variabel. Motsägelser (t.ex. TAF
-  utan nederbörd men SMHI med mängd) förklaras i stället för att jämnas ut.
+  platsens koordinater; båda anges i koden per variabel. TAF med nederbörd men utan mängd hos
+  SMHI förklaras i en notering.
 
 ### Sidhuvud
 
@@ -285,9 +290,8 @@ WxgeekApp              – plats, datahämtning, auto-uppdatering (5 min när fl
     (SMHI-mätare) heldraget; prognos som trolig mängd (mörk, SMHI-ensemblens median) och
     möjlig mängd (ljus, max av medel och max). SMHI:s min används inte.
   - Dimma/dis: dimsymbol (tre streck) resp. dis (två streck) ersätter molnsymbolen i symbolraden. Åska markeras med ϟ.
-- Förklaringar högerställda i varje grupps rubrikrad – långt från NU-linjen och markören:
-  Temp / Dew point och "arrow = direction of flow". Kortare varianter på smala skärmar, så att
-  de aldrig når NU-linjen. Dimriskytan har ingen förklaring, etikett eller verktygstips.
+- Inga förklaringar i rubrikraderna: färgerna, linjestilarna och vindpilarna förklarar sig
+  själva. Dimriskytan har ingen förklaring, etikett eller verktygstips.
 - **Tidsaxel överst** (första gruppen, `AXIS_H` 40 px): en tunn pillrad med NOW-pillen,
   "← OBSERVED" och "FORECAST →" på var sida om den ("← OBS." när det är trångt), vald tid och
   dygnsnamnet vid dygnsbytet; under den timtal för varje timme (varannan under 520 px). En
@@ -302,7 +306,7 @@ WxgeekApp              – plats, datahämtning, auto-uppdatering (5 min när fl
   aldrig NU-linjens mörka blågrå; diskret in- och uttoning, tryckyta minst 44 × 44 px, timtal
   under knappen döljs. Tryck: animerad scroll till NU.
 - **Vind** (fjärde gruppen, "Wind m/s (gusts)"): pilen visar åt vilket håll vinden blåser
-  (förklaringen "arrow = direction of flow"; texten i avläsningen säger varifrån), medelvinden
+  (texten i avläsningen säger varifrån), medelvinden
   och byarna i samma rad, "6 (9)", byarna i ljusare ton. Byar visas när källan har ett byvärde
   över medelvinden; saknas det står bara medelvinden, och "(gusts)" står i rubriken bara när
   minst ett byvärde syns. Varannan timme när texterna annars skulle krocka.
@@ -325,9 +329,13 @@ WxgeekApp              – plats, datahämtning, auto-uppdatering (5 min när fl
   daggpunkt, utan undertext – dimrisken
   läser betraktaren själv av spridningen. Observerat: daggpunkt från samma
   station och tid som temperaturen, annars närmaste METAR. Prognos: ur SMHI:s relativa fuktighet (Magnus); spreaden räknas på
-  SMHI:s egen temperatur och dras av från den visade, justerade. Aldrig över temperaturen.
-- Vind: pil + m/s, "From SW 240° · gusts 7 m/s" – pilen åt vilket håll vinden blåser, texten
-  varifrån (väderstreck och hela tiotal grader, `fmtWindFrom`), "Calm" under 0,5 m/s.
+  SMHI:s egen temperatur och dras av från den visade, justerade. Är daggpunkten enligt
+  underlaget högre än temperaturen visas ingen daggpunkt. I diagrammet ritas en daggpunkt över
+  temperaturkurvan inte, och linjen bryts där (`dewNotAboveTemp`) – kurvorna korsar aldrig
+  varandra.
+- Vind: pil + m/s med byarna inom parentes, "6 (9) m/s" (byarna nedtonade, mindre på mobil),
+  och undertexten varifrån i hela tiotal grader, "From 240°"; "Calm" under 0,5 m/s, "Variable"
+  vid VRB.
 - Clouds i tre korta rader (`.cell-clouds`) inom samma höjd som övriga rutors värde och
   undertext, så att raden aldrig växer; ingen rad upprepar en annan i ord:
   - Rad 1: symbol (som i diagrammet) och kod – största kategorin, t.ex. "BKN". Kod 22 px och
@@ -420,7 +428,7 @@ Diagrammet är fem grupper på samma tidsaxel (`src/components/Timeline.tsx`), u
   radhöjd (18 px, `RUBRIC_H`) och är genomskinliga. Varje rubrik visas i den längsta variant som
   slutar före NU-linjen i standardvyn, uppmätt i rubrikens egen typografi (`RUBRIC_TEXT`:
   "Clouds & precipitation" → "Clouds & precip." → "Clouds/precip." → "Clouds"). Värden och
-  radnamn i 12 px, förklaringar i 11 px. Lika mycket luft (`GAP` 6 px) på var sida om en tunn
+  radnamn i 12 px. Lika mycket luft (`GAP` 6 px) på var sida om en tunn
   avgränsare (`--rule`) mellan grupperna.
 - **Kantdöljning** (`placeMarkers`): symboler, vindpilar, etiketter och datum som vänster-
   kolumnen eller vyns högerkant skulle klippa döljs i stället för att visas halva – elementen

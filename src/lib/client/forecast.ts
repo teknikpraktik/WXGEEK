@@ -16,7 +16,8 @@ import { fmtTime } from "../format";
 // • TAF (flygplatsens prognos) används för vind, sikt, moln och väder där den
 //   anger dem och bara under sin giltighetstid.
 // • SMHI (punktprognos för platsens koordinater) används för temperatur och
-//   nederbördsmängd, för variabler TAF saknar och efter TAF:s giltighetstid.
+//   nederbördsmängd, för variabler TAF saknar och efter TAF:s giltighetstid. Under TAF:ens
+//   giltighetstid styr TAF om det blir nederbörd (`tafPrecipAt`); SMHI ger bara mängden.
 // • FM gäller från sin exakta tid. BECMG ändrar bara de element gruppen anger och
 //   räknas mitt i sitt intervall – före mitten gäller tidigare läge.
 // • PROB30/PROB40 (även PROB TEMPO) tillämpas inte, utom när gruppen börjar inom 3 h från
@@ -419,6 +420,19 @@ const smhiSource = (f: NonNullable<WeatherBundle["forecast"]>, p: ForecastPoint)
 const PRECIP_KINDS = new Set(["regn", "duggregn", "skurar", "underkylt", "snö", "snöblandat", "hagel", "åska"]);
 const hasPrecip = (ph: Phenomenon[]) => ph.some((p) => PRECIP_KINDS.has(p.kind));
 
+/**
+ * TAF styr nederbörden under sin giltighetstid – METAR och TAF före SMHI:s modell. "yes" när
+ * TAF-läget vid t (med tillämpade PROB-grupper) har nederbörd, "possible" när bara en TEMPO- eller
+ * PROB-grupp som inte tillämpas har det, "no" annars. Utanför giltighetstiden (eller utan TAF)
+ * undefined – då gäller SMHI.
+ */
+export function tafPrecipAt(taf: Taf | null, t: number, applied: TafPeriod[] = []): "yes" | "possible" | "no" | undefined {
+  const main = taf ? tafStateAt(taf, t, applied) : null;
+  if (!main) return undefined;
+  if (!main.state.nsw && hasPrecip(main.state.phenomena ?? [])) return "yes";
+  return tafSupplementsAt(taf, t, applied).some((g) => hasPrecip(g.phenomena ?? [])) ? "possible" : "no";
+}
+
 // ---------------------------------------------------------------------------
 // Sammanslagning
 // ---------------------------------------------------------------------------
@@ -525,15 +539,18 @@ export function mergedForecastAt(
     };
   }
 
-  // Motsägelser mellan källorna förklaras i stället för att döljas.
-  if (out.weather?.source.kind === "TAF" && out.precipitation) {
-    const tafRain = hasPrecip(out.weather.value);
-    const smhiRain = out.precipitation.value.mm >= 0.1;
-    if (!tafRain && smhiRain)
-      out.note = `TAF gives no precipitation at ${taf!.stationId}; SMHI's model gives precipitation for the location.`;
-    else if (tafRain && !smhiRain)
-      out.note = `TAF gives precipitation at ${taf!.stationId}; SMHI's model gives no amount for the location.`;
+  // Under TAF:ens giltighetstid styr TAF (i timmens mitt): utan nederbörd i TAF ingen nederbörd,
+  // med den bara i TEMPO/PROB bara den möjliga mängden. Efter TAF:en gäller SMHI.
+  if (out.precipitation) {
+    const v = out.precipitation.value;
+    const gov = tafPrecipAt(taf, (v.from + v.to) / 2, applied);
+    if (gov === "no") delete out.precipitation;
+    else if (gov === "possible") out.precipitation = { ...out.precipitation, value: { ...v, mm: 0 } };
   }
+
+  // TAF med nederbörd men utan mängd hos SMHI förklaras i stället för att döljas.
+  if (out.weather?.source.kind === "TAF" && hasPrecip(out.weather.value) && !(out.precipitation && out.precipitation.value.mm >= 0.1))
+    out.note = `TAF gives precipitation at ${taf!.stationId}; SMHI's model gives no amount for the location.`;
   return out;
 }
 

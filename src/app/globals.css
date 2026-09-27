@@ -796,42 +796,6 @@ main {
 .tl-yaxis .tl-rowlabel.two {
   line-height: 1.15;
 }
-.tl-legend {
-  position: absolute;
-  right: 16px;
-  z-index: 2;
-  pointer-events: none;
-  padding-top: 3px;
-  white-space: nowrap;
-  font-family: var(--font-ui);
-  font-size: 11px;
-  line-height: 1;
-  color: var(--muted);
-}
-.tl-legend .sep {
-  margin: 0 5px;
-}
-.tl-legend .lg {
-  display: inline-block;
-  width: 12px;
-  height: 2px;
-  margin: 0 3px 0 8px;
-  vertical-align: 3px;
-}
-.tl-legend .lg:first-child {
-  margin-left: 0;
-}
-/* Förklaringens linjer i båda tonerna: tjock för temperatur, tunn och ljusare för daggpunkt */
-.tl-legend .lg.temp {
-  width: 14px;
-  height: 3px;
-  vertical-align: 2.5px;
-  background: linear-gradient(to right, var(--temp-pos) 50%, var(--temp-neg) 50%);
-}
-.tl-legend .lg.dew {
-  width: 14px;
-  background: linear-gradient(to right, var(--dew-pos) 50%, var(--dew-neg) 50%);
-}
 /* Tunna avgränsare mellan grupperna */
 .tl-panelsep {
   stroke: var(--rule);
@@ -1812,6 +1776,11 @@ main {
   color: var(--ink-2);
   margin-left: -2px;
 }
+/* Byarna inom parentes efter medelvinden, nedtonade som i diagrammet: "6 (9) m/s" */
+.cell .val b.val-gust {
+  color: var(--muted);
+  margin-left: 2px;
+}
 .cell .val b.t-pos { color: var(--temp-pos-text); }
 .cell .val b.t-neg { color: var(--temp-neg-text); }
 .cell .val b.val-dew.t-pos { color: var(--dew-pos-text); }
@@ -1831,7 +1800,12 @@ main {
     grid-template-columns: 1.25fr 1fr 0.75fr 1.35fr;
   }
   .readout-grid.has-precip {
-    grid-template-columns: 1.25fr 1.05fr 0.8fr 1.4fr 1fr;
+    grid-template-columns: 1.2fr 1.2fr 0.75fr 1.35fr 0.95fr;
+  }
+  /* Byarna något mindre, så att "5 (10) m/s" ryms i den smala vindrutan */
+  .cell .val b.val-gust {
+    font-size: calc(var(--val-size) * 0.78);
+    margin-left: 0;
   }
   .cell dt .dt-long {
     display: none;
@@ -1899,6 +1873,12 @@ main {
   }
   .readout-grid.has-precip .cloud-line .w-short {
     display: inline;
+  }
+}
+/* Allra smalast (320 px) med nederbördsruta: några pixlar till vinden från sikt och nederbörd */
+@media (max-width: 360px) {
+  .readout-grid.has-precip {
+    grid-template-columns: 1.18fr 1.3fr 0.7fr 1.26fr 0.98fr;
   }
 }
 /* Mätelement för rubrikernas bredd – osynligt, samma typografi som rubrikerna */

@@ -16,6 +16,7 @@ import {
   appliedProbs,
   mergedForecastAt,
   precipRange,
+  tafPrecipAt,
   probDecisions,
   smhiPointAt,
   tafEndWithin,
@@ -66,6 +67,53 @@ export function segments(points: Pt[], maxGap: number): Pt[][] {
     cur.push(p);
   }
   if (cur.length) out.push(cur);
+  return out;
+}
+
+/** Kurvans värde vid t – linjärt mellan punkterna i den sammanhängande del som täcker t, annars undefined. */
+function curveAt(segs: Pt[][], t: number): number | undefined {
+  for (const s of segs) {
+    if (!s.length || t < s[0].t || t > s[s.length - 1].t) continue;
+    for (let i = 1; i < s.length; i++) {
+      const a = s[i - 1];
+      const b = s[i];
+      if (t <= b.t) return b.t === a.t ? b.v : a.v + ((b.v - a.v) * (t - a.t)) / (b.t - a.t);
+    }
+    return s[0].v;
+  }
+  return undefined;
+}
+
+/**
+ * Daggpunkten kan aldrig vara högre än temperaturen. En daggpunkt som enligt underlaget ligger över
+ * temperaturkurvan vid samma tid ritas inte, och linjen bryts där – den dras inte över punkten.
+ * Linjen bryts också mellan två daggpunkter där temperaturkurvan har en punkt under linjen, så att
+ * kurvorna aldrig korsar varandra (båda är raka mellan sina punkter).
+ */
+function dewNotAboveTemp(dew: Pt[][], temp: Pt[][]): Pt[][] {
+  const tempPts = temp.flat();
+  const out: Pt[][] = [];
+  for (const seg of dew) {
+    let run: Pt[] = [];
+    const flush = () => {
+      if (run.length) out.push(run);
+      run = [];
+    };
+    for (const d of seg) {
+      const tv = curveAt(temp, d.t);
+      if (tv !== undefined && d.v > tv + 1e-9) {
+        flush();
+        continue;
+      }
+      const prev = run.at(-1);
+      const crosses =
+        prev !== undefined &&
+        tempPts.some((q) => q.t > prev.t && q.t < d.t && prev.v + ((d.v - prev.v) * (q.t - prev.t)) / (d.t - prev.t) > q.v + 1e-9);
+      if (crosses) flush();
+      run.push(d);
+    }
+    flush();
+  }
   return out;
 }
 
@@ -500,9 +548,17 @@ export function buildChart(bundle: WeatherBundle, now: number, prevTempDomain?: 
     }),
   ];
 
+  const temp = { observed: segments(tObs, OBS_GAP), forecast: segments(tFc, FCST_GAP) };
+  // Daggpunkten aldrig över temperaturen: punkter över temperaturkurvan ritas inte (dewNotAboveTemp).
+  const tempAll = [...temp.observed, ...temp.forecast];
+  const dew = {
+    observed: dewNotAboveTemp(segments(dObs, OBS_GAP), tempAll),
+    forecast: dewNotAboveTemp(segments(dFc, FCST_GAP), tempAll),
+  };
+
   const inWindow = (p: Pt) => p.t >= now - PAST_HOURS * HOUR;
   const tDomain = tempScale(
-    [...tObs.filter(inWindow), ...tFc, ...dObs.filter(inWindow), ...dFc].map((p) => p.v),
+    [...tObs.filter(inWindow), ...tFc, ...dew.observed.flat().filter(inWindow), ...dew.forecast.flat()].map((p) => p.v),
     prevTempDomain,
   );
 
@@ -659,8 +715,13 @@ export function buildChart(bundle: WeatherBundle, now: number, prevTempDomain?: 
     if (t <= now || t0 < measuredUntil || t - t0 > HOUR) continue;
     const range = precipRange(p);
     if (!range) continue;
+    // Under TAF:ens giltighetstid styr TAF, som i avläsningen (tafPrecipAt): ingen nederbörd i
+    // TAF – ingen stapel; bara i TEMPO/PROB – bara den möjliga mängden.
+    const gov = tafPrecipAt(bundle.taf, (t0 + t) / 2, applied);
+    if (gov === "no") continue;
     const span = { t0, t1: t };
-    precipHours.push({ ...span, ...range, kind: kindOver(span, precipForecast), forecast: true });
+    const shown = gov === "possible" ? { likely: 0, possible: range.possible } : range;
+    precipHours.push({ ...span, ...shown, kind: kindOver(span, precipForecast), forecast: true });
   }
 
   // Vind: en pil per timme
@@ -728,8 +789,6 @@ export function buildChart(bundle: WeatherBundle, now: number, prevTempDomain?: 
     if (ts_) thunder.push({ ...span, forecast: true, label: ts_.label });
   }
 
-  const temp = { observed: segments(tObs, OBS_GAP), forecast: segments(tFc, FCST_GAP) };
-  const dew = { observed: segments(dObs, OBS_GAP), forecast: segments(dFc, FCST_GAP) };
   return {
     temp: { ...temp, domain: tDomain, ticks: tempTicks(tDomain) },
     cloudsObserved,
@@ -1104,13 +1163,13 @@ export function matchedSpread(snap: Pick<Snapshot, "temperature" | "dewPoint">):
 
 /**
  * Observerad daggpunkt. Helst från samma station och tid som temperaturen; annars närmaste
- * METAR. Aldrig över visad temperatur (olika stationer kan annars ge negativ spread).
+ * METAR. Är den högre än den visade temperaturen visas ingen daggpunkt – den kan aldrig vara det.
  */
 function obsDewPoint(bundle: WeatherBundle, t: number, mode: Snapshot["mode"], temp: Reading<number>): Reading<number> {
   if (temp) {
     const s = bundle.stations.find((x) => x.station.stationId === temp.origin.stationId);
     const o = s?.observations.find((x) => ts(x) === temp.origin.timestamp && x.dewPointC !== undefined);
-    if (o) return { value: Math.min(o.dewPointC!, temp.value), origin: temp.origin };
+    if (o) return o.dewPointC! > temp.value ? null : { value: o.dewPointC!, origin: temp.origin };
   }
   const s = bundle.stations.find((x) => x.station.source === "METAR");
   if (!s) return null;
@@ -1127,8 +1186,9 @@ function obsDewPoint(bundle: WeatherBundle, t: number, mode: Snapshot["mode"], t
   }
   const maxAge = mode === "now" ? NOW_MAX_AGE.METAR : TOL.METAR;
   if (!best || bestD > maxAge) return null;
+  if (temp && best.dewPointC! > temp.value) return null;
   return {
-    value: temp ? Math.min(best.dewPointC!, temp.value) : best.dewPointC!,
+    value: best.dewPointC!,
     origin: {
       kind: "METAR",
       stationId: s.station.stationId,
@@ -1151,8 +1211,10 @@ function forecastDewPoint(
   if (!p || p.temperatureC === undefined || p.relativeHumidity === undefined) return null;
   const spread = spreadOf(p.temperatureC - dewPointFromRh(p.temperatureC, p.relativeHumidity));
   const base = shownT ?? p.temperatureC;
+  const value = Math.round((base - spread) * 10) / 10;
+  if (value > base) return null; // aldrig över temperaturen
   return {
-    value: Math.round((base - spread) * 10) / 10,
+    value,
     origin: { kind: "SMHI-PROGNOS", timestamp: ts(p), validFrom: p.intervalStart ? Date.parse(p.intervalStart) : undefined },
   };
 }
