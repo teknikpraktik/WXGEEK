@@ -4,7 +4,6 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import type { Place, WeatherBundle } from "@/lib/types";
 import { buildChart, HOUR, snapshotAt } from "@/lib/client/timeline";
 import { aviationAlerts } from "@/lib/client/alerts";
-import { FOG_NOTE } from "@/lib/client/fogBand";
 import { Timeline } from "./Timeline";
 import { Readout } from "./Readout";
 import { PlacePicker } from "./PlacePicker";
@@ -323,13 +322,6 @@ export function WxgeekApp() {
                     onCursor={onCursor}
                     recenterSignal={recenter}
                   />
-                  {/* Förklaringen följer dimrisken när den finns i fönstret */}
-                  {chart.fogRisk.length > 0 && (
-                    <p className="tl-note">
-                      <i className="lg fogrisk" aria-hidden />
-                      {FOG_NOTE}
-                    </p>
-                  )}
                 </section>
               </Readout>
 

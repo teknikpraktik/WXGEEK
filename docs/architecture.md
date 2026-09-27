@@ -199,9 +199,10 @@ WxgeekApp              – plats, datahämtning, auto-uppdatering (5 min när fl
   touch, musdrag på desktop). Klick flyttar inte grafen. Knappen **Now** återgår till NU och
   sitter längst till höger i den fasta tidsaxeln – inte över markören, där den skulle se ut
   att höra till vald tid. Tangentbord: pilar (±1 h, Shift ±6 h) och `N`.
-- **Vald tid** och **NU** har olika markörer som fungerar utan färgseende: NU är en tunn
-  heldragen linje i mörk blågrå genom alla fem paneler med en liten pill "NOW 17:12" som en
-  flagga i tidsaxelns egen pillrad; vald tid är en streckad linje i dämpad blå med en fylld
+- **Vald tid** och **NU** har olika markörer som fungerar utan färgseende: NU är en tunn, tätt
+  streckad linje (1,5 px, "3 3") i nedtonad blågrå genom alla fem paneler med en liten pill
+  "NOW 17:12" som en flagga i tidsaxelns egen pillrad; vald tid är en glesare streckad linje
+  (2 px) i dämpad blå med en fylld
   etikett "18:00" (vit text) i samma rad. Timtalen har en egen rad under och döljs aldrig av
   pillerna; timtalet närmast NU flyttas några pixlar åt sidan av linjen.
   Egen färg för vald tid – med samma blågrå som NU och Now-knappen såg Now ut att höra till
@@ -237,7 +238,7 @@ WxgeekApp              – plats, datahämtning, auto-uppdatering (5 min när fl
   sida innan den utelämnas, och ingen korsar NU-linjen (`avoid`) – maxhöjden flyttas då åt den
   sida som syns i standardvyn. Händelser utanför vyn står vid närmaste kant med pil
   ("← Sunrise 06:59", "Sunrise 07:01 →"), liksom händelser nära kanten vars etikett klipps.
-  Förklaring: "Twilight: civil / nautical / astronomical". Färger som variabler (`--sun-*`).
+  Ingen förklaring av skymningszonerna. Färger som variabler (`--sun-*`).
 - **Solen** beräknas med NOAA:s solkalkylator (Jean Meeus), som redan fanns i projektet i stället
   för ett nytt beroende (SunCalc) – soluppgång och solnedgång inom någon minut upp till 72° latitud. Den förenklade varianten (Spencers serier) felade 3–5 min
   kring dagjämningarna.
@@ -279,18 +280,17 @@ WxgeekApp              – plats, datahämtning, auto-uppdatering (5 min när fl
     möjlig mängd (ljus, max av medel och max). SMHI:s min används inte.
   - Dimma/dis: dimsymbol (tre streck) resp. dis (två streck) ersätter molnsymbolen i symbolraden. Åska markeras med ϟ.
 - Förklaringar högerställda i varje grupps rubrikrad – långt från NU-linjen och markören:
-  molnbasens mängder ("Cloud base: FEW SCT BKN OVC VV"), Temp / Dew point / Fog
-  risk, "arrow = direction of flow" och skymningszonerna. Kortare varianter på smala skärmar,
-  så att de aldrig når NU-linjen. Under diagrammet, när dimrisk finns i fönstret: "Small
-  temperature–dew point spread indicates possible fog; it is not a fog forecast."
+  Temp / Dew point / Fog risk och "arrow = direction of flow". Kortare varianter på smala
+  skärmar, så att de aldrig når NU-linjen. Ingen förklaring under diagrammet – dimriskens
+  förklaring finns som verktygstips.
 - **Tidsaxel överst** (första gruppen, `AXIS_H` 40 px): en tunn pillrad med NOW-pillen,
   "← OBSERVED" och "FORECAST →" på var sida om den ("← OBS." när det är trångt), vald tid och
   dygnsnamnet vid dygnsbytet; under den timtal för varje timme (varannan under 520 px). En
   mycket svag ton (`--obs-tint`) täcker observationsdelen i alla grupper. **Gridlinjer** för
   varje hel timme genom alla grupper (`--vgrid`, något tydligare `--vgrid-major` vid 00, 06,
-  12 och 18); **dygnsbytet** som en linje genom alla grupper (`--dayline`), tydligt kraftigare
-  än timlinjerna och svagare än NU. Vänsteraxeln har solid bakgrund med en kort toning; det som
-  den eller vyns högerkant skulle klippa döljs i stället.
+  12 och 18); **dygnsbytet** som en linje bara i tidsaxeln (`--dayline`), tydligt kraftigare
+  än timlinjerna – i panelerna står bara timlinjerna. Vänsteraxeln har solid bakgrund med en
+  kort toning; det som den eller vyns högerkant skulle klippa döljs i stället.
 - **Now-knappen**: längst till höger i den fasta tidsaxeln, i timtalens rad, och bara när
   NU-linjen är utanför vyn eller vald tid ligger mer än en timme från NU (`NOW_BTN_AWAY_PX`).
   "Now →" när NU ligger till höger, "← Now" när det ligger till vänster. Samma utseende som
@@ -411,7 +411,7 @@ Diagrammet är fem grupper på samma tidsaxel (`src/components/Timeline.tsx`), u
 4. **Vind** ("Wind m/s (gusts)", 44 px).
 5. **Ljus** ("Light", 92 px).
 
-- **Gemensamt**: samma `x(t)` för alla grupper; timgridlinjerna, dygnsbytet och NU-linjen går
+- **Gemensamt**: samma `x(t)` för alla grupper; timgridlinjerna och NU-linjen går
   obrutna genom alla, och ingen text korsas av NU-linjen – etiketter flyttas åt sidan eller
   utelämnas. Rubrikerna (12 px) står i den fasta vänsterkolumnen med samma plats, typografi och
   radhöjd (18 px, `RUBRIC_H`) och är genomskinliga. Varje rubrik visas i den längsta variant som
@@ -434,7 +434,7 @@ Diagrammet är fem grupper på samma tidsaxel (`src/components/Timeline.tsx`), u
   observationen. Ytan ritas där spridningen är under 1 °C (`FOG_SPREAD`), med exakta gräns-
   punkter, minst 6 px hög så att den syns där kurvorna sammanfaller, och en diskret etikett
   "Fog risk" under ytan vid sammanhängande perioder som är breda nog. Samma villkor i
-  avläsningen (`matchedSpread`). Förklaringen (`FOG_NOTE`) står under diagrammet.
+  avläsningen (`matchedSpread`). Förklaringen (`FOG_NOTE`) finns som verktygstips.
 - **Verifierat** (Karlstad 26 sep 2026): uppgången 06:59:18 och nedgången 18:54:04 som
   markörer på kurvan vid −0,833° (1,5 px under horisontlinjen), gryningen 06:18 och skymningen
   19:34 exakt på −6°-linjen, "Sun alt. max 29°"; kurvan korsar 0° 07:07 och 18:47. Inga timtal
@@ -461,15 +461,14 @@ Diagrammet är fem grupper på samma tidsaxel (`src/components/Timeline.tsx`), u
   touch scrollar sidan (`touch-action: pan-y`).
 - **Molnbas** ("Cloud base m", `CB_BAND_H` 13 + `CB_SCALE_H` 60 px) direkt under symbolerna:
   höjd över mark, logaritmisk 0–3 000 m (`cloudBaseFrac`: ln(1 + h/100)/ln(31); linjer vid 100,
-  300, 1 000 och 3 000 m). Ett lager = en stapel med underkanten vid basen, tonad efter mängden
-  (FEW ljusast … OVC fylld); VV skrafferad från marken upp till VV-höjden med etiketten "VV".
-  Källor (`cloudBaseHours`): observerat varje METAR-rapport med alla lager (vald molnbasstation,
-  annars närmaste METAR), TAF-perioden ur TAF-tolkningen (CAVOK/NSC = inga moln i panelen),
-  därefter SMHI:s lägsta bas med mängden i basens skikt (`modelBaseOktas`; okänd mängd = bara
-  streckad kontur). Stilen skiljer källorna diskret (METAR heldraget, TAF något ljusare, SMHI
-  ljusare med streckad kant), med små etiketter där de börjar ("METAR" slutar vid NU, "TAF",
-  "SMHI model") och en streckad lodrät linje vid byte inom prognosen. Ingen uppgift = tomt,
-  aldrig noll; baser över 3 000 m ritas inte (symbolen visar ändå molnen).
+  300, 1 000 och 3 000 m). Basen ritas som en linje (`--cloud`, 1,75 px, inga punktmarkörer)
+  – en serie utan markering av källbyten (`cloudLine` i Timeline.tsx, ur `cloudBaseHours`):
+  en punkt per METAR-rapport för passerad tid (vald molnbasstation, annars närmaste METAR),
+  sedan per prognossteg ur TAF-tolkningen, annars SMHI:s lägsta bas. Höjden är lägsta basen
+  under 3 000 m, eller vertikal sikt när himlen är skymd. Linjen bryts där det saknas moln under
+  3 000 m (CAVOK, NSC, klart), där data saknas och där punkterna ligger mer än 90 min isär –
+  aldrig ned till noll eller över luckan; en ensam punkt blir ett kort streck. Verktygstips per
+  punkt: tid och höjd ("07:20 · 240 m", "08:00 · VV 60 m").
 - **PROB-markeringar** (`probMarks`): varje PROB-grupp som inte är slut, över sin period överst
   i molnbaspanelen – streckad klammer och dämpad etikett ("PROB40 FG", annars sikt eller moln)
   när gruppen inte tillämpas, heldragen när den gör det; verktygstipset säger varför.

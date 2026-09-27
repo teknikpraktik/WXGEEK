@@ -338,11 +338,6 @@ test("molnbas: varje METAR med alla lager observerat, SMHI:s bas med mängden i 
   assert.deepEqual(at(10)!.layers, [{ baseM: 800, cover: "OVC", oktas: 8 }]);
   assert.equal(at(10)!.source, "SMHI");
   assert.equal(at(9)!.t0, T(25, 9) * 1000, "prognosdelen börjar vid NU");
-  // Källorna i följd, för etiketterna vid övergångarna
-  assert.deepEqual(
-    chart.cloudSources.map((s) => s.source),
-    ["METAR", "SMHI"],
-  );
 });
 
 test("SMHI:s molnbas: 9999 (ingen bas) ger tom modelldel, mängden tas ur basens skikt – aldrig totalen", () => {

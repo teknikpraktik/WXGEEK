@@ -7,12 +7,11 @@ import {
   PAST_HOURS,
   cloudBaseFrac,
   type ChartData,
-  type CloudBaseHour,
   type Precip,
   type PrecipHour,
   type Pt,
 } from "@/lib/client/timeline";
-import { fmtDateTime, localHour, fmtTemp, fmtTime } from "@/lib/format";
+import { fmtCloudBase, fmtDateTime, localHour, fmtTemp, fmtTime } from "@/lib/format";
 import { placeTempLabel } from "@/lib/client/tempLabel";
 import { FOG_NOTE } from "@/lib/client/fogBand";
 import {
@@ -54,12 +53,18 @@ const RUBRIC_H = 18;
 const SKY_H = 32;
 const SKY_CY = 13;
 /**
- * Molnbaspanelen: ett band överst för källetiketterna och PROB-markeringarna, därunder höjdskalan
- * 0–3 000 m (logaritmisk från 100 m). Lagren ritas som staplar med underkanten vid molnbasen.
+ * Molnbaspanelen: ett band överst för PROB-markeringarna, därunder höjdskalan 0–3 000 m
+ * (logaritmisk från 100 m) med molnbasen som en linje.
  */
 const CB_BAND_H = 13;
 const CB_SCALE_H = 60;
-const CB_BAR_H = 5;
+/** Molnbaslinjen binder inte ihop punkter som ligger längre isär än så här – luckan syns. */
+const CB_MAX_GAP = 90 * 60 * 1000;
+/** En ensam punkt ritas som ett kort vågrätt streck (px), inte som en punktmarkör. */
+const CB_LONE_W = 12;
+/** NU-linjens streckmönster ("3 3") – axelns del slutar på en hel period, så att mönstret
+ *  fortsätter obrutet ned genom panelerna. */
+const NOW_DASH = 6;
 /** Nederbörd per timme; skalan minst 0–2 mm/h. */
 const PRECIP_H = 40;
 /** Temperatur och daggpunkt. */
@@ -103,8 +108,6 @@ const RUBRIC_TEXT = {
 const RUBRIC_CLEAR = 6;
 /** Solhändelser vars egen etikett inte syns får en etikett vid kanten när de ligger så här nära den (px). */
 const EDGE_NEAR = 100;
-/** Molnbaspanelens källor som etiketter */
-const SOURCE_TEXT: Record<CloudBaseHour["source"], string> = { METAR: "METAR", TAF: "TAF", SMHI: "SMHI model" };
 
 type Props = {
   now: number;
@@ -419,45 +422,35 @@ export const Timeline = memo(function Timeline({ now, until, data, onCursor, rec
         gustWord.current.style.display = any && fit.gusts ? "" : "none";
       }
 
-      // Molnbaspanelens etiketter följer sin del inom den synliga ytan: PROB-grupperna först vid
-      // periodens början, sedan källorna vid övergångarna (METAR vid NU, prognosens källor där de
-      // börjar). Ingen etikett korsar NU-linjen eller en annan; det som inte ryms döljs.
-      // Radnamnet "Cloud base" i vänsterkolumnen sticker ut över ritytans vänsterkant.
+      // PROB-gruppernas etiketter följer sin period inom den synliga ytan, från periodens början.
+      // Ingen etikett korsar NU-linjen eller en annan; det som inte ryms döljs. Radnamnet
+      // "Cloud base" i vänsterkolumnen sticker ut över ritytans vänsterkant.
       const cbw = cbLabel.current?.getBoundingClientRect().width ?? 0;
       const bandBoxes: Span[] = [[visL - AXIS_W, visL + 16 + cbw - AXIS_W + 2]];
-      const placeSpan = (t: SVGTextElement) => {
+      svg.querySelectorAll<SVGTextElement>(".tl-spanlabel.prob").forEach((t) => {
         const a = Number(t.dataset.a);
         const b = Number(t.dataset.b);
         const w = t.getComputedTextLength();
-        // Etiketten börjar (METAR: slutar) inom sin del, men får sticka ut över dess andra ände –
-        // en kort återstående PROB-period ska ändå ha sin etikett.
-        const atEnd = t.dataset.side === "end";
-        const lo = atEnd ? visL + 4 : Math.max(a, visL) + 4;
-        const hi = atEnd ? Math.min(b, visR) - 4 : visR - 4;
-        const inside = (x0: number) => (atEnd ? x0 + w > a + 4 : x0 < b - 4);
-        let x0 = atEnd ? hi - w : lo;
+        // Etiketten börjar inom sin period men får sticka ut över dess slut – en kort återstående
+        // period ska ändå ha sin etikett.
+        const lo = Math.max(a, visL) + 4;
+        let x0 = lo;
         for (let k = 0; k < 4; k++) {
           const box: Span = [x0 - 3, x0 + w + 3];
           const hit = bandBoxes.find((s) => cross(box, s)) ?? (nowX > box[0] && nowX < box[1] ? ([nowX, nowX] as Span) : undefined);
           if (!hit) break;
-          x0 = atEnd ? hit[0] - 4 - w : hit[1] + 4;
+          x0 = hit[1] + 4;
         }
         const ok =
-          inside(x0) &&
-          x0 >= lo - 0.5 &&
-          x0 + w <= hi + 0.5 &&
+          x0 < b - 4 &&
+          x0 + w <= visR - 4 + 0.5 &&
           !bandBoxes.some((s) => cross([x0 - 3, x0 + w + 3], s)) &&
           !(nowX > x0 - 3 && nowX < x0 + w + 3);
         t.style.visibility = ok ? "" : "hidden";
         if (!ok) return;
         t.setAttribute("x", String(x0));
         bandBoxes.push([x0 - 3, x0 + w + 3]);
-      };
-      const probLabels = svg.querySelectorAll<SVGTextElement>(".tl-spanlabel.prob");
-      probLabels.forEach(placeSpan);
-      // Klammernas ändstreck står i samma band
-      probLabels.forEach((t) => bandBoxes.push([Number(t.dataset.a) - 2, Number(t.dataset.a) + 2], [Number(t.dataset.b) - 2, Number(t.dataset.b) + 2]));
-      svg.querySelectorAll<SVGTextElement>(".tl-spanlabel.src").forEach(placeSpan);
+      });
 
       // Solhändelser vid kanten: utanför vyn med pil ("← Sunrise 06:59"), och händelser nära
       // kanten vars egen etikett klipps – på en rad där etiketten inte krockar med någon annan.
@@ -682,22 +675,35 @@ export const Timeline = memo(function Timeline({ now, until, data, onCursor, rec
     [data.sky, x, W],
   );
 
-  // Molnbasen: staplar per timme och lager, VV som skuggning från marken och etiketten "VV" i
-  // början av varje sammanhängande VV-period (när den ryms).
-  const cloudBase = useMemo(() => {
-    const vvLabels: Array<{ x: number; y: number }> = [];
-    let run: CloudBaseHour | undefined;
+  // Molnbasen som en linje – en serie utan markering av källbyten: en punkt per METAR-rapport för
+  // passerad tid, därefter per prognossteg (TAF, annars SMHI). Höjden är lägsta molnbasen under
+  // panelens topp, eller den vertikala sikten när himlen är skymd. Linjen bryts där det saknas moln
+  // under 3 000 m (CAVOK, NSC, klart) och där data saknas – aldrig ned till noll eller över luckan.
+  // En ensam punkt blir ett kort streck. Verktygstips per punkt: tid och höjd.
+  const cloudLine = useMemo(() => {
+    type P = { t: number; t0: number; t1: number; m: number; vv: boolean };
+    const runs: P[][] = [];
+    let run: P[] = [];
+    let lastT = -Infinity;
     for (const h of data.cloudBase) {
-      if (h.vv === undefined) {
-        run = undefined;
-        continue;
+      if (h.forecast && h.t < now) continue; // passerad tid: observerat
+      const base = h.layers[0]?.baseM;
+      const m = h.vv !== undefined && (base === undefined || h.vv <= base) ? h.vv : base;
+      if (m === undefined || h.t - lastT > CB_MAX_GAP) {
+        if (run.length) runs.push(run);
+        run = [];
       }
-      const cont = run && h.t0 - run.t1 < 60_000;
-      if (!cont && x(h.t1) - x(h.t0) >= 14) vvLabels.push({ x: x(h.t0) + 3, y: yCb(h.vv) - 3 });
-      run = h;
+      lastT = h.t;
+      if (m !== undefined) run.push({ t: h.t, t0: h.t0, t1: h.t1, m, vv: m === h.vv });
     }
-    return { vvLabels };
-  }, [data.cloudBase, x, yCb]);
+    if (run.length) runs.push(run);
+    const paths = runs.map((r) =>
+      r.length > 1
+        ? r.map((p, i) => `${i ? "L" : "M"}${x(p.t).toFixed(1)},${yCb(p.m).toFixed(1)}`).join("")
+        : `M${(x(r[0].t) - CB_LONE_W / 2).toFixed(1)},${yCb(r[0].m).toFixed(1)}h${CB_LONE_W}`,
+    );
+    return { paths, points: runs.flat() };
+  }, [data.cloudBase, now, x, yCb]);
 
   // Nederbördens värden: medianen som siffra, ensemblens maximum som "max 0.4" när medianen är
   // under 0,1 mm. Över stapeln, eller bredvid NU-linjen när den annars skulle korsa texten; en
@@ -760,7 +766,7 @@ export const Timeline = memo(function Timeline({ now, until, data, onCursor, rec
           <div ref={axisTrack} className="tl-axis-track" style={{ width: W + padL + padR }}>
             <svg ref={axisSvg} width={W} height={AXIS_H} style={{ position: "absolute", left: padL, top: 0 }}>
               {tint > 0 && <rect x={0} y={0} width={tint} height={AXIS_H} className="tl-obs-tint" />}
-              {/* Dygnsbyte genom axeln, som i panelerna */}
+              {/* Dygnsbyte – bara i tidsaxeln */}
               {hours
                 .filter((h) => h.h === 0)
                 .map((h) => (
@@ -792,7 +798,7 @@ export const Timeline = memo(function Timeline({ now, until, data, onCursor, rec
               <text ref={fcLabel} x={nowX + 6} y={PILL_BASE} className="tl-side fc" textAnchor="start">
                 FORECAST →
               </text>
-              <line x1={nowX} x2={nowX} y1={1} y2={AXIS_H} className="tl-now" shapeRendering="crispEdges" />
+              <line x1={nowX} x2={nowX} y1={AXIS_H % NOW_DASH} y2={AXIS_H} className="tl-now" shapeRendering="crispEdges" />
             </svg>
             {/* NOW-pillen i pillraden; läget (flagga till höger eller vänster om linjen) sätts i placeMarkers */}
             <span ref={nowPill} className="tl-nowpill" style={{ left: padL + nowX, top: PILL_TOP }}>
@@ -858,19 +864,6 @@ export const Timeline = memo(function Timeline({ now, until, data, onCursor, rec
         <span ref={measure} className="tl-rubric measure" />
       </div>
       {/* Förklaringar, högerställda i gruppernas rubrikrader – långt från NU-linjen */}
-      <div className="tl-legend tl-cblegend" style={{ top: cloudTop }} aria-hidden>
-        {!narrow && "Cloud base: "}
-        <i className="sw cb few" />
-        FEW
-        <i className="sw cb sct" />
-        SCT
-        <i className="sw cb bkn" />
-        BKN
-        <i className="sw cb ovc" />
-        OVC
-        <i className="sw cb vv" />
-        VV
-      </div>
       <div className="tl-legend" style={{ top: tempTop }} aria-hidden>
         <i className="lg temp" />
         Temp
@@ -881,15 +874,6 @@ export const Timeline = memo(function Timeline({ now, until, data, onCursor, rec
       </div>
       <div className="tl-legend" style={{ top: windPanelTop }} aria-hidden>
         arrow = direction of flow
-      </div>
-      <div className="tl-legend" style={{ top: lightTop }} aria-hidden>
-        {!narrow && "Twilight: "}
-        <i className="sw civil" />
-        civil
-        <i className="sw nautical" />
-        nautical
-        <i className="sw astro" />
-        {narrow ? "astro." : "astronomical"}
       </div>
       <div
         ref={scroller}
@@ -918,12 +902,6 @@ export const Timeline = memo(function Timeline({ now, until, data, onCursor, rec
             role="img"
             aria-label="Chart in five panels on one time axis: time; clouds (weather symbols and cloud base) and precipitation per hour; temperature and dew point with fog risk; wind with gusts; and daylight as the sun's altitude. Solid is observed, dashed is forecast."
           >
-            <defs>
-              <pattern id="vv" width="4" height="4" patternUnits="userSpaceOnUse" patternTransform="rotate(-45)">
-                <rect width="4" height="4" className="tl-vv-bg" />
-                <line x1="0" y1="0" x2="0" y2="4" className="tl-vv" />
-              </pattern>
-            </defs>
             {/* Samma koordinater som hela diagrammet – tidsaxeln (0–AXIS_H) ligger i eget lager ovanför */}
             <g transform={`translate(0,${-AXIS_H})`}>
               {/* Mycket svag ton över hela observationsdelen, i alla grupper */}
@@ -955,12 +933,6 @@ export const Timeline = memo(function Timeline({ now, until, data, onCursor, rec
               {separators.map((y) => (
                 <line key={`sep${y}`} x1={0} x2={W} y1={y} y2={y} className="tl-panelsep" shapeRendering="crispEdges" />
               ))}
-              {/* Dygnsbyte: en linje genom alla grupper, kraftigare än timlinjerna och svagare än NU */}
-              {hours
-                .filter((h) => h.h === 0)
-                .map((h) => (
-                  <line key={`dl${h.t}`} x1={x(h.t)} x2={x(h.t)} y1={AXIS_H} y2={H} className="tl-dayline" shapeRendering="crispEdges" />
-                ))}
 
               {/* Molnbasen: höjdlinjer vid 100, 300, 1 000 och 3 000 m och marken */}
               <g className="tl-cloudbase">
@@ -968,35 +940,15 @@ export const Timeline = memo(function Timeline({ now, until, data, onCursor, rec
                   <line key={`cbg${m}`} x1={0} x2={W} y1={yCb(m)} y2={yCb(m)} className="grid" shapeRendering="crispEdges" />
                 ))}
                 <line x1={0} x2={W} y1={cbGround + 0.5} y2={cbGround + 0.5} className="ground" />
-                {/* Övergångar mellan prognosens källor (vid NU står NU-linjen) */}
-                {data.cloudSources.slice(1).map((s, i) =>
-                  data.cloudSources[i].source === "METAR" ? null : (
-                    <line key={`sw${s.t0}`} x1={x(s.t0)} x2={x(s.t0)} y1={cbTop + 2} y2={cbGround} className="switch" />
-                  ),
-                )}
-                {data.cloudBase.map((h) => {
-                  const x0 = x(h.t0) + 1.5;
-                  const w = Math.max(1, x(h.t1) - x(h.t0) - 3);
-                  if (h.vv === undefined && !h.layers.length) return null;
-                  return (
-                    <g key={`cb${h.t}${h.forecast ? "f" : "o"}`} className={`src-${h.source.toLowerCase()}`}>
-                      {h.vv !== undefined && (
-                        <rect x={x0} y={yCb(h.vv)} width={w} height={cbGround - yCb(h.vv)} className="vvshade" />
-                      )}
-                      {h.layers
-                        .slice()
-                        .reverse()
-                        .map((l) => (
-                          <rect key={`${l.baseM}${l.cover}`} x={x0} y={yCb(l.baseM) - CB_BAR_H} width={w} height={CB_BAR_H} rx={1} className={`layer c-${l.cover.toLowerCase()}`} />
-                        ))}
-                      <title>{`${fmtTime(h.t)}: ${h.label}`}</title>
-                    </g>
-                  );
-                })}
-                {cloudBase.vvLabels.map((l) => (
-                  <text key={`vvl${l.x}`} x={l.x} y={l.y} data-l={l.x} data-r={l.x + 12} className="vvlabel">
-                    VV
-                  </text>
+                {/* Molnbasen: en linje, bruten vid luckor */}
+                {cloudLine.paths.map((d, i) => (
+                  <path key={`cbl${i}`} d={d} className="base" />
+                ))}
+                {/* Osynliga ytor per punkt för verktygstipset: tid och höjd */}
+                {cloudLine.points.map((p) => (
+                  <rect key={`cbh${p.t}`} x={x(p.t0)} y={cbScaleTop} width={Math.max(1, x(p.t1) - x(p.t0))} height={CB_SCALE_H} className="hit">
+                    <title>{`${fmtTime(p.t)} · ${p.vv ? "VV " : ""}${fmtCloudBase(p.m)}`}</title>
+                  </rect>
                 ))}
                 {/* PROB-grupper över sin period: streckad klammer när gruppen inte tillämpas, heldragen
                     när senaste METAR stöder den. Etiketten placeras i placeMarkers. */}
@@ -1007,27 +959,13 @@ export const Timeline = memo(function Timeline({ now, until, data, onCursor, rec
                   return (
                     <g key={`prob${p.t0}${p.label}`} className={`prob${p.applied ? " applied" : ""}`}>
                       <path d={`M${a + 0.5},${y0 + 5}V${y0}H${b - 0.5}V${y0 + 5}`} />
-                      <text className="tl-spanlabel prob" data-a={a} data-b={b} data-side="start" x={a + 4} y={cbTop + 11}>
+                      <text className="tl-spanlabel prob" data-a={a} data-b={b} x={a + 4} y={cbTop + 11}>
                         {p.label}
                       </text>
                       <title>{p.title}</title>
                     </g>
                   );
                 })}
-                {/* Källan vid övergångarna – METAR vid NU, prognosens källor där de börjar */}
-                {data.cloudSources.map((s) => (
-                  <text
-                    key={`src${s.t0}`}
-                    className={`tl-spanlabel src src-${s.source.toLowerCase()}`}
-                    data-a={x(s.t0)}
-                    data-b={x(s.t1)}
-                    data-side={s.source === "METAR" ? "end" : "start"}
-                    x={x(s.t0) + 4}
-                    y={cbTop + 11}
-                  >
-                    {SOURCE_TEXT[s.source]}
-                  </text>
-                ))}
               </g>
 
               {/* Diskreta stödlinjer för temperaturen; 0 °C tydligare när den ryms i skalan. Kanterna

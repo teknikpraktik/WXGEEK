@@ -37,9 +37,10 @@ situation **now**, and the **forecast** for the next 24 hours, all on the same a
 - The chart is **five panels on one time axis**, top to bottom: time, clouds and
   precipitation, temperature and dew point, wind, and light. All panels share the same
   x-scale; faint vertical gridlines for every hour – a little stronger at 00, 06, 12 and 18 –
-  the day change and the NOW line run through all of them without a break, and a very faint
-  tone covers the observed part. Each group has a rubric in a fixed left column with the same
-  typography and placement, with its unit where it has one ("TEMPERATURE °C", "WIND m/s
+  and the NOW line (thin, dashed) run through all of them without a break – the day change is
+  marked in the time axis only – and a very faint tone covers the observed part. Each group
+  has a rubric in a fixed left column with the same typography and placement, with its unit
+  where it has one ("TEMPERATURE °C", "WIND m/s
   (gusts)") – the longest wording that ends before the NOW line on the screen – a small legend
   at the right of the rubric row, and the same air on either side of a thin separator. Rubrics
   and values are 12 px. Anything the left column or the edge of the view would cut – a symbol,
@@ -69,15 +70,14 @@ situation **now**, and the **forecast** for the next 24 hours, all on the same a
     dots) – they only signal precipitation, the bars show the amount.
   - **Cloud base** ("Cloud base m") directly under the symbols: height above ground on a
     logarithmic scale from 0 to 3 000 m with lines at 100, 300, 1 000 and 3 000 m, so the low
-    heights get the most room. Each layer is a bar with its underside at the cloud base, toned
-    by the amount – FEW lightest, OVC filled (legend at the rubric). Vertical visibility is
-    hatched from the ground up to its height and labelled "VV". The observed part comes from the
-    METAR (all layers), the TAF period from the TAF interpretation and the rest from SMHI's model
-    (its lowest base, with the amount of the layer the base lies in; outlined when unknown).
-    The sources differ discreetly in style and have small labels where they begin ("METAR",
-    "TAF", "SMHI model"). No data is left blank, never drawn as zero; bases above 3 000 m are
-    not drawn. PROB groups are marked over their period at the top of the panel: a dashed
-    bracket with e.g. "PROB40 FG" when the group is not applied, a solid one when it is.
+    heights get the most room, drawn as one gray line without point markers: the METAR for past
+    time, then the TAF interpretation, then SMHI's model where the TAF gives no clouds – one
+    series, with no marking where the source changes. The height is the lowest cloud base, or
+    the vertical visibility when the sky is obscured. The line breaks where there is no cloud
+    below 3 000 m (CAVOK, NSC, clear) and where data is missing – never drawn down to zero or
+    across a gap; a lone value is a short dash. Hovering shows the time and height. PROB groups
+    are marked over their period at the top of the panel: a dashed bracket with e.g.
+    "PROB40 FG" when the group is not applied, a solid one when it is.
   - **Precipitation**, with "mm/h" in the row label: saturated bars from a zero line on a
     linear scale of at least 0–2 mm/h (larger when needed); dark = measured or SMHI's median,
     light = the SMHI ensemble's largest amount. The value stands above each bar from 0.1 mm/h:
@@ -93,7 +93,7 @@ situation **now**, and the **forecast** for the next 24 hours, all on the same a
   lines where the spread is under 1 °C – computed only where temperature and dew point have
   time-matched values (the same report, or the same forecast step), never across gaps – at
   least a few pixels high so it shows where the lines coincide, and with a discreet "Fog risk"
-  label on longer periods. Under the chart: "Small temperature–dew point spread indicates
+  label on longer periods; its tooltip says "Small temperature–dew point spread indicates
   possible fog; it is not a fog forecast." A dot marks the latest temperature observation at
   its actual time (never moved to now) with the measured value beside it, e.g. "11 °C".
 - **Wind m/s (gusts)**: the arrow shows where the wind blows (the legend says "arrow =
@@ -104,7 +104,7 @@ situation **now**, and the **forecast** for the next 24 hours, all on the same a
 - **Light**: the sun's geometric altitude on a fixed scale all year (no autoscaling – the
   seasons are the point), split in two: 0° to 60° takes 65 % of the height and −18° to 0°
   35 %, so civil (0/−6), nautical (−6/−12) and astronomical (−12/−18) twilight show as three
-  equal tones (legend: "Twilight: civil / nautical / astronomical"). The horizon line is at 0°
+  equal tones. The horizon line is at 0°
   and the curve is not shifted: sunrise and sunset are marked with discreet dots on the curve
   where the sun is at −0.833° (refraction and the sun's radius – just below the line, which
   the curve crosses a few minutes later/earlier), civil dawn and dusk with open dots on the

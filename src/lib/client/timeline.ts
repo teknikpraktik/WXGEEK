@@ -291,8 +291,6 @@ export type ChartData = {
   dew: { observed: Pt[][]; forecast: Pt[][] };
   /** Molnbas per timme: METAR fram till NU, därefter TAF-tolkningen och SMHI:s modell */
   cloudBase: CloudBaseHour[];
-  /** Sammanhängande delar av molnbaspanelen med samma källa – för källetiketterna vid övergångarna */
-  cloudSources: CloudSourceSpan[];
   /** PROB-grupper i prognosdelen: tillämpade och inte tillämpade (markeras över sin period) */
   probMarks: ProbMark[];
   /**
@@ -323,7 +321,6 @@ export type CloudBaseHour = Span & {
   /** Verktygstips, t.ex. "METAR ESOK 07:50: FEW 240 m, BKN 910 m" */
   label: string;
 };
-export type CloudSourceSpan = Span & { source: CloudBaseSource };
 /** En PROB-grupp över sin period (från NU): "PROB40 FG", tillämpad eller inte. */
 export type ProbMark = Span & { applied: boolean; label: string; title: string };
 
@@ -751,10 +748,7 @@ export function buildChart(bundle: WeatherBundle, now: number, prevTempDomain?: 
     })(),
     sun: sunOver(bundle, now),
     dew,
-    ...(() => {
-      const cloudBase = cloudBaseHours(bundle, merged, now);
-      return { cloudBase, cloudSources: sourceSpans(cloudBase) };
-    })(),
+    cloudBase: cloudBaseHours(bundle, merged, now),
     probMarks: decisions.flatMap((d): ProbMark[] => {
       const from = Date.parse(d.period.from);
       const to = Date.parse(d.period.to);
@@ -854,17 +848,6 @@ function cloudBaseHours(bundle: WeatherBundle, merged: MergedForecast[], now: nu
             : "no cloud base given";
       out.push({ t: m.t, t0, t1, source: "SMHI", forecast: true, layers, label: `SMHI model: ${text}` });
     }
-  }
-  return out;
-}
-
-/** Sammanhängande delar med samma källa (luckor upp till en timme räknas inte som byte). */
-function sourceSpans(hours: CloudBaseHour[]): CloudSourceSpan[] {
-  const out: CloudSourceSpan[] = [];
-  for (const h of hours) {
-    const last = out.at(-1);
-    if (last && last.source === h.source && h.t0 - last.t1 <= HOUR) last.t1 = Math.max(last.t1, h.t1);
-    else out.push({ source: h.source, t0: h.t0, t1: h.t1 });
   }
   return out;
 }

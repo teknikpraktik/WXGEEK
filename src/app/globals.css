@@ -624,7 +624,7 @@ main {
   stroke: var(--ink-2);
   stroke-width: 1;
 }
-/* Dygnsbyte: en linje genom alla grupper – tydligt kraftigare än timlinjerna, svagare än NU */
+/* Dygnsbyte: en linje i tidsaxeln (panelerna har bara timlinjerna) – kraftigare än timlinjerna */
 .tl-dayline {
   stroke: var(--dayline);
   stroke-width: 1.25;
@@ -657,11 +657,12 @@ main {
   stroke-width: 3px;
   stroke-linejoin: round;
 }
-/* NU: heldragen linje med etiketten "NOW hh:mm". 2 px med skarpa kanter men nedtonad
-   (--now-line) – samma tyngd som den streckade markören för vald tid. */
+/* NU: tunn streckad linje med etiketten "NOW hh:mm", nedtonad (--now-line) – lättare än dygnsbytet
+   i tidsaxeln och tätare streckad än markören för vald tid, så att de inte förväxlas. */
 .tl-now {
   stroke: var(--now-line);
-  stroke-width: 2;
+  stroke-width: 1.5;
+  stroke-dasharray: 3 3; /* = NOW_DASH i Timeline.tsx */
 }
 /* NOW som liten pill i tidsaxelns egen pillrad, som en flagga vid NU-linjen */
 .tl-nowpill {
@@ -801,39 +802,6 @@ main {
   line-height: 1;
   color: var(--muted);
 }
-/* Små rutor: molnmängdens toner och skymningszonernas färger */
-.tl-legend .sw {
-  display: inline-block;
-  width: 9px;
-  height: 9px;
-  margin: 0 3px;
-  vertical-align: -1px;
-}
-/* Molnbasens mängder som i panelen: kant och ton efter mängden, VV skrafferad */
-.tl-legend .sw.cb {
-  width: 12px;
-  height: 6px;
-  margin: 0 3px 0 7px;
-  vertical-align: 1px;
-  border: 1px solid var(--cloud-cell);
-  border-radius: 1px;
-}
-.tl-legend .sw.cb:first-of-type { margin-left: 3px; }
-.tl-legend .sw.cb.few { background: color-mix(in srgb, var(--cloud-cell) 18%, transparent); }
-.tl-legend .sw.cb.sct { background: color-mix(in srgb, var(--cloud-cell) 45%, transparent); }
-.tl-legend .sw.cb.bkn { background: color-mix(in srgb, var(--cloud-cell) 72%, transparent); }
-.tl-legend .sw.cb.ovc { background: var(--cloud-cell); }
-.tl-legend .sw.cb.vv {
-  height: 8px;
-  vertical-align: 0;
-  border: 0;
-  background:
-    repeating-linear-gradient(135deg, var(--cloud) 0 1.2px, transparent 1.2px 3px),
-    color-mix(in srgb, var(--cloud-cell) 20%, transparent);
-}
-.tl-legend .sw.civil { background: var(--sun-civil); margin-left: 6px; }
-.tl-legend .sw.nautical { background: var(--sun-nautical); margin-left: 6px; }
-.tl-legend .sw.astro { background: var(--sun-astro); margin-left: 6px; }
 .tl-legend .sep {
   margin: 0 5px;
 }
@@ -855,26 +823,13 @@ main {
   background: var(--fog-risk);
 }
 /* Förklaringen till dimrisken under diagrammet */
-.tl-note {
-  margin: 6px 0 0;
-  font-size: 12px;
-  line-height: 1.35;
-  color: var(--muted);
-}
-.tl-note .lg {
-  display: inline-block;
-  width: 12px;
-  height: 8px;
-  margin-right: 6px;
-  background: var(--fog-risk);
-}
 /* Tunna avgränsare mellan grupperna */
 .tl-panelsep {
   stroke: var(--rule);
   stroke-width: 1;
 }
-/* Molnbasen: höjdlinjer vid 100, 300, 1 000 och 3 000 m, marken, ett lager per stapel med tonen
-   efter mängden (FEW ljusast, OVC fylld – kanten syns alltid) och VV som skraffering från marken. */
+/* Molnbasen: höjdlinjer vid 100, 300, 1 000 och 3 000 m, marken och basen som en linje i
+   molnens neutrala grå – samma stil för alla källor, inga punktmarkörer. */
 .tl-cloudbase .grid {
   stroke: var(--grid);
   stroke-width: 1;
@@ -883,53 +838,16 @@ main {
   stroke: var(--rule);
   stroke-width: 1;
 }
-/* Byte av källa inom prognosen (t.ex. TAF → SMHI) */
-.tl-cloudbase .switch {
-  stroke: var(--ink-2);
-  stroke-opacity: 0.45;
-  stroke-width: 1;
-  stroke-dasharray: 2 3;
-}
-.tl-cloudbase .layer {
-  fill: var(--cloud-cell);
-  stroke: var(--cloud-cell);
-  stroke-width: 1;
-}
-.tl-cloudbase .layer.c-few { fill-opacity: 0.18; }
-.tl-cloudbase .layer.c-sct { fill-opacity: 0.45; }
-.tl-cloudbase .layer.c-bkn { fill-opacity: 0.72; }
-.tl-cloudbase .layer.c-ovc { fill-opacity: 1; }
-/* Mängd okänd (SMHI-bas utan mängd i basens skikt): bara kontur */
-.tl-cloudbase .layer.c-unknown {
+.tl-cloudbase .base {
   fill: none;
-  stroke-dasharray: 2 2;
-}
-.tl-cloudbase .vvshade {
-  fill: url(#vv);
-}
-.tl-vv-bg {
-  fill: var(--cloud-cell);
-  fill-opacity: 0.2;
-}
-/* Källorna skiljs diskret: METAR heldraget, TAF något ljusare, SMHI:s modell ljusare med streckad kant */
-.tl-cloudbase .src-taf {
-  opacity: 0.85;
-}
-.tl-cloudbase .src-smhi {
-  opacity: 0.75;
-}
-.tl-cloudbase .src-smhi .layer {
-  stroke-dasharray: 3 2;
-}
-.tl-cloudbase .vvlabel {
-  font-family: var(--font-num);
-  font-size: 10px;
-  font-weight: 600;
-  fill: var(--ink-2);
-  paint-order: stroke;
-  stroke: var(--bg);
-  stroke-width: 3px;
+  stroke: var(--cloud);
+  stroke-width: 1.75;
   stroke-linejoin: round;
+  stroke-linecap: round;
+}
+/* Osynliga ytor per punkt – bär verktygstipset (tid och höjd) */
+.tl-cloudbase .hit {
+  fill: transparent;
 }
 /* PROB-grupper över sin period, överst i panelen: streckad klammer och dämpad text när gruppen
    inte tillämpas, heldragen när senaste METAR stöder den */
@@ -943,7 +861,7 @@ main {
   stroke: var(--ink-2);
   stroke-dasharray: none;
 }
-/* Etiketter i panelens översta band: PROB-grupper och källan vid övergångarna */
+/* PROB-gruppernas etiketter i panelens översta band */
 .tl-spanlabel {
   font-family: var(--font-num);
   font-size: 10px;
@@ -1105,11 +1023,6 @@ main {
   font-size: 9.5px;
   letter-spacing: 0.04em;
   color: var(--ink-2);
-}
-
-.tl-vv {
-  stroke: var(--cloud);
-  stroke-width: 1.5;
 }
 
 .tl-precip path,
