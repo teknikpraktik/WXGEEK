@@ -1,8 +1,8 @@
 "use client";
 
-import { memo, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { HOUR, PAST_HOURS, type ChartData, type Precip, type PrecipHour, type Pt } from "@/lib/client/timeline";
-import { fmtDateTime, localHour, fmtTemp, fmtTime, tempSign } from "@/lib/format";
+import { memo, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type Ref } from "react";
+import { HOUR, PAST_HOURS, type Arrow, type ChartData, type Precip, type PrecipHour, type Pt } from "@/lib/client/timeline";
+import { fmtDateTime, localHour, fmtTemp, fmtTime, showGust, tempSign } from "@/lib/format";
 import { placeTempLabel } from "@/lib/client/tempLabel";
 import {
   EVENT_ALT,
@@ -72,10 +72,15 @@ const FOG_MIN_PX = 6;
 /** Nederbördens värden: siffror 12 px (mono), "max" 10 px */
 const MM_CHAR_W = 7.2;
 const MAX_PREFIX_W = 22;
-/** Vindens siffror i 12 px med tabellsiffror: siffra, mellanslag och parentes (px) */
-const WIND_DIGIT_W = 6.8;
-const WIND_SPACE_W = 3.2;
-const WIND_PAREN_W = 4;
+/** Vindens värden, uppmätta bredder (px): medelvindens siffror i 12 px tabellsiffror; byarna
+ *  " (12)" i 10 px – mellanslag, parentes och siffra – så att "6 (12)" ryms varje timme. */
+const WIND_DIGIT_W = 7.2;
+const WIND_SPACE_W = 2.4;
+const WIND_PAREN_W = 3.35;
+const WIND_GUST_DIGIT_W = 6;
+/** Vindpilens halva bredd och minsta luft mellan två vindvärden (px) */
+const WIND_ARROW_HW = 8;
+const WIND_GAP = 4;
 
 /** Rubrikernas varianter, längst först – den längsta som ryms före NU-linjen visas. */
 const RUBRIC_TEXT = {
@@ -261,6 +266,8 @@ export const Timeline = memo(function Timeline({ now, until, data, onCursor, rec
   const sunEdgeL = useRef<SVGTextElement>(null);
   const sunEdgeR = useRef<SVGTextElement>(null);
   const gustWord = useRef<HTMLSpanElement>(null);
+  const windNowEl = useRef<SVGGElement>(null);
+  const nowGapLine = useRef<SVGLineElement>(null);
   const measure = useRef<HTMLSpanElement>(null);
   // Rubrikerna i den längsta variant som ryms före NU-linjen (uppmätt i rubrikens egen typografi);
   // "(gusts)" stryks där inte ens det ryms.
@@ -387,6 +394,9 @@ export const Timeline = memo(function Timeline({ now, until, data, onCursor, rec
           e.style.visibility = outside(Number(e.dataset.l), Number(e.dataset.r)) ? "hidden" : "";
         });
       }
+      // NU-linjen går obruten genom vindpanelen när vinden vid NU inte syns (vid vyns kanter) eller saknas
+      const windNow = windNowEl.current;
+      if (nowGapLine.current) nowGapLine.current.style.visibility = windNow && windNow.style.visibility !== "hidden" ? "hidden" : "";
       // "(gusts)" i vindrubriken bara när minst ett byvärde syns (och ordet ryms)
       if (gustWord.current) {
         const any = [...svg.querySelectorAll<SVGGElement>(".tl-wind.has-gust")].some((g) => g.style.visibility !== "hidden");
@@ -618,23 +628,37 @@ export const Timeline = memo(function Timeline({ now, until, data, onCursor, rec
     return out;
   }, [data.precipHours, x, nowX]);
 
-  // Vind: pil och medelvind, byarna inom parentes i samma rad ("6 (9)") när källan har ett
-  // byvärde över medelvinden. Varannan (var tredje) timme när texterna annars skulle krocka.
+  // Vind varje timme: pil och medelvind, byarna inom parentes i samma rad ("6 (9)", byarna
+  // mindre) när de är minst 1 m/s över medelvinden – och vinden vid NU på NU-linjen, samma som
+  // avläsningen (den observationen står inte också vid sin egen tid). En timme vars pil skulle
+  // krocka med pilen vid NU visas inte; ett värde som skulle krocka med värdet vid NU eller med
+  // föregående (tvåsiffrig medelvind med byar) står bara som pil.
   const wind = useMemo(() => {
-    const items = data.wind.map((a) => {
+    const item = (a: Arrow, cx: number) => {
       const speed = Math.round(a.speed);
-      const gust = a.gust !== undefined && Math.round(a.gust) > speed ? Math.round(a.gust) : undefined;
-      const digits = (n: number) => String(n).length * WIND_DIGIT_W;
-      const w = digits(speed) + (gust !== undefined ? WIND_SPACE_W + 2 * WIND_PAREN_W + digits(gust) : 0);
-      return { a, speed, gust, w, i: Math.round((a.t - start) / HOUR) };
-    });
-    const fits = (step: number) => {
-      const kept = items.filter((it) => it.i % step === 0);
-      return kept.every((it, k) => k === 0 || x(it.a.t) - it.w / 2 >= x(kept[k - 1].a.t) + kept[k - 1].w / 2 + 5);
+      const gust = showGust(a.speed, a.gust) ? Math.round(a.gust) : undefined;
+      const len = (n: number) => String(n).length;
+      const w = len(speed) * WIND_DIGIT_W + (gust !== undefined ? WIND_SPACE_W + 2 * WIND_PAREN_W + len(gust) * WIND_GUST_DIGIT_W : 0);
+      return { a, cx, speed, gust, w, hw: Math.max(WIND_ARROW_HW, w / 2), label: true };
     };
-    const step = [1, 2, 3].find(fits) ?? 3;
-    return items.filter((it) => it.i % step === 0 && Math.abs(x(it.a.t) - nowX) >= Math.max(it.w / 2, 5) + 3);
-  }, [data.wind, x, start, nowX]);
+    const atNow = data.windNow ? item(data.windNow, nowX) : undefined;
+    const hours: WindItem[] = [];
+    let lastR = -Infinity;
+    for (const a of data.wind) {
+      if (!a.forecast && a.t === data.windNow?.observedAt) continue;
+      const it = item(a, x(a.t));
+      const d = Math.abs(it.cx - nowX);
+      if (atNow && d < 2 * WIND_ARROW_HW + WIND_GAP) continue;
+      it.label = (!atNow || d >= (it.w + atNow.w) / 2 + WIND_GAP) && it.cx - it.w / 2 >= lastR + WIND_GAP;
+      if (it.label) lastR = it.cx + it.w / 2;
+      hours.push(it);
+    }
+    return { hours, atNow };
+  }, [data.wind, data.windNow, x, nowX]);
+  // NU-linjens lucka bakom vinden vid NU, i streckmönstrets takt så att mönstret fortsätter obrutet
+  // nedanför. placeMarkers drar linjen genom luckan när värdet inte syns.
+  const onDash = (y: number, round: (v: number) => number) => AXIS_H + round((y - AXIS_H) / NOW_DASH) * NOW_DASH;
+  const nowGap = [onDash(windTop + 2, Math.floor), onDash(windTop + 40, Math.ceil)];
 
   const pathOf = (pts: Pt[]) => pts.map((p, i) => `${i ? "L" : "M"}${x(p.t).toFixed(1)},${yTemp(p.v).toFixed(1)}`).join("");
   const tint = Math.max(0, Math.min(W, nowX));
@@ -894,32 +918,17 @@ export const Timeline = memo(function Timeline({ now, until, data, onCursor, rec
                 );
               })}
 
-              {/* Vind: pilen visar åt vilket håll vinden blåser; medelvind och byar inom parentes i samma rad */}
-              {wind.map(({ a, speed, gust, w }) => (
-                <g
-                  key={a.t}
-                  transform={`translate(${x(a.t)},0)`}
-                  data-l={x(a.t) - Math.max(7, w / 2)}
-                  data-r={x(a.t) + Math.max(7, w / 2)}
-                  className={`tl-wind${a.forecast ? " fc" : ""}${gust !== undefined ? " has-gust" : ""}`}
-                >
-                  {a.deg !== undefined && !a.variable ? (
-                    <g transform={`translate(0,${windTop + 12}) rotate(${a.deg})`}>
-                      <path d="M0,-7 L0,6 M-3.5,2.5 L0,7 L3.5,2.5" />
-                    </g>
-                  ) : (
-                    <circle cy={windTop + 12} r={2.5} className="tl-wind-vrb" />
-                  )}
-                  <text y={windTop + 35} textAnchor="middle" className="tl-wind-speed">
-                    {speed}
-                    {gust !== undefined && <tspan className="gust">{` (${gust})`}</tspan>}
-                  </text>
-                  <title>{`${speed} m/s${gust !== undefined ? `, gusts ${gust} m/s` : ""}${a.forecast ? " (forecast)" : ""}`}</title>
-                </g>
+              {/* Vind varje timme: pilen visar åt vilket håll vinden blåser; medelvind och byar inom parentes i samma rad */}
+              {wind.hours.map((it) => (
+                <WindMark key={it.a.t} it={it} top={windTop} />
               ))}
 
-              {/* NU genom alla grupper */}
-              <line x1={nowX} x2={nowX} y1={AXIS_H} y2={H} className="tl-now" shapeRendering="crispEdges" />
+              {/* NU genom alla grupper – med en lucka bakom vinden vid NU (fylls när värdet inte syns) */}
+              <line x1={nowX} x2={nowX} y1={AXIS_H} y2={nowGap[0]} className="tl-now" shapeRendering="crispEdges" />
+              <line ref={nowGapLine} x1={nowX} x2={nowX} y1={nowGap[0]} y2={nowGap[1]} className="tl-now" shapeRendering="crispEdges" />
+              <line x1={nowX} x2={nowX} y1={nowGap[1]} y2={H} className="tl-now" shapeRendering="crispEdges" />
+              {/* Vinden vid NU: senaste observationen, samma som avläsningen */}
+              {wind.atNow && <WindMark ref={windNowEl} it={wind.atNow} top={windTop} observedAt={data.windNow?.observedAt} />}
 
               {/* Senaste temperaturobservationen – ovanpå NU-linjen, vid mätningens egen tid */}
               {lastTemp && (
@@ -1005,6 +1014,44 @@ const fmtMm = (mm: number) => (mm < 10 ? mm.toFixed(1) : String(Math.round(mm)))
  * 0,1 mm ensemblens maximum som "max 0.4" – ingen övre gräns, så aldrig "≤". Torra timmar ritas inte.
  */
 type PrecipLabel = { x: number; anchor: "start" | "middle" | "end"; x0: number; x1: number };
+
+/** Vind vid en tidpunkt i diagrammet: x, avrundade värden, värdets bredd och om värdet får plats. */
+type WindItem = { a: Arrow; cx: number; speed: number; gust?: number; w: number; hw: number; label: boolean };
+
+/**
+ * Vind: pilen visar åt vilket håll vinden blåser (en punkt vid varierande vind), under den
+ * medelvinden och byarna inom parentes i samma rad, "6 (9)". Utan plats för värdet bara pilen.
+ * `observedAt`: vinden vid NU – observationens tid i verktygstipset.
+ */
+function WindMark({ it, top, observedAt, ref }: { it: WindItem; top: number; observedAt?: number; ref?: Ref<SVGGElement> }) {
+  const { a, cx, speed, gust, label } = it;
+  const hw = label ? it.hw : WIND_ARROW_HW;
+  const when = observedAt !== undefined ? ` (observed ${fmtTime(observedAt)})` : a.forecast ? " (forecast)" : "";
+  return (
+    <g
+      ref={ref}
+      transform={`translate(${cx},0)`}
+      data-l={cx - hw}
+      data-r={cx + hw}
+      className={`tl-wind${a.forecast ? " fc" : ""}${label && gust !== undefined ? " has-gust" : ""}`}
+    >
+      {a.deg !== undefined && !a.variable ? (
+        <g transform={`translate(0,${top + 12}) rotate(${a.deg})`}>
+          <path d="M0,-7 L0,6 M-3.5,2.5 L0,7 L3.5,2.5" />
+        </g>
+      ) : (
+        <circle cy={top + 12} r={2.5} className="tl-wind-vrb" />
+      )}
+      {label && (
+        <text y={top + 35} textAnchor="middle" className="tl-wind-speed">
+          {speed}
+          {gust !== undefined && <tspan className="gust">{` (${gust})`}</tspan>}
+        </text>
+      )}
+      <title>{`${observedAt !== undefined ? "Now: " : ""}${speed} m/s${gust !== undefined ? `, gusts ${gust} m/s` : ""}${when}`}</title>
+    </g>
+  );
+}
 
 function PrecipHourBar({ p, x, base, max, label }: { p: PrecipHour; x: (t: number) => number; base: number; max: number; label?: PrecipLabel }) {
   if (p.possible <= 0) return null;

@@ -850,7 +850,9 @@ main {
   font-variant-numeric: tabular-nums;
   fill: var(--obs);
 }
+/* Byarna mindre än medelvinden, så att "6 (12)" ryms varje timme (WIND_* i Timeline.tsx) */
 .tl-wind-speed .gust {
+  font-size: 10px;
   font-weight: 400;
   fill: var(--muted);
 }

@@ -74,6 +74,11 @@ export function tempSign(c: number): "pos" | "neg" | "zero" {
 
 export const fmtWindSpeed = (ms: number | undefined) => (ms === undefined ? "–" : nf0.format(Math.round(ms)));
 
+/** Byarna visas när de är minst 1 m/s över medelvinden och det inte är stiltje – samma regel i
+ *  avläsningen, texten och diagrammet. */
+export const showGust = (speed: number | undefined, gust: number | undefined): gust is number =>
+  speed !== undefined && speed >= 0.5 && gust !== undefined && gust >= speed + 1;
+
 /** Wind direction (where the wind comes from) in whole tens of degrees: "050°", "180°". */
 export function fmtWindDeg(deg: number): string {
   const r = (Math.round(deg / 10) * 10) % 360;
@@ -97,7 +102,7 @@ export function fmtWindText(w: { deg?: number; variable?: boolean; speed?: numbe
   if (!w || w.speed === undefined) return "Missing";
   if (w.speed < 0.5) return "Calm";
   const dir = w.variable ? "Variable" : w.deg !== undefined ? fmtWindFrom(w.deg) : "";
-  const g = gust !== undefined && gust >= w.speed + 1 ? `, gusts ${fmtWindSpeed(gust)} m/s` : "";
+  const g = showGust(w.speed, gust) ? `, gusts ${fmtWindSpeed(gust)} m/s` : "";
   return `${dir}${dir ? " · " : ""}${fmtWindSpeed(w.speed)} m/s${g}`;
 }
 

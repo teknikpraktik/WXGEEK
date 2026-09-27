@@ -322,7 +322,11 @@ export type ChartData = {
   precipObserved: Precip[];
   precipForecast: Precip[];
   precipHours: PrecipHour[];
+  /** Vind per timme: observerat fram till NU, därefter prognosen varje hel timme efter NU */
   wind: Arrow[];
+  /** Vinden vid NU: senaste observationen, samma som avläsningen vid NU (`obsWind`) – ritas på
+   *  NU-linjen. Saknas när ingen observation är färsk nog. */
+  windNow?: Arrow & { observedAt: number };
   /**
    * Dimma, dis eller sikt under 5 km. `severe`: dimma (sikt under 1 km).
    * `phenomenon`: dimma/dis rapporterad som väder – annars bara härledd ur sikten.
@@ -724,7 +728,8 @@ export function buildChart(bundle: WeatherBundle, now: number, prevTempDomain?: 
     precipHours.push({ ...span, ...shown, kind: kindOver(span, precipForecast), forecast: true });
   }
 
-  // Vind: en pil per timme
+  // Vind: en pil per timme – observationerna fram till NU och prognosen varje hel timme efter NU
+  // (timmar nära NU ger plats åt vinden vid NU i diagrammet) – och vinden vid NU
   const wind: Arrow[] = [];
   const windObs = stationFor(bundle, "wind")?.observations ?? [];
   const gustObs = stationFor(bundle, "gust")?.observations ?? [];
@@ -737,12 +742,18 @@ export function buildChart(bundle: WeatherBundle, now: number, prevTempDomain?: 
     wind.push({ t, deg: x.windDirectionDeg, variable: x.windVariable, speed: x.windSpeedMs, gust: g?.windGustMs, forecast: false });
     lastT = t;
   }
+  lastT = -Infinity;
   for (const m of merged) {
     const w = m.wind?.value;
-    if (m.t < now || !w || m.t - lastT < 55 * 60 * 1000) continue;
+    if (m.t <= now || !w || m.t - lastT < 55 * 60 * 1000) continue;
     wind.push({ t: m.t, deg: w.deg, variable: w.variable, speed: w.speed, gust: w.gust, forecast: true });
     lastT = m.t;
   }
+  const wn = obsWind(bundle, now, "now");
+  const windNow =
+    wn.wind?.value.speed !== undefined
+      ? { t: now, ...wn.wind.value, speed: wn.wind.value.speed, gust: wn.gust?.value, forecast: false, observedAt: wn.wind.origin.timestamp }
+      : undefined;
 
   // Låg sikt / dimma och åska
   const lowVis: ChartData["lowVis"] = [];
@@ -798,6 +809,7 @@ export function buildChart(bundle: WeatherBundle, now: number, prevTempDomain?: 
     precipForecast,
     precipHours,
     wind,
+    windNow,
     lowVis,
     thunder,
     missing,
@@ -1027,6 +1039,20 @@ function pickObs<T>(
   };
 }
 
+/** Observerad vind och byar vid t – avläsningen och vinden vid NU i diagrammet (`windNow`). */
+function obsWind(bundle: WeatherBundle, t: number, mode: Snapshot["mode"]): Pick<Snapshot, "wind" | "gust"> {
+  const wind = pickObs(bundle, "wind", t, mode, (o) =>
+    o.windSpeedMs === undefined ? undefined : { deg: o.windDirectionDeg, variable: o.windVariable, speed: o.windSpeedMs },
+  );
+  // Byar: METAR utan G-grupp betyder "inga kraftiga byar rapporterade", inte vindstilla.
+  const gust =
+    bundle.selections.gust?.station?.source === "METAR"
+      ? pickObs<number | undefined>(bundle, "gust", t, mode, (o) => (o.windSpeedMs !== undefined ? (o.windGustMs ?? NaN) : undefined))
+      : pickObs(bundle, "gust", t, mode, (o) => o.windGustMs);
+  if (gust && Number.isNaN(gust.value)) gust.value = undefined;
+  return { wind, gust };
+}
+
 function originOf(src: FcSource): Origin {
   return src.kind === "TAF"
     ? {
@@ -1097,15 +1123,7 @@ export function snapshotAt(bundle: WeatherBundle, t: number, now: number): Snaps
     };
   }
 
-  const wind = pickObs(bundle, "wind", t, mode, (o) =>
-    o.windSpeedMs === undefined ? undefined : { deg: o.windDirectionDeg, variable: o.windVariable, speed: o.windSpeedMs },
-  );
-  // Byar: METAR utan G-grupp betyder "inga kraftiga byar rapporterade", inte vindstilla.
-  const gust =
-    bundle.selections.gust?.station?.source === "METAR"
-      ? pickObs<number | undefined>(bundle, "gust", t, mode, (o) => (o.windSpeedMs !== undefined ? (o.windGustMs ?? NaN) : undefined))
-      : pickObs(bundle, "gust", t, mode, (o) => o.windGustMs);
-  if (gust && Number.isNaN(gust.value)) gust.value = undefined;
+  const { wind, gust } = obsWind(bundle, t, mode);
 
   const cloud = pickObs(bundle, "cloudBase", t, mode, obsCloud);
   const temperature = pickObs(bundle, "temperature", t, mode, (o) => o.temperatureC);

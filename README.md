@@ -91,11 +91,15 @@ situation **now**, and the **forecast** for the next 24 hours, all on the same a
   least a few pixels high so it shows where the lines coincide, without label or legend (the
   viewer reads it from the curves). A dot marks the latest temperature observation at
   its actual time (never moved to now) with the measured value beside it, e.g. "11 °C".
-- **Wind m/s (gusts)**: the arrow shows where the wind blows (the header text says where it
-  comes from), with the mean wind and the
-  gusts in the same row, "6 (9)". Without a gust value only the mean is shown – missing gusts
-  never look like zero – and "(gusts)" is in the rubric only while a gust value is in view.
-  Every other hour when the texts would otherwise collide.
+- **Wind m/s (gusts)**: every hour, the arrow shows where the wind blows (the header text says
+  where it comes from), with the mean wind and the gusts in the same row, "6 (9)" – the gusts
+  a little smaller, so that "6 (12)" fits every hour. Gusts are shown when they are at least
+  1 m/s above the mean, as in the header. Without a gust value only the mean is shown – missing
+  gusts never look like zero – and "(gusts)" is in the rubric only while a gust value is in
+  view. **Now** has its own value on the NOW line – the latest observation, the same as the
+  header at now – with the line broken behind it; that observation is not repeated at its own
+  time, and an hour whose arrow would touch it is left out. A value that would collide with a
+  neighbour (a two-digit mean with gusts, in a gale) is left out and only its arrow shown.
 - **Light**: the sun's geometric altitude on a fixed scale all year (no autoscaling – the
   seasons are the point), split in two: 0° to 60° takes 65 % of the height and −18° to 0°
   35 %, so civil (0/−6), nautical (−6/−12) and astronomical (−12/−18) twilight show as three

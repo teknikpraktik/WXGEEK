@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { dewPointFromRh, fmtDateTime, fmtInterval, fmtOffset, fmtTemp, fmtTime, fmtWindFrom, fmtWindText, localHour } from "./format";
+import { dewPointFromRh, fmtDateTime, fmtInterval, fmtOffset, fmtTemp, fmtTime, fmtWindFrom, fmtWindText, localHour, showGust } from "./format";
 
 const H = 3_600_000;
 
@@ -44,6 +44,12 @@ test("wind text with degrees in tens, unit, gusts and calm", () => {
   assert.deepEqual([231, 244, 247, 250, 316, 338].map(fmtWindFrom), ["From SW 230°", "From SW 240°", "From W 250°", "From W 250°", "From NW 320°", "From N 340°"]);
   // Gusts barely above the mean wind are not shown.
   assert.equal(fmtWindText({ deg: 270, speed: 5 }, 5.4), "From W 270° · 5 m/s");
+  // Samma regel i avläsningen och diagrammet: minst 1 m/s över medelvinden, inte vid stiltje –
+  // också när de avrundade värdena skiljer sig ("4" och "5")
+  assert.deepEqual(
+    [showGust(5, 6), showGust(5, 5.9), showGust(4.4, 5.2), showGust(0.3, 4), showGust(5, undefined), showGust(undefined, 9)],
+    [true, false, false, false, false, false],
+  );
 });
 
 test("temperature and dew point in whole degrees, with a typographic minus", () => {

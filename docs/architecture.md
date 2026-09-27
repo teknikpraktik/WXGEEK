@@ -305,11 +305,20 @@ WxgeekApp              – plats, datahämtning, auto-uppdatering (5 min när fl
   med bara texten "Now" (ingen pil). Samma utseende som Change (ljus yta, ljus kant, mörk text),
   aldrig NU-linjens mörka blågrå; diskret in- och uttoning, tryckyta minst 44 × 44 px, timtal
   under knappen döljs. Tryck: animerad scroll till NU.
-- **Vind** (fjärde gruppen, "Wind m/s (gusts)"): pilen visar åt vilket håll vinden blåser
-  (texten i avläsningen säger varifrån), medelvinden
-  och byarna i samma rad, "6 (9)", byarna i ljusare ton. Byar visas när källan har ett byvärde
-  över medelvinden; saknas det står bara medelvinden, och "(gusts)" står i rubriken bara när
-  minst ett byvärde syns. Varannan timme när texterna annars skulle krocka.
+- **Vind** (fjärde gruppen, "Wind m/s (gusts)"): varje timme – observationerna fram till NU
+  (en per timme), därefter prognosen varje hel timme efter NU. Pilen visar åt vilket håll
+  vinden blåser (texten i avläsningen säger varifrån), medelvinden och byarna i samma rad,
+  "6 (9)", byarna i ljusare ton och 10 px (medelvinden 12 px), så att "6 (12)" ryms varje timme
+  (34 px). Byar visas när de är minst 1 m/s över medelvinden och det inte är stiltje (`showGust`,
+  samma regel som avläsningen); saknas byvärde står bara medelvinden, och "(gusts)" står i
+  rubriken bara när minst ett byvärde syns.
+  - **Vinden vid NU** (`windNow`): senaste observationen, samma val som avläsningen vid NU
+    (`obsWind`, högst 2 h för METAR, 3 h för SMHI), på NU-linjen. NU-linjen har en lucka bakom
+    värdet, i streckmönstrets takt; när värdet inte syns (vid vyns kanter) dras linjen igenom.
+    Samma observation står inte också vid sin egen tid.
+  - **Krockar**: en timme vars pil skulle krocka med pilen vid NU (inom ca 35 min) visas inte.
+    Ett värde som skulle krocka med värdet vid NU eller med föregående värde (minst 4 px luft) –
+    i praktiken tvåsiffrig medelvind med byar – utelämnas, och bara pilen står.
 - Lufttryck och luftfuktighet visas inte. SMHI:s relativa fuktighet hämtas bara för daggpunkten.
 - TAF styr prognosens läge (symboler, sikt, moln), visas i avläsningen och i rått format under
   diagrammet. Diagrammet ritar inga egna TAF-lager, molnbaser eller PROB-markeringar.
@@ -423,8 +432,8 @@ Diagrammet är fem grupper på samma tidsaxel (`src/components/Timeline.tsx`), u
 5. **Ljus** ("Light", 92 px).
 
 - **Gemensamt**: samma `x(t)` för alla grupper; timgridlinjerna och NU-linjen går
-  obrutna genom alla, och ingen text korsas av NU-linjen – etiketter flyttas åt sidan eller
-  utelämnas. Rubrikerna (12 px) står i den fasta vänsterkolumnen med samma plats, typografi och
+  obrutna genom alla – NU-linjen utom bakom vinden vid NU – och ingen text korsas av NU-linjen:
+  etiketter flyttas åt sidan eller utelämnas. Rubrikerna (12 px) står i den fasta vänsterkolumnen med samma plats, typografi och
   radhöjd (18 px, `RUBRIC_H`) och är genomskinliga. Varje rubrik visas i den längsta variant som
   slutar före NU-linjen i standardvyn, uppmätt i rubrikens egen typografi (`RUBRIC_TEXT`:
   "Clouds & precipitation" → "Clouds & precip." → "Clouds/precip." → "Clouds"). Värden och

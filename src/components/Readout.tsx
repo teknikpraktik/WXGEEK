@@ -14,6 +14,7 @@ import {
   fmtVisibility,
   fmtWindDeg,
   fmtWindSpeed,
+  showGust,
 } from "@/lib/format";
 import { WindArrow } from "./WindArrow";
 import { FogIcon, SkyIcon } from "./SkyIcon";
@@ -51,7 +52,7 @@ export function Readout({ snap, now, children }: Props) {
     !TEXT_SKY.has(snap.sky.kind) && <SkyIcon sky={snap.sky} day={snap.day} />
   );
   // Källraden: var och när de värden som visas kommer ifrån (mättid och station, eller prognoskälla).
-  const gustShown = !!w && (w.speed ?? 0) >= 0.5 && gust !== undefined && gust >= (w.speed ?? 0) + 1;
+  const gustShown = !!w && showGust(w.speed, gust);
   const shown: Array<[string, Reading<unknown>]> = [
     ["temperature", snap.temperature],
     ["dew point", snap.dewPoint],

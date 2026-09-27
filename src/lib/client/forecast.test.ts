@@ -416,6 +416,46 @@ test("daggpunkt: observerad ur METAR, prognos ur SMHI:s fuktighet – sammanfoga
   assert.ok(chart.temp.domain[0] <= 10.4 - 1);
 });
 
+test("vind: observerat en per timme, vinden vid NU som i avläsningen och prognosen varje hel timme efter NU", () => {
+  const station = { source: "METAR" as const, stationId: "ESOK", stationName: "Karlstad flygplats", latitude: 59.44, longitude: 13.34, distanceKm: 11 };
+  const sel = (param: string) => ({ param, stationKey: "METAR:ESOK", station, reason: "" });
+  // METAR varje halvtimme 06:20–09:20Z, den senaste med byar 10 m/s
+  const obs = Array.from({ length: 7 }, (_, i) => ({
+    timestamp: iso(T(25, 6) + 20 * 60 + i * 30 * 60),
+    source: "METAR" as const,
+    stationId: "ESOK",
+    latitude: 59.44,
+    longitude: 13.34,
+    windDirectionDeg: 190,
+    windSpeedMs: 5,
+    windGustMs: i === 6 ? 10 : undefined,
+  }));
+  const b: WeatherBundle = {
+    ...bundleWith(null, smhiHours(T(25, 6), 12)),
+    forecastUntil: iso(T(25, 18)),
+    stations: [{ key: "METAR:ESOK", station, observations: obs }],
+    selections: { wind: sel("wind"), gust: sel("gust") } as unknown as WeatherBundle["selections"],
+  };
+  const now = (T(25, 9) + 35 * 60) * 1000;
+  const chart = buildChart(b, now);
+  const hhmm = (t: number) => new Date(t).toISOString().slice(11, 16);
+  assert.deepEqual(chart.wind.filter((a) => !a.forecast).map((a) => hhmm(a.t)), ["06:20", "07:20", "08:20", "09:20"]);
+  // Vid NU: senaste observationen (09:20) med byarna – samma som avläsningen vid NU
+  const s = snapshotAt(b, now, now);
+  assert.deepEqual(
+    [chart.windNow?.t, chart.windNow?.speed, chart.windNow?.gust, hhmm(chart.windNow!.observedAt)],
+    [now, s.wind?.value.speed, s.gust?.value, "09:20"],
+  );
+  assert.equal(chart.windNow?.gust, 10);
+  // Prognosen varje hel timme efter NU – också 10Z, fast den ligger under en timme efter senaste observationen
+  assert.deepEqual(
+    chart.wind.filter((a) => a.forecast).map((a) => hhmm(a.t)),
+    ["10:00", "11:00", "12:00", "13:00", "14:00", "15:00", "16:00", "17:00", "18:00"],
+  );
+  // Ingen vind vid NU när senaste observationen är äldre än 2 h
+  assert.equal(buildChart(b, T(25, 12) * 1000).windNow, undefined);
+});
+
 test("daggpunkten aldrig över temperaturen: högre daggpunkt ritas inte och visas inte i avläsningen", () => {
   const b = panelBundle(13); // METAR 12 °C men daggpunkt 13 °C
   const now = T(25, 9) * 1000;
