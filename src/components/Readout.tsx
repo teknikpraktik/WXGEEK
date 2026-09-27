@@ -2,6 +2,7 @@
 
 import type { ReactNode } from "react";
 import { fogOf, tafLowVisibility, type Reading, type Snapshot } from "@/lib/client/timeline";
+import { tempSign } from "@/lib/format";
 import { sourceLine } from "@/lib/client/sourceLine";
 import type { CloudLayer } from "@/lib/types";
 import {
@@ -77,6 +78,8 @@ export function Readout({ snap, now, children }: Props) {
               v={fmtTemp(snap.temperature.value)}
               extra={snap.dewPoint ? `/${fmtTemp(snap.dewPoint.value)}` : undefined}
               muted
+              sign={tempSign(snap.temperature.value)}
+              extraSign={snap.dewPoint ? tempSign(snap.dewPoint.value) : undefined}
               unit="°C"
             />
           )}
@@ -226,11 +229,12 @@ function weatherSummary(snap: Snapshot): string {
 }
 
 /** Value + unit, same typography for all quantities. */
-function Val({ v, unit, icon, extra, muted }: { v: string; unit: string; icon?: ReactNode; extra?: string; muted?: boolean }) {
+/** sign/extraSign: temperaturens tecken – rött över 0 °C, blått under (CSS t-pos/t-neg). */
+function Val({ v, unit, icon, extra, muted, sign, extraSign }: { v: string; unit: string; icon?: ReactNode; extra?: string; muted?: boolean; sign?: string; extraSign?: string }) {
   return (
     <span className="val">
       {icon}
-      <b>
+      <b className={sign ? `t-${sign}` : undefined}>
         {v.startsWith("max ") ? (
           <>
             <span className="val-prefix word">max</span>
@@ -245,7 +249,7 @@ function Val({ v, unit, icon, extra, muted }: { v: string; unit: string; icon?: 
           v
         )}
       </b>
-      {extra && <b className={muted ? "val-extra val-dew" : "val-extra"}>{extra}</b>}
+      {extra && <b className={`${muted ? "val-extra val-dew" : "val-extra"}${extraSign ? ` t-${extraSign}` : ""}`}>{extra}</b>}
       {unit && <span className="unit">{unit}</span>}
     </span>
   );

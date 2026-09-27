@@ -20,8 +20,7 @@
   --sun-civil: #e0e5ec;
   --sun-nautical: #c9d1dc;
   --sun-astro: #b1bccb;
-  --dew: #5f8f96; /* daggpunkt – lugnare än temperaturens tegelröd */
-  --fog-risk: rgba(95, 143, 150, 0.3); /* dimrisk: spridning under 1 °C mellan kurvorna */
+  --fog-risk: rgba(94, 103, 114, 0.2); /* dimrisk: spridning under 1 °C mellan kurvorna */
   --cloud-cell: #858c96; /* molntäcke – tonen efter åttondelarna */
   --cloud-track: rgba(133, 140, 150, 0.16); /* känd timme utan moln – skiljer klart från saknat */
   --precip-bar: #1f6ec4; /* nederbördsstaplar, mättad blå */
@@ -45,8 +44,16 @@
   /* Vald tid i dämpad blå – egen färg, så att den inte förväxlas med NU och Now-knappen */
   --cursor: var(--accent);
   --cursor-line: rgba(54, 95, 131, 0.75);
-  --temp: #c64b40; /* temperaturkurva */
-  --temp-text: #a13a30; /* temperaturetiketten – mörkare för kontrast */
+  /* Temperatur och daggpunkt: rött över 0 °C, blått under – kurvor, axel och värden. Daggpunkten
+     i samma två toner men ljusare (blandad med bakgrunden, också i mörkt läge). */
+  --temp-pos: #c64b40;
+  --temp-neg: #2f6cb3;
+  --temp-pos-text: #a13a30; /* text – mörkare för kontrast */
+  --temp-neg-text: #245a99;
+  --dew-pos: color-mix(in srgb, var(--temp-pos) 58%, var(--bg));
+  --dew-neg: color-mix(in srgb, var(--temp-neg) 58%, var(--bg));
+  --dew-pos-text: color-mix(in srgb, var(--temp-pos-text) 72%, var(--bg));
+  --dew-neg-text: color-mix(in srgb, var(--temp-neg-text) 72%, var(--bg));
   --warn: #b35c00;
   --ev-regn: #397caf; /* nederbörd */
   --precip-text: #2c6594; /* små nederbördssiffror – mörkare för kontrast */
@@ -80,8 +87,7 @@
     --sun-civil: #36445c;
     --sun-nautical: #263146;
     --sun-astro: #181f2d;
-    --dew: #86b9bf;
-    --fog-risk: rgba(134, 185, 191, 0.26);
+    --fog-risk: rgba(170, 176, 185, 0.2);
     --cloud-cell: #aab0b9;
     --cloud-track: rgba(170, 176, 185, 0.13);
     --precip-bar: #5aa7f0;
@@ -102,8 +108,13 @@
     --accent-line: #7fa7cc;
     --on-accent: #ffffff;
     --cursor-line: rgba(127, 167, 204, 0.7);
-    --temp: #e0776c;
-    --temp-text: #e98a80;
+    --temp-pos: #e0776c;
+    --temp-neg: #6ea6e6;
+    --temp-pos-text: #e98a80;
+    --temp-neg-text: #8dbcf0;
+    /* Mot den mörka bakgrunden blir blandningen annars för mörk – daggpunkten starkare här */
+    --dew-pos: color-mix(in srgb, var(--temp-pos) 74%, var(--bg));
+    --dew-neg: color-mix(in srgb, var(--temp-neg) 74%, var(--bg));
     --warn: #f0a24a;
     --ev-regn: #5b9bd0;
     --precip-text: #86b8e2;
@@ -717,29 +728,39 @@ main {
   stroke-dasharray: 2 3;
   opacity: 0.8;
 }
-/* Temperatur: tegelröd, heldragen observation och streckad prognos */
+/* Temperatur: rött över 0 °C och blått under (gradienten #tl-sign-temp har en skarp gräns vid
+   0°-linjen, se Timeline.tsx) – heldragen observation och streckad prognos */
+.tl-sign .pos { stop-color: var(--temp-pos); }
+.tl-sign .neg { stop-color: var(--temp-neg); }
+.tl-sign.dew .pos { stop-color: var(--dew-pos); }
+.tl-sign.dew .neg { stop-color: var(--dew-neg); }
 .tl-line.temp {
-  stroke: var(--temp);
+  stroke: url(#tl-sign-temp);
 }
 .tl-dot.temp {
-  fill: var(--temp);
+  fill: url(#tl-sign-temp);
 }
-/* Senaste temperaturobservationen: punkt på kurvan (ring i bakgrundsfärg) och mätvärdet bredvid */
+/* Senaste temperaturobservationen: punkt på kurvan (ring i bakgrundsfärg) och mätvärdet bredvid,
+   i temperaturens färg – exakt 0 °C neutral */
 .tl-tlast {
-  fill: var(--temp);
+  fill: var(--temp-pos);
   stroke: var(--bg);
   stroke-width: 1.5;
 }
+.tl-tlast.neg { fill: var(--temp-neg); }
+.tl-tlast.zero { fill: var(--ink-2); }
 .tl-tlast-label {
   font-family: var(--font-num);
   font-size: 12px;
   font-weight: 600;
-  fill: var(--temp-text);
+  fill: var(--temp-pos-text);
   paint-order: stroke;
   stroke: var(--bg);
   stroke-width: 3px;
   stroke-linejoin: round;
 }
+.tl-tlast-label.neg { fill: var(--temp-neg-text); }
+.tl-tlast-label.zero { fill: var(--ink-2); }
 .tl-dot {
   fill: var(--obs);
 }
@@ -800,17 +821,26 @@ main {
 .tl-legend .lg:first-child {
   margin-left: 0;
 }
-.tl-legend .lg.temp { background: var(--temp); }
-.tl-legend .lg.dew { background: var(--dew); }
-/* Förklaringen till dimrisken under diagrammet */
+/* Förklaringens linjer i båda tonerna: tjock för temperatur, tunn och ljusare för daggpunkt */
+.tl-legend .lg.temp {
+  width: 14px;
+  height: 3px;
+  vertical-align: 2.5px;
+  background: linear-gradient(to right, var(--temp-pos) 50%, var(--temp-neg) 50%);
+}
+.tl-legend .lg.dew {
+  width: 14px;
+  background: linear-gradient(to right, var(--dew-pos) 50%, var(--dew-neg) 50%);
+}
 /* Tunna avgränsare mellan grupperna */
 .tl-panelsep {
   stroke: var(--rule);
   stroke-width: 1;
 }
-/* Daggpunkt: lugnare färg, heldragen observation och streckad prognos som temperaturen */
+/* Daggpunkt: samma röda och blå som temperaturen men ljusare och tunnare (#tl-sign-dew),
+   heldragen observation och streckad prognos */
 .tl-line.dew {
-  stroke: var(--dew);
+  stroke: url(#tl-sign-dew);
 }
 .tl-line.obs.dew {
   stroke-width: 1.75;
@@ -819,7 +849,7 @@ main {
   stroke-width: 1.5;
 }
 .tl-dot.dew {
-  fill: var(--dew);
+  fill: url(#tl-sign-dew);
 }
 /* Dimrisk: ytan mellan kurvorna där spridningen är under 1 °C – låg kontrast, ingen text */
 .tl-fogrisk {
@@ -1683,8 +1713,11 @@ main {
 .tl-prh.snow text { fill: var(--snow-text); }
 
 
-/* Temperaturaxeln: neutral skiffergrå för siffror, enhet och axellinje */
+/* Temperaturaxeln: plusgrader röda, minusgrader blå och 0° neutral – siffrorna och axellinjen,
+   som byter färg vid 0° (--zero sätts i Timeline.tsx) */
 .tl-yaxis .tl-ttick { font-size: 12px; font-weight: 600; line-height: 1; color: var(--muted); }
+.tl-yaxis .tl-ttick.pos { color: var(--temp-pos-text); }
+.tl-yaxis .tl-ttick.neg { color: var(--temp-neg-text); }
 /* Lägsta värdet står på gruppens nederkant – etiketten ovanför linjen, så att den inte krockar
    med avgränsaren och vindrubriken under */
 .tl-yaxis .tl-ttick.lo { transform: translateY(-100%); }
@@ -1694,8 +1727,8 @@ main {
   position: absolute;
   left: 50px;
   width: 1.5px;
-  background: var(--muted);
-  opacity: 0.55;
+  background: linear-gradient(to bottom, var(--temp-pos) var(--zero, 100%), var(--temp-neg) var(--zero, 100%));
+  opacity: 0.7;
 }
 /* Cloud base on the right axis */
 .tl-yaxis.right .tl-axtitle.cloud {
@@ -1770,7 +1803,8 @@ main {
 /* ------------------------------------------------------------------------- */
 /* Avläsning: temperatur/daggpunkt och moln (täckning + höjd)                  */
 /* ------------------------------------------------------------------------- */
-/* Daggpunkten direkt efter temperaturen, nedtonad: "12/11 °C" */
+/* Daggpunkten direkt efter temperaturen, nedtonad: "12/11 °C". Båda i temperaturens färg – rött
+   över 0 °C, blått under, 0 neutral – daggpunkten ljusare. */
 .cell .val b.val-extra {
   margin-left: 1px;
 }
@@ -1778,6 +1812,10 @@ main {
   color: var(--ink-2);
   margin-left: -2px;
 }
+.cell .val b.t-pos { color: var(--temp-pos-text); }
+.cell .val b.t-neg { color: var(--temp-neg-text); }
+.cell .val b.val-dew.t-pos { color: var(--dew-pos-text); }
+.cell .val b.val-dew.t-neg { color: var(--dew-neg-text); }
 
 /* Kort rubrik bara på smala skärmar */
 .cell dt .dt-short {

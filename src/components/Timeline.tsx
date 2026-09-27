@@ -2,7 +2,7 @@
 
 import { memo, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { HOUR, PAST_HOURS, type ChartData, type Precip, type PrecipHour, type Pt } from "@/lib/client/timeline";
-import { fmtDateTime, localHour, fmtTemp, fmtTime } from "@/lib/format";
+import { fmtDateTime, localHour, fmtTemp, fmtTime, tempSign } from "@/lib/format";
 import { placeTempLabel } from "@/lib/client/tempLabel";
 import {
   EVENT_ALT,
@@ -138,6 +138,8 @@ export const Timeline = memo(function Timeline({ now, until, data, onCursor, rec
   // Temperaturskala (°C, linjär) över hela ritytan
   const [t0, t1] = data.temp.domain;
   const yTemp = useCallback((v: number) => chartBottom - ((v - t0) / (t1 - t0)) * TEMP_H, [t0, t1, chartBottom]);
+  // Gränsen mellan rött (över 0 °C) och blått (under) i temperaturpanelen, 0 (överkant) … 1 (nederkant)
+  const zeroOff = Math.min(1, Math.max(0, (yTemp(0) - chartTop) / TEMP_H));
   // Nederbördens skala: 0 till ett jämnt värde (minst 2 mm) över fönstrets största mängd.
   const precipMax = Math.max(2, Math.ceil(Math.max(0, ...data.precipHours.map((p) => p.possible))));
 
@@ -546,7 +548,7 @@ export const Timeline = memo(function Timeline({ now, until, data, onCursor, rec
         },
       ],
     });
-    return { t: p.t, cx, cy, text, label };
+    return { t: p.t, cx, cy, text, label, sign: tempSign(p.v) };
   }, [data.temp.observed, x, yTemp, now, chartTop, chartBottom, tempPts, dewPts, start, viewW, histW]);
 
   // Dimrisk: ytan mellan temperatur och daggpunkt där spridningen är under 1 °C – minst
@@ -718,9 +720,9 @@ export const Timeline = memo(function Timeline({ now, until, data, onCursor, rec
         <span className="tl-rubric" style={{ top: tempTop }}>
           {RUBRIC_TEXT.temp[fit.temp]} <span className="u">°C</span>
         </span>
-        <i className="tl-taxis" style={{ top: chartTop, height: TEMP_H }} />
+        <i className="tl-taxis" style={{ top: chartTop, height: TEMP_H, ["--zero" as string]: `${(zeroOff * 100).toFixed(2)}%` } as React.CSSProperties} />
         {data.temp.ticks.map((v) => (
-          <span key={v} className={v === t0 ? "tl-ttick lo" : v === t1 ? "tl-ttick hi" : "tl-ttick"} style={{ top: yTemp(v) }}>
+          <span key={v} className={`${v === t0 ? "tl-ttick lo" : v === t1 ? "tl-ttick hi" : "tl-ttick"} ${tempSign(v)}`} style={{ top: yTemp(v) }}>
             {`${v}°`.replace("-", "−")}
           </span>
         ))}
@@ -774,6 +776,17 @@ export const Timeline = memo(function Timeline({ now, until, data, onCursor, rec
             role="img"
             aria-label="Chart in five panels on one time axis: time; clouds (weather symbols) and precipitation per hour; temperature and dew point; wind with gusts; and daylight as the sun's altitude. Solid is observed, dashed is forecast."
           >
+            {/* Temperatur och daggpunkt: rött över 0 °C, blått under – skarp gräns vid 0°-linjen */}
+            <defs>
+              <linearGradient id="tl-sign-temp" className="tl-sign" gradientUnits="userSpaceOnUse" x1={0} x2={0} y1={chartTop} y2={chartBottom}>
+                <stop offset={zeroOff} className="pos" />
+                <stop offset={zeroOff} className="neg" />
+              </linearGradient>
+              <linearGradient id="tl-sign-dew" className="tl-sign dew" gradientUnits="userSpaceOnUse" x1={0} x2={0} y1={chartTop} y2={chartBottom}>
+                <stop offset={zeroOff} className="pos" />
+                <stop offset={zeroOff} className="neg" />
+              </linearGradient>
+            </defs>
             {/* Samma koordinater som hela diagrammet – tidsaxeln (0–AXIS_H) ligger i eget lager ovanför */}
             <g transform={`translate(0,${-AXIS_H})`}>
               {/* Mycket svag ton över hela observationsdelen, i alla grupper */}
@@ -921,14 +934,14 @@ export const Timeline = memo(function Timeline({ now, until, data, onCursor, rec
               {/* Senaste temperaturobservationen – ovanpå NU-linjen, vid mätningens egen tid */}
               {lastTemp && (
                 <g>
-                  <circle cx={lastTemp.cx} cy={lastTemp.cy} r={3.5} className="tl-tlast" />
+                  <circle cx={lastTemp.cx} cy={lastTemp.cy} r={3.5} className={`tl-tlast ${lastTemp.sign}`} />
                   <text
                     x={lastTemp.label.x}
                     y={lastTemp.label.baseline}
                     textAnchor="end"
                     data-l={lastTemp.label.x - lastTemp.text.length * TLAST_CHAR_W}
                     data-r={lastTemp.label.x}
-                    className="tl-tlast-label"
+                    className={`tl-tlast-label ${lastTemp.sign}`}
                   >
                     {lastTemp.text}
                   </text>

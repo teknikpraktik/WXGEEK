@@ -11,7 +11,8 @@ situation **now**, and the **forecast** for the next 24 hours, all on the same a
      observed             forecast
 ```
 
-- The header shows **temperature / dew point** in whole degrees ("12/11 °C"), **wind** in m/s
+- The header shows **temperature / dew point** in whole degrees ("12/11 °C", red above 0 and
+  blue below, the dew point lighter), **wind** in m/s
   with the arrow pointing where the wind blows and the text saying where it comes from ("From SW
   240°"), visibility and
   **clouds** in three short rows: the symbol and code for how much of the sky is covered
@@ -77,8 +78,11 @@ situation **now**, and the **forecast** for the next 24 hours, all on the same a
   window – at least a 10 °C span with 1 °C margin, on even steps (2, 5 or 10 °C by span), and
   including 0 °C with a dashed 0° line when the lowest value is within 5 °C of zero or the
   values cross it (otherwise no 0° line). The scale stays put across small data updates, never
-  shrinks while in use and is recomputed for a new place (`TEMP_AXIS`). The dew point is a
-  second line in a calmer colour – solid observed (METAR), dashed forecast from SMHI's relative
+  shrinks while in use and is recomputed for a new place (`TEMP_AXIS`). **Red above 0 °C, blue
+  below** – for the temperature and the dew point, observed and forecast, split exactly at the
+  0° line, and likewise the axis numbers and line, the latest value at now and the header
+  (a value shown as 0 stays neutral). The dew point is a second, thinner and lighter line in
+  the same two colours – solid observed (METAR), dashed forecast from SMHI's relative
   humidity, joined to the last observation over 3 hours. A faint shading between the lines
   marks where the spread is under 1 °C – computed only where temperature and dew point have
   time-matched values (the same report, or the same forecast step), never across gaps – at

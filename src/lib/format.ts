@@ -63,6 +63,15 @@ export function fmtTemp(c: number | undefined): string {
   return minus(s === "-0" ? "0" : s);
 }
 
+/**
+ * Sign of a temperature as shown (whole degrees): "pos" above 0 (red), "neg" below (blue), "zero"
+ * at 0 (neutral) – so that a value shown as "0" is never colored.
+ */
+export function tempSign(c: number): "pos" | "neg" | "zero" {
+  const r = Math.round(c);
+  return r > 0 ? "pos" : r < 0 ? "neg" : "zero";
+}
+
 export const fmtWindSpeed = (ms: number | undefined) => (ms === undefined ? "–" : nf0.format(Math.round(ms)));
 
 /** Wind direction (where the wind comes from) in whole tens of degrees: "050°", "180°". */

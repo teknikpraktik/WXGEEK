@@ -214,7 +214,8 @@ WxgeekApp              – plats, datahämtning, auto-uppdatering (5 min när fl
   interaktion.
 - **Färger** (samlade som variabler överst i `src/app/globals.css`): varm neutral bakgrund
   (#F3F1EB) och text (#20252B, sekundärt #5E6772), NU och vald tid i mörk blågrå (#334155),
-  fokusmarkering i dämpad blå (#365F83), temperatur i tegelrött (#C64B40) och nederbörd i
+  fokusmarkering i dämpad blå (#365F83), temperatur och daggpunkt röda över 0 °C (#C64B40) och
+  blå under (#2F6CB3; `--temp-pos`/`--temp-neg`, daggpunkten ljusare `--dew-*`) och nederbörd i
   mellanblått (#397CAF, staplarna mättade #1F6EC4; små siffror i mörkare #2C6594).
   Observerat och prognos skiljs med NU-linjen, "← OBSERVED | FORECAST →" i tidsaxeln,
   linjestilen (heldraget vs streckat) och en mycket svag ton över observationsdelen. Gula solar, grå moln och mörka vindpilar. Text och kontroller klarar WCAG AA
@@ -247,7 +248,8 @@ WxgeekApp              – plats, datahämtning, auto-uppdatering (5 min när fl
     angränsande block på samma höjd slås ihop. Molnikonen fylls nerifrån med andelen åttondelar som täcks
     (FEW 2/8, SCT 4/8, BKN 6/8, OVC 8/8; SMHI-oktas direkt) via SVG-gradienter `cov0`…`cov8`.
   - **Vänster axel – temperatur (°C)**: adaptiv skala (`TEMP_AXIS` i
-    `src/lib/client/timeline.ts`); siffror och axellinje i neutral skiffergrå. Rubriken
+    `src/lib/client/timeline.ts`); siffrorna röda över 0°, blå under och 0° neutral, och
+    axellinjen byter från rött till blått vid 0° (`--zero`). Rubriken
     "Temperature °C" står i gruppens rubrikrad som de andra gruppernas rubriker – genomskinlig,
     så att NU-linjen går obruten genom raden.
   - **Senaste temperaturobservationen**: en punkt på kurvan vid mätningens egen tid (aldrig
@@ -263,7 +265,11 @@ WxgeekApp              – plats, datahämtning, auto-uppdatering (5 min när fl
     en sol på dagen och en måne på natten, i stället för moln. Dag/natt avgörs med solens
     höjd för platsen (`src/lib/sun.ts`, NOAA:s solkalkylator).
   - Nederbörd vid minusgrader (enligt kurvan vid samma tid) visas som snö.
-  - Temperaturkurvan: tegelröd, heldragen (observerat) / streckad (prognos).
+  - Temperatur och daggpunkt: röda över 0 °C och blå under, med skarp gräns vid 0°-linjen
+    (SVG-gradienterna `#tl-sign-temp` och `#tl-sign-dew` i panelens koordinater, `zeroOff` i
+    Timeline.tsx) – heldragen observation, streckad prognos; daggpunkten tunnare och ljusare.
+    Senaste temperaturpunkten och dess etikett i samma färg efter tecknet (`tempSign`: det
+    visade heltalet, så att "0" aldrig färgas).
   - **Regn under molnen**: tre korta streck (snö: prickar) direkt under varje symbol med
     nederbörd i symbolraden, korta nog att rymmas i raden. De signalerar bara nederbörd –
     mängden visas av timstaplarna.
@@ -315,7 +321,8 @@ WxgeekApp              – plats, datahämtning, auto-uppdatering (5 min när fl
   ruta. Dator: alltid 5 kolumner.
   Under 560 px: 4 kolumner, 5 med nederbörd, och mindre typografi. Fasta höjder (`--val-h`
   och `--sub-h` per ruta), så att diagrammet under aldrig hoppar.
-- Temp / Dew pt: "12/11 °C" i hela grader med nedtonad daggpunkt, utan undertext – dimrisken
+- Temp / Dew pt: "12/11 °C" i hela grader, rött över 0 och blått under (0 neutral), med ljusare
+  daggpunkt, utan undertext – dimrisken
   läser betraktaren själv av spridningen. Observerat: daggpunkt från samma
   station och tid som temperaturen, annars närmaste METAR. Prognos: ur SMHI:s relativa fuktighet (Magnus); spreaden räknas på
   SMHI:s egen temperatur och dras av från den visade, justerade. Aldrig över temperaturen.
